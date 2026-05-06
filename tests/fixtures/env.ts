@@ -1,0 +1,108 @@
+import path from 'node:path';
+
+import type { CheckoutProfile, PaymentProfile, SeededUser } from './types';
+
+export const projectRoot = path.resolve(__dirname, '..', '..');
+export const AUTH_STORAGE_STATE = path.join(projectRoot, '.auth', 'seeded-user.json');
+
+export const env = {
+  BASE_URL: process.env.BASE_URL ?? 'https://dev.musticker.com/kr',
+  API_BASE_URL: process.env.API_BASE_URL,
+  API_TOKEN: process.env.API_TOKEN,
+  TEST_DATA_USER_ENDPOINT: process.env.TEST_DATA_USER_ENDPOINT,
+  TEST_DATA_USER_DELETE_ENDPOINT: process.env.TEST_DATA_USER_DELETE_ENDPOINT,
+  TEST_USER_EMAIL: process.env.TEST_USER_EMAIL,
+  TEST_USER_PASSWORD: process.env.TEST_USER_PASSWORD,
+  RUN_PAYMENT_E2E: process.env.RUN_PAYMENT_E2E,
+  CHECKOUT_EMAIL: process.env.CHECKOUT_EMAIL,
+  CHECKOUT_FULL_NAME: process.env.CHECKOUT_FULL_NAME ?? 'Musticker E2E',
+  CHECKOUT_COMPANY: process.env.CHECKOUT_COMPANY ?? 'Musticker QA',
+  CHECKOUT_ADDRESS1: process.env.CHECKOUT_ADDRESS1 ?? '서울특별시 강남구 테헤란로 123',
+  CHECKOUT_ADDRESS2: process.env.CHECKOUT_ADDRESS2 ?? '10층 E2E 테스트',
+  CHECKOUT_POSTAL_CODE: process.env.CHECKOUT_POSTAL_CODE ?? '06234',
+  CHECKOUT_PHONE: process.env.CHECKOUT_PHONE ?? '01012345678',
+  PAYMENT_METHOD: process.env.PAYMENT_METHOD ?? 'Credit Card',
+  PAYMENT_CARD_NUMBER: process.env.PAYMENT_CARD_NUMBER,
+  PAYMENT_CARD_EXPIRY: process.env.PAYMENT_CARD_EXPIRY,
+  PAYMENT_CARD_CVC: process.env.PAYMENT_CARD_CVC,
+  PAYMENT_CARD_PASSWORD: process.env.PAYMENT_CARD_PASSWORD,
+  PAYMENT_BIRTH_DATE: process.env.PAYMENT_BIRTH_DATE,
+  PAYMENT_GATEWAY_CARD_NUMBER_SELECTOR: process.env.PAYMENT_GATEWAY_CARD_NUMBER_SELECTOR,
+  PAYMENT_GATEWAY_EXPIRY_SELECTOR: process.env.PAYMENT_GATEWAY_EXPIRY_SELECTOR,
+  PAYMENT_GATEWAY_CVC_SELECTOR: process.env.PAYMENT_GATEWAY_CVC_SELECTOR,
+  PAYMENT_GATEWAY_PASSWORD_SELECTOR: process.env.PAYMENT_GATEWAY_PASSWORD_SELECTOR,
+  PAYMENT_GATEWAY_BIRTH_DATE_SELECTOR: process.env.PAYMENT_GATEWAY_BIRTH_DATE_SELECTOR,
+  PAYMENT_GATEWAY_CONFIRM_SELECTOR: process.env.PAYMENT_GATEWAY_CONFIRM_SELECTOR
+};
+
+export function normalizeBaseURL(baseURL: string): string {
+  return baseURL.endsWith('/') ? baseURL : `${baseURL}/`;
+}
+
+export function appPath(relativePath = ''): string {
+  const base = new URL(env.BASE_URL);
+  const basePath = base.pathname.replace(/\/$/, '');
+  const cleanPath = relativePath.replace(/^\.\//, '').replace(/^\//, '');
+
+  return cleanPath ? `${basePath}/${cleanPath}` : basePath;
+}
+
+export function hasSeededUser(): boolean {
+  return Boolean(env.TEST_USER_EMAIL && env.TEST_USER_PASSWORD);
+}
+
+export function seededUser(): SeededUser {
+  if (!env.TEST_USER_EMAIL || !env.TEST_USER_PASSWORD) {
+    throw new Error('TEST_USER_EMAIL and TEST_USER_PASSWORD are required for seeded-user tests.');
+  }
+
+  return {
+    email: env.TEST_USER_EMAIL,
+    password: env.TEST_USER_PASSWORD
+  };
+}
+
+export function checkoutProfile(): CheckoutProfile {
+  const userEmail = env.CHECKOUT_EMAIL ?? env.TEST_USER_EMAIL ?? 'musticker-e2e@example.com';
+
+  return {
+    email: userEmail,
+    fullName: env.CHECKOUT_FULL_NAME,
+    company: env.CHECKOUT_COMPANY,
+    addressLine1: env.CHECKOUT_ADDRESS1,
+    addressLine2: env.CHECKOUT_ADDRESS2,
+    postalCode: env.CHECKOUT_POSTAL_CODE,
+    phone: env.CHECKOUT_PHONE
+  };
+}
+
+export function paymentProfile(): PaymentProfile {
+  return {
+    method: env.PAYMENT_METHOD,
+    cardNumber: env.PAYMENT_CARD_NUMBER,
+    expiry: env.PAYMENT_CARD_EXPIRY,
+    cvc: env.PAYMENT_CARD_CVC,
+    password: env.PAYMENT_CARD_PASSWORD,
+    birthDate: env.PAYMENT_BIRTH_DATE,
+    selectors: {
+      cardNumber: env.PAYMENT_GATEWAY_CARD_NUMBER_SELECTOR,
+      expiry: env.PAYMENT_GATEWAY_EXPIRY_SELECTOR,
+      cvc: env.PAYMENT_GATEWAY_CVC_SELECTOR,
+      password: env.PAYMENT_GATEWAY_PASSWORD_SELECTOR,
+      birthDate: env.PAYMENT_GATEWAY_BIRTH_DATE_SELECTOR,
+      confirm: env.PAYMENT_GATEWAY_CONFIRM_SELECTOR
+    }
+  };
+}
+
+export function canRunPaymentE2E(): boolean {
+  return env.RUN_PAYMENT_E2E === 'true' && hasSeededUser();
+}
+
+export function canRunApiSetup(): boolean {
+  return Boolean(env.API_BASE_URL && env.API_TOKEN && env.TEST_DATA_USER_ENDPOINT);
+}
+
+export function makeRunMarker(workerIndex: number): string {
+  return `e2e-${new Date().toISOString().replace(/[:.]/g, '-')}-${workerIndex}`;
+}
