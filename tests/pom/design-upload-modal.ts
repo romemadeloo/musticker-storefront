@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import { CartDrawer } from './cart-drawer';
+import { CartDrawer } from './cart-drawer.js';
 
 export class DesignUploadModal {
   readonly page: Page;
@@ -25,7 +25,6 @@ export class DesignUploadModal {
     await this.dialog.getByRole('button', { name: '파일 선택' }).click();
     const chooser = await chooserPromise;
     await chooser.setFiles(filePath);
-    await this.page.waitForLoadState('networkidle').catch(() => undefined);
   }
 
   async expectSelectedFile(filePath: string): Promise<void> {

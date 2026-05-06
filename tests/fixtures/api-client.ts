@@ -1,7 +1,7 @@
 import type { APIRequestContext, APIResponse } from '@playwright/test';
 
-import { env, normalizeBaseURL } from './env';
-import type { ApiTestUser } from './types';
+import { env, normalizeBaseURL } from './env.js';
+import type { ApiTestUser } from './types.js';
 
 type ApiConfig = {
   baseURL: string;

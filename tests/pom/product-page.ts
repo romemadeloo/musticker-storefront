@@ -1,9 +1,9 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import { appPath } from '../fixtures/env';
-import type { ProductConfig } from '../fixtures/types';
-import { DesignUploadModal } from './design-upload-modal';
+import { appPath } from '../fixtures/env.js';
+import type { ProductConfig } from '../fixtures/types.js';
+import { DesignUploadModal } from './design-upload-modal.js';
 
 export class ProductPage {
   readonly page: Page;

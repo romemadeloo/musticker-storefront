@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import 'dotenv/config';
 import type { ReporterDescription } from '@playwright/test';
 
-import { AUTH_STORAGE_STATE, env } from './tests/fixtures/env';
+import { AUTH_STORAGE_STATE, env } from './tests/fixtures/env.js';
 
 const ciReporters: ReporterDescription[] = [
   ['list'],

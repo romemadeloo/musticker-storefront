@@ -1,6 +1,9 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import type { ProductConfig } from './types';
+import type { ProductConfig } from './types.js';
+
+const fixturesDir = path.dirname(fileURLToPath(import.meta.url));
 
 export const dieCutSticker: ProductConfig = {
   path: './stickers/die-cut-sticker',
@@ -19,6 +22,6 @@ export const searchQueries = {
 };
 
 export const uploadAssets = {
-  validDesign: path.resolve(__dirname, '..', 'assets', 'musticker-sample.pdf'),
-  invalidDesign: path.resolve(__dirname, '..', 'assets', 'invalid-upload.txt')
+  validDesign: path.resolve(fixturesDir, '..', 'assets', 'musticker-sample.pdf'),
+  invalidDesign: path.resolve(fixturesDir, '..', 'assets', 'invalid-upload.txt')
 };

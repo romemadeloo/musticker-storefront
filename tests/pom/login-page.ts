@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import { appPath } from '../fixtures/env';
+import { appPath } from '../fixtures/env.js';
 
 export class LoginPage {
   readonly page: Page;

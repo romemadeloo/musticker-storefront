@@ -1,8 +1,8 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import type { CheckoutProfile, ProductConfig } from '../fixtures/types';
-import { PaymentGatewayPage } from './payment-gateway-page';
+import type { CheckoutProfile, ProductConfig } from '../fixtures/types.js';
+import { PaymentGatewayPage } from './payment-gateway-page.js';
 
 export class CheckoutPage {
   readonly page: Page;

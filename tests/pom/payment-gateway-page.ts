@@ -1,8 +1,8 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import type { PaymentProfile } from '../fixtures/types';
-import { OrderConfirmationPage } from './order-confirmation-page';
+import type { PaymentProfile } from '../fixtures/types.js';
+import { OrderConfirmationPage } from './order-confirmation-page.js';
 
 export class PaymentGatewayPage {
   readonly page: Page;
@@ -29,7 +29,6 @@ export class PaymentGatewayPage {
       ]);
     }
 
-    await this.page.waitForLoadState('networkidle').catch(() => undefined);
     return new OrderConfirmationPage(this.page);
   }
 

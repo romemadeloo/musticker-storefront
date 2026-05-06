@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import type { OrderRecord, ProductConfig } from '../fixtures/types';
+import type { OrderRecord, ProductConfig } from '../fixtures/types.js';
 
 export class OrderConfirmationPage {
   readonly page: Page;

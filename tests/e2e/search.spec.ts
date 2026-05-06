@@ -1,6 +1,6 @@
-import { test } from '../fixtures/e2e-test';
-import { searchQueries } from '../fixtures/test-data';
-import { HomePage } from '../pom/home-page';
+import { test } from '../fixtures/e2e-test.js';
+import { searchQueries } from '../fixtures/test-data.js';
+import { HomePage } from '../pom/home-page.js';
 
 test.describe('search', { tag: '@regression' }, () => {
   test.use({ allowGuestUserMe401: true });

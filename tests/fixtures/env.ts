@@ -1,8 +1,11 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import type { CheckoutProfile, PaymentProfile, SeededUser } from './types';
+import type { CheckoutProfile, PaymentProfile, SeededUser } from './types.js';
 
-export const projectRoot = path.resolve(__dirname, '..', '..');
+const fixturesDir = path.dirname(fileURLToPath(import.meta.url));
+
+export const projectRoot = path.resolve(fixturesDir, '..', '..');
 export const AUTH_STORAGE_STATE = path.join(projectRoot, '.auth', 'seeded-user.json');
 
 export const env = {

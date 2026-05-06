@@ -1,5 +1,5 @@
-import { test, expect } from '../fixtures/e2e-test';
-import { HomePage } from '../pom/home-page';
+import { test, expect } from '../fixtures/e2e-test.js';
+import { HomePage } from '../pom/home-page.js';
 
 test.describe('smoke and navigation', { tag: '@smoke' }, () => {
   test.use({ allowGuestUserMe401: true });

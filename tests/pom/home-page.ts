@@ -1,8 +1,8 @@
 import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import { appPath } from '../fixtures/env';
-import { HeaderComponent } from './header-component';
+import { appPath } from '../fixtures/env.js';
+import { HeaderComponent } from './header-component.js';
 
 export class HomePage {
   readonly page: Page;

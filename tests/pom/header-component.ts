@@ -1,8 +1,8 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import { CartDrawer } from './cart-drawer';
-import { SearchDialog } from './search-dialog';
+import { CartDrawer } from './cart-drawer.js';
+import { SearchDialog } from './search-dialog.js';
 
 export class HeaderComponent {
   readonly page: Page;

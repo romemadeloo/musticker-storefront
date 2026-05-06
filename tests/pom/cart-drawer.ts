@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import type { ProductConfig } from '../fixtures/types';
+import type { ProductConfig } from '../fixtures/types.js';
 
 export class CartDrawer {
   readonly page: Page;

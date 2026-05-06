@@ -1,6 +1,6 @@
-import { test } from '../fixtures/e2e-test';
-import { dieCutSticker, uploadAssets } from '../fixtures/test-data';
-import { ProductPage } from '../pom/product-page';
+import { test } from '../fixtures/e2e-test.js';
+import { dieCutSticker, uploadAssets } from '../fixtures/test-data.js';
+import { ProductPage } from '../pom/product-page.js';
 
 test.describe('upload and cart', { tag: '@regression' }, () => {
   test.use({ allowGuestUserMe401: true });

@@ -1,6 +1,6 @@
-import { test } from '../fixtures/e2e-test';
-import { dieCutSticker } from '../fixtures/test-data';
-import { ProductPage } from '../pom/product-page';
+import { test } from '../fixtures/e2e-test.js';
+import { dieCutSticker } from '../fixtures/test-data.js';
+import { ProductPage } from '../pom/product-page.js';
 
 test.describe('product configuration', { tag: '@regression' }, () => {
   test.use({ allowGuestUserMe401: true });

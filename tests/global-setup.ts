@@ -1,10 +1,10 @@
-import { chromium, type FullConfig } from '@playwright/test';
+import { chromium } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import 'dotenv/config';
 
-import { AUTH_STORAGE_STATE, canRunPaymentE2E, normalizeBaseURL, seededUser, env } from './fixtures/env';
-import { LoginPage } from './pom/login-page';
+import { AUTH_STORAGE_STATE, canRunPaymentE2E, normalizeBaseURL, seededUser, env } from './fixtures/env.js';
+import { LoginPage } from './pom/login-page.js';
 
 const emptyStorageState = {
   cookies: [],
@@ -16,7 +16,7 @@ async function ensureEmptyStorageState(): Promise<void> {
   await fs.writeFile(AUTH_STORAGE_STATE, JSON.stringify(emptyStorageState, null, 2));
 }
 
-export default async function globalSetup(_config: FullConfig): Promise<void> {
+export default async function globalSetup(): Promise<void> {
   await fs.mkdir(path.dirname(AUTH_STORAGE_STATE), { recursive: true });
 
   if (!canRunPaymentE2E()) {

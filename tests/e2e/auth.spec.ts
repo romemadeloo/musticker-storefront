@@ -1,9 +1,9 @@
-import { test } from '../fixtures/e2e-test';
-import { hasSeededUser, seededUser } from '../fixtures/env';
-import { HeaderComponent } from '../pom/header-component';
-import { HomePage } from '../pom/home-page';
-import { LoginPage } from '../pom/login-page';
-import { RegisterPage } from '../pom/register-page';
+import { test } from '../fixtures/e2e-test.js';
+import { hasSeededUser, seededUser } from '../fixtures/env.js';
+import { HeaderComponent } from '../pom/header-component.js';
+import { HomePage } from '../pom/home-page.js';
+import { LoginPage } from '../pom/login-page.js';
+import { RegisterPage } from '../pom/register-page.js';
 
 test.describe('auth', { tag: '@regression' }, () => {
   test.use({ allowGuestUserMe401: true, allowExpectedAuthFailures: true });
