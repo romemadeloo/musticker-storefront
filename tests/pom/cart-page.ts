@@ -1,0 +1,203 @@
+import type { Locator, Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+
+import type { CartLineItem } from '../fixtures/types.js';
+
+const changeSizeButtonName = /\uc0ac\uc774\uc988 \ubcc0\uacbd|Change size/i;
+const sizeEditDialogTitle = /\uc0ac\uc774\uc988 \uc218\uc815|\uc5c5\ub370\uc774\ud2b8|Update/i;
+
+type SelectResult = {
+  changed: boolean;
+  text: string;
+  value: string;
+};
+
+export class CartPage {
+  readonly page: Page;
+  readonly main: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.main = page.getByTestId('cart-page');
+  }
+
+  async expectLoaded(): Promise<void> {
+    await expect(this.page).toHaveURL(/\/kr\/cart\/?$/);
+    await expect(this.main).toBeVisible();
+    await expect(this.page.getByTestId('cart-page-summary')).toBeVisible();
+  }
+
+  async captureItems(productNames: string[]): Promise<CartLineItem[]> {
+    const items: CartLineItem[] = [];
+
+    for (const productName of productNames) {
+      const row = this.row(productName);
+      await expect(row).toBeVisible();
+
+      items.push({
+        productName,
+        ...parseCartRow(await row.innerText(), await this.rowQuantity(row))
+      });
+    }
+
+    return items;
+  }
+
+  async captureTotal(): Promise<string> {
+    const summary = this.page.getByTestId('cart-page-summary');
+    await expect(summary).toBeVisible();
+    return extractWonAmount(await summary.innerText()) ?? '';
+  }
+
+  async editFirstItemSizeAndQuantity(sizeMm: number, quantity: number): Promise<void> {
+    const totalBefore = await this.captureTotal();
+    const rows = this.page.getByTestId('cart-page-row');
+    const rowCount = await rows.count();
+
+    for (let index = 0; index < rowCount; index += 1) {
+      const row = rows.nth(index);
+      const sizeButton = row.getByRole('button', { name: changeSizeButtonName });
+      const quantityButton = row.locator('button.cart-qty-select-trigger');
+
+      if (
+        !(await sizeButton.isVisible().catch(() => false)) ||
+        !(await quantityButton.isVisible().catch(() => false))
+      ) {
+        continue;
+      }
+
+      await sizeButton.click();
+      const sizeDialog = this.page.getByRole('dialog').filter({ hasText: sizeEditDialogTitle }).last();
+      await expect(sizeDialog).toBeVisible();
+      const selectedSize = await this.selectModalValue(sizeDialog, String(sizeMm));
+      await sizeDialog.getByRole('button', { name: /\uc5c5\ub370\uc774\ud2b8|Update/i }).click();
+      await expect(sizeDialog).toBeHidden();
+
+      const quantityBefore = await this.rowQuantity(row);
+      await quantityButton.click({ force: true });
+      const selectedQuantity = await this.selectOpenListboxValue(String(quantity), quantityBefore?.toString() ?? '');
+
+      if (selectedSize.value) {
+        await expect(row)
+          .toContainText(new RegExp(`(Size:|\\uc0ac\\uc774\\uc988:)\\s*${selectedSize.value}x${selectedSize.value}(mm)?`, 'i'), {
+            timeout: 5_000
+          })
+          .catch(() => undefined);
+      }
+
+      if (selectedQuantity.value) {
+        await expect.poll(() => this.rowQuantity(row), { timeout: 10_000 }).toBe(Number(selectedQuantity.value));
+      }
+
+      const totalChanged = await expect
+        .poll(() => this.captureTotal(), { timeout: 15_000 })
+        .not.toBe(totalBefore)
+        .then(() => true)
+        .catch(() => false);
+
+      if (totalChanged || selectedSize.changed || selectedQuantity.changed) {
+        return;
+      }
+    }
+
+    throw new Error('No cart page row exposed both size and quantity edit controls.');
+  }
+
+  async proceedToCheckout(): Promise<void> {
+    await this.page.getByRole('button', { name: /\uc8fc\ubb38\ud558\uae30|Checkout/i }).click();
+    await expect(this.page).toHaveURL(/\/kr\/checkout\/?$/);
+  }
+
+  private row(productName: string): Locator {
+    return this.page.getByTestId('cart-page-row').filter({ hasText: productName }).first();
+  }
+
+  private async rowQuantity(row: Locator): Promise<number | undefined> {
+    const trigger = row.locator('button.cart-qty-select-trigger');
+    if (!(await trigger.count())) {
+      return undefined;
+    }
+
+    const value = Number((await trigger.first().innerText()).trim().replace(/[^\d]/g, ''));
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  private async selectModalValue(dialog: Locator, preferredValue: string): Promise<SelectResult> {
+    const trigger = dialog.locator('button.cart-item-edit-select-trigger').first();
+    const previousValue = extractLeadingNumber(await trigger.innerText());
+
+    await trigger.click({ force: true });
+    return this.selectOpenListboxValue(preferredValue, previousValue);
+  }
+
+  private async selectOpenListboxValue(preferredValue: string, previousValue: string): Promise<SelectResult> {
+    const listbox = this.page.getByRole('listbox').last();
+    await expect(listbox).toBeVisible({ timeout: 5_000 });
+
+    const options = listbox.getByRole('button');
+    const option = await this.optionForValue(options, preferredValue, previousValue);
+    const selectedText = await option.innerText();
+    const selectedValue = extractLeadingNumber(selectedText);
+
+    await option.click({ force: true });
+    await expect(listbox).toBeHidden({ timeout: 5_000 }).catch(() => undefined);
+
+    return {
+      changed: Boolean(selectedValue && selectedValue !== previousValue),
+      text: normalizeSelectText(selectedText),
+      value: selectedValue
+    };
+  }
+
+  private async optionForValue(options: Locator, preferredValue: string, previousValue: string): Promise<Locator> {
+    const preferred = options.filter({ hasText: new RegExp(`^\\s*${escapeRegExp(preferredValue)}\\b`) }).first();
+
+    if ((await preferred.isVisible().catch(() => false)) && extractLeadingNumber(await preferred.innerText()) !== previousValue) {
+      return preferred;
+    }
+
+    const optionCount = await options.count();
+    for (let index = 0; index < optionCount; index += 1) {
+      const option = options.nth(index);
+      const optionValue = extractLeadingNumber(await option.innerText());
+
+      if (optionValue && optionValue !== previousValue && !(await option.isDisabled().catch(() => false))) {
+        return option;
+      }
+    }
+
+    if (await preferred.isVisible().catch(() => false)) {
+      return preferred;
+    }
+
+    return options.first();
+  }
+}
+
+function parseCartRow(text: string, selectedQuantity: number | undefined): Omit<CartLineItem, 'productName'> {
+  const normalized = text.replace(/\s+/g, ' ');
+  const size = normalized.match(/(?:Size:|\uc0ac\uc774\uc988:)\s*(\d+)x(\d+)(?:mm)?/i);
+
+  return {
+    widthMm: size ? Number(size[1]) : undefined,
+    heightMm: size ? Number(size[2]) : undefined,
+    quantity: selectedQuantity,
+    price: extractWonAmount(normalized)
+  };
+}
+
+function extractWonAmount(value: string): string | undefined {
+  return value.match(/[\d,]+\uc6d0/)?.[0];
+}
+
+function extractLeadingNumber(value: string): string {
+  return normalizeSelectText(value).match(/^\d[\d,]*/)?.[0].replace(/,/g, '') ?? '';
+}
+
+function normalizeSelectText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}

@@ -16,10 +16,41 @@ export type ProductConfig = {
   expectedCheckoutTotal: string;
 };
 
+export type RegressionProductCandidate = {
+  path: string;
+  productName: string;
+  categoryName: string;
+  widthMm: number;
+  heightMm: number;
+  quantity: number;
+  letteringText?: string;
+};
+
+export type CartLineItem = {
+  productName: string;
+  widthMm?: number;
+  heightMm?: number;
+  quantity?: number;
+  price?: string;
+};
+
+export type CheckoutSnapshot = {
+  products: CartLineItem[];
+  summaryText: string;
+  subtotal?: string;
+  shipping?: string;
+  discount?: string;
+  total?: string;
+  shippingDate?: string;
+  pointsAndCouponsNote: string;
+};
+
 export type CheckoutProfile = {
   email: string;
   fullName: string;
   company?: string;
+  province?: string;
+  city?: string;
   addressLine1: string;
   addressLine2?: string;
   postalCode: string;

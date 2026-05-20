@@ -14,7 +14,15 @@ export class LoginPage {
 
   async goto(redirect?: string): Promise<void> {
     const search = redirect ? `?redirect=${encodeURIComponent(redirect)}` : '';
+    const bootstrapPromise = this.page
+      .waitForResponse((response) => /\/user\/me(?:\?|$)/i.test(response.url()), { timeout: 10_000 })
+      .catch(() => null);
+
     await this.page.goto(`${appPath('auth/login')}${search}`);
+    await bootstrapPromise;
+    // The login submit can behave like an unhydrated form button until Nuxt has settled.
+    // eslint-disable-next-line playwright/no-networkidle
+    await this.page.waitForLoadState('networkidle').catch(() => undefined);
   }
 
   async expectLoaded(): Promise<void> {
@@ -25,8 +33,8 @@ export class LoginPage {
   }
 
   async login(email: string, password: string): Promise<void> {
-    await this.main.getByRole('textbox', { name: '이메일 주소' }).fill(email);
-    await this.main.getByRole('textbox', { name: '비밀번호' }).fill(password);
+    await this.page.getByTestId('auth-login-member-email-input-control').fill(email);
+    await this.page.getByTestId('auth-login-member-password-input-control').fill(password);
 
     const userMeResponse = this.page
       .waitForResponse((response) => response.url().includes('/sys/kr/user/me') && response.status() === 200, {
@@ -34,7 +42,7 @@ export class LoginPage {
       })
       .catch(() => null);
 
-    await this.main.getByRole('button', { name: '로그인', exact: true }).click();
+    await this.page.getByTestId('auth-login-submit-member-button').click();
     await Promise.race([
       this.page.waitForURL((url) => !url.pathname.includes('/auth/login'), { timeout: 20_000 }).catch(() => null),
       userMeResponse

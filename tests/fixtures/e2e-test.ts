@@ -25,7 +25,7 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
 
   if (
     options.allowKnownPriceWarnings &&
-    /Updating prices|Invalid data Proxy|Invalidd minimum quantity|Calculating carts/.test(text)
+    /Updating prices|Invalid data Proxy|Invalidd minimum quantity|Calculating carts|New Size:/.test(text)
   ) {
     return true;
   }

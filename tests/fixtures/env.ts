@@ -14,12 +14,19 @@ export const env = {
   API_TOKEN: process.env.API_TOKEN,
   TEST_DATA_USER_ENDPOINT: process.env.TEST_DATA_USER_ENDPOINT,
   TEST_DATA_USER_DELETE_ENDPOINT: process.env.TEST_DATA_USER_DELETE_ENDPOINT,
+  REGISTRATION_OTP_ENDPOINT:
+    process.env.REGISTRATION_OTP_ENDPOINT ??
+    'https://dev-api.musticker.com/index.php/sys/kr/tester/get-otp',
+  REGISTRATION_OTP_METHOD: process.env.REGISTRATION_OTP_METHOD ?? 'GET',
+  REGISTRATION_OTP_REQUEST_FROM: process.env.REGISTRATION_OTP_REQUEST_FROM ?? 'glophics-dev',
   TEST_USER_EMAIL: process.env.TEST_USER_EMAIL,
   TEST_USER_PASSWORD: process.env.TEST_USER_PASSWORD,
   RUN_PAYMENT_E2E: process.env.RUN_PAYMENT_E2E,
   CHECKOUT_EMAIL: process.env.CHECKOUT_EMAIL,
   CHECKOUT_FULL_NAME: process.env.CHECKOUT_FULL_NAME ?? 'Musticker E2E',
   CHECKOUT_COMPANY: process.env.CHECKOUT_COMPANY ?? 'Musticker QA',
+  CHECKOUT_PROVINCE: process.env.CHECKOUT_PROVINCE ?? '\uc11c\uc6b8\ud2b9\ubcc4\uc2dc',
+  CHECKOUT_CITY: process.env.CHECKOUT_CITY ?? '\uac15\ub0a8\uad6c',
   CHECKOUT_ADDRESS1: process.env.CHECKOUT_ADDRESS1 ?? '서울특별시 강남구 테헤란로 123',
   CHECKOUT_ADDRESS2: process.env.CHECKOUT_ADDRESS2 ?? '10층 E2E 테스트',
   CHECKOUT_POSTAL_CODE: process.env.CHECKOUT_POSTAL_CODE ?? '06234',
@@ -35,7 +42,13 @@ export const env = {
   PAYMENT_GATEWAY_CVC_SELECTOR: process.env.PAYMENT_GATEWAY_CVC_SELECTOR,
   PAYMENT_GATEWAY_PASSWORD_SELECTOR: process.env.PAYMENT_GATEWAY_PASSWORD_SELECTOR,
   PAYMENT_GATEWAY_BIRTH_DATE_SELECTOR: process.env.PAYMENT_GATEWAY_BIRTH_DATE_SELECTOR,
-  PAYMENT_GATEWAY_CONFIRM_SELECTOR: process.env.PAYMENT_GATEWAY_CONFIRM_SELECTOR
+  PAYMENT_GATEWAY_CONFIRM_SELECTOR: process.env.PAYMENT_GATEWAY_CONFIRM_SELECTOR,
+  TOSS_BANK_TRANSFER_PASSWORD: process.env.TOSS_BANK_TRANSFER_PASSWORD ?? '000000',
+  TOSS_PAYMENT_STATUS_WEBHOOK_URL:
+    process.env.TOSS_PAYMENT_STATUS_WEBHOOK_URL ??
+    'https://dev-api.musticker.com/index.php/sys/kr/payments/webhook/toss/payment-status',
+  TOSS_PAYMENT_WEBHOOK_PAYMENT_KEY: process.env.TOSS_PAYMENT_WEBHOOK_PAYMENT_KEY ?? 'test_payment_key',
+  TOSS_PAYMENT_WEBHOOK_MID: process.env.TOSS_PAYMENT_WEBHOOK_MID ?? 'tosspayments'
 };
 
 export function normalizeBaseURL(baseURL: string): string {
@@ -72,6 +85,8 @@ export function checkoutProfile(): CheckoutProfile {
     email: userEmail,
     fullName: env.CHECKOUT_FULL_NAME,
     company: env.CHECKOUT_COMPANY,
+    province: env.CHECKOUT_PROVINCE,
+    city: env.CHECKOUT_CITY,
     addressLine1: env.CHECKOUT_ADDRESS1,
     addressLine2: env.CHECKOUT_ADDRESS2,
     postalCode: env.CHECKOUT_POSTAL_CODE,
@@ -100,6 +115,14 @@ export function paymentProfile(): PaymentProfile {
 
 export function canRunPaymentE2E(): boolean {
   return env.RUN_PAYMENT_E2E === 'true' && hasSeededUser();
+}
+
+export function canFetchRegistrationOtp(): boolean {
+  return Boolean(env.REGISTRATION_OTP_ENDPOINT);
+}
+
+export function canRunMemberPurchaseRegression(): boolean {
+  return env.RUN_PAYMENT_E2E === 'true' && canFetchRegistrationOtp();
 }
 
 export function canRunApiSetup(): boolean {

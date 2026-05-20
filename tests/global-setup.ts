@@ -19,6 +19,11 @@ async function ensureEmptyStorageState(): Promise<void> {
 export default async function globalSetup(): Promise<void> {
   await fs.mkdir(path.dirname(AUTH_STORAGE_STATE), { recursive: true });
 
+  if (process.env.SKIP_SEEDED_AUTH_SETUP === 'true') {
+    await ensureEmptyStorageState();
+    return;
+  }
+
   if (!canRunPaymentE2E()) {
     await ensureEmptyStorageState();
     return;
