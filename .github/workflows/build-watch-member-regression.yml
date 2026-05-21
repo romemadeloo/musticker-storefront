@@ -134,75 +134,82 @@ jobs:
             return previous?.targets?.[currentTarget.id]?.text !== currentTarget.text;
           }
 
-          const previous = readPreviousState();
-          const currentTargets = await Promise.all(targets.map(readTarget));
-          const current = {
-            version: 1,
-            recordedAt: new Date().toISOString(),
-            targets: Object.fromEntries(currentTargets.map((target) => [target.id, target]))
-          };
-          const firstRun = !previous?.targets;
-          const changedTargets = firstRun
-            ? []
-            : currentTargets.filter((target) => targetChanged(previous, target)).map((target) => target.id);
-          const changed = changedTargets.length > 0;
-          const shouldRun = forceRun || changed;
-          const stateUpdated = firstRun || changed;
+          async function main() {
+            const previous = readPreviousState();
+            const currentTargets = await Promise.all(targets.map(readTarget));
+            const current = {
+              version: 1,
+              recordedAt: new Date().toISOString(),
+              targets: Object.fromEntries(currentTargets.map((target) => [target.id, target]))
+            };
+            const firstRun = !previous?.targets;
+            const changedTargets = firstRun
+              ? []
+              : currentTargets.filter((target) => targetChanged(previous, target)).map((target) => target.id);
+            const changed = changedTargets.length > 0;
+            const shouldRun = forceRun || changed;
+            const stateUpdated = firstRun || changed;
 
-          if (stateUpdated) {
-            fs.mkdirSync(path.dirname(stateFile), { recursive: true });
-            fs.writeFileSync(stateFile, `${JSON.stringify(current, null, 2)}\n`);
+            if (stateUpdated) {
+              fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+              fs.writeFileSync(stateFile, `${JSON.stringify(current, null, 2)}\n`);
+            }
+
+            const currentSummary = currentTargets.map(describeTarget).join('\n');
+            const changeSummary = changedTargets.length
+              ? changedTargets
+                  .map((id) => {
+                    const target = current.targets[id];
+                    const previousTarget = previous.targets[id];
+                    const before = `${previousTarget?.commit ?? 'unknown'} / ${previousTarget?.build ?? 'unknown'}`;
+                    const after = `${target.commit ?? 'unknown'} / ${target.build ?? 'unknown'}`;
+                    return `${target.label}: ${before} -> ${after}`;
+                  })
+                  .join('\n')
+              : 'No watched build changed.';
+            const status = firstRun
+              ? 'Initialized watched build state. The regression will run on the next detected change.'
+              : forceRun && !changed
+                ? 'Manual force run requested.'
+                : changed
+                  ? 'Watched build change detected.'
+                  : 'No watched build change detected.';
+
+            setOutput('changed', changed);
+            setOutput('changed_targets', changedTargets.join(','));
+            setOutput('first_run', firstRun);
+            setOutput('should_run', shouldRun);
+            setOutput('state_updated', stateUpdated);
+            setMultilineOutput('current_summary', currentSummary);
+            setMultilineOutput('change_summary', changeSummary);
+
+            fs.appendFileSync(
+              process.env.GITHUB_STEP_SUMMARY,
+              [
+                '### Dev build watch',
+                '',
+                status,
+                '',
+                'Current remote state:',
+                '',
+                '```text',
+                currentSummary,
+                '```',
+                '',
+                'Changes:',
+                '',
+                '```text',
+                changeSummary,
+                '```',
+                ''
+              ].join('\n')
+            );
           }
 
-          const currentSummary = currentTargets.map(describeTarget).join('\n');
-          const changeSummary = changedTargets.length
-            ? changedTargets
-                .map((id) => {
-                  const target = current.targets[id];
-                  const previousTarget = previous.targets[id];
-                  const before = `${previousTarget?.commit ?? 'unknown'} / ${previousTarget?.build ?? 'unknown'}`;
-                  const after = `${target.commit ?? 'unknown'} / ${target.build ?? 'unknown'}`;
-                  return `${target.label}: ${before} -> ${after}`;
-                })
-                .join('\n')
-            : 'No watched build changed.';
-          const status = firstRun
-            ? 'Initialized watched build state. The regression will run on the next detected change.'
-            : forceRun && !changed
-              ? 'Manual force run requested.'
-              : changed
-                ? 'Watched build change detected.'
-                : 'No watched build change detected.';
-
-          setOutput('changed', changed);
-          setOutput('changed_targets', changedTargets.join(','));
-          setOutput('first_run', firstRun);
-          setOutput('should_run', shouldRun);
-          setOutput('state_updated', stateUpdated);
-          setMultilineOutput('current_summary', currentSummary);
-          setMultilineOutput('change_summary', changeSummary);
-
-          fs.appendFileSync(
-            process.env.GITHUB_STEP_SUMMARY,
-            [
-              '### Dev build watch',
-              '',
-              status,
-              '',
-              'Current remote state:',
-              '',
-              '```text',
-              currentSummary,
-              '```',
-              '',
-              'Changes:',
-              '',
-              '```text',
-              changeSummary,
-              '```',
-              ''
-            ].join('\n')
-          );
+          main().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
           NODE
 
       - name: Commit watched build state
