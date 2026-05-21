@@ -8,6 +8,11 @@ import {
   makeRunMarker
 } from '../fixtures/env.js';
 import { installArtworkUploadBypass } from '../fixtures/artwork-upload-bypass.js';
+import {
+  expectOrderCompletionDetailsToMatchCheckout,
+  summarizeOrderCompletionDetails,
+  waitForOrderCompletionDetails
+} from '../fixtures/order-completion-details-client.js';
 import { fetchRegistrationOtp } from '../fixtures/otp-client.js';
 import { memberPurchaseCategories, uploadAssets } from '../fixtures/test-data.js';
 import { checkoutAmountToNumber, postTossPaymentStatusWebhook } from '../fixtures/toss-payment-webhook-client.js';
@@ -160,18 +165,41 @@ test.describe('new member purchase regression', { tag: ['@regression', '@e2e', '
       });
 
       const gateway = await checkoutPage.placeOrder();
+      const paymentProvider = gateway.paymentProvider();
+      if (paymentProvider && paymentProvider !== 'BT_TOSS') {
+        throw new Error(`Expected bank-transfer Toss checkout provider "BT_TOSS", received "${paymentProvider}".`);
+      }
+
       const orderId = await gateway.captureOrderId();
+      const confirmationOrderId = await gateway.captureConfirmationOrderId();
       const totalAmount = checkoutAmountToNumber(checkoutSnapshot.total);
-      await postTossPaymentStatusWebhook(request, {
+      const webhookResult = await postTossPaymentStatusWebhook(request, {
         orderId,
         totalAmount
       });
       testInfo.annotations.push({
         type: 'payment-webhook-bypass',
-        description: JSON.stringify({ orderId, totalAmount })
+        description: JSON.stringify({ orderId, totalAmount, webhookStatus: webhookResult.status, webhookBody: webhookResult.body })
       });
 
-      const confirmationPage = await gateway.gotoOrderDetails(orderId);
+      const completionDetails = await waitForOrderCompletionDetails(page.context().request, confirmationOrderId, {
+        orderNumber: orderId,
+        totalAmount,
+        minItemCount: cartItems.length,
+        productNames: cartItems.map((item) => item.productName)
+      });
+      expectOrderCompletionDetailsToMatchCheckout(completionDetails, checkoutSnapshot);
+      testInfo.annotations.push({
+        type: 'order-completion-details',
+        description: JSON.stringify(summarizeOrderCompletionDetails(completionDetails))
+      });
+
+      testInfo.annotations.push({
+        type: 'order-confirmation',
+        description: JSON.stringify({ confirmationOrderId })
+      });
+
+      const confirmationPage = await gateway.gotoOrderConfirmation(confirmationOrderId);
       await confirmationPage.expectLoaded();
       await confirmationPage.expectMatchesCheckoutSnapshot(checkoutSnapshot);
     });

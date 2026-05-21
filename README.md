@@ -26,7 +26,9 @@ Common environment variables:
 - `REGISTRATION_OTP_REQUEST_FROM`: OTP request `Request-From` header, defaults to `glophics-dev`.
 - `TOSS_BANK_TRANSFER_PASSWORD`: Toss bank-transfer sandbox password, defaults to `000000`.
 - `TOSS_PAYMENT_STATUS_WEBHOOK_URL`: Toss payment-status webhook used by the member regression payment bypass, defaults to the dev API endpoint.
+- `TOSS_PAYMENT_WEBHOOK_CREATED_AT`: webhook `createdAt` payload value, defaults to `2022-01-01T00:00:00.000000`.
 - `TOSS_PAYMENT_WEBHOOK_PAYMENT_KEY`, `TOSS_PAYMENT_WEBHOOK_MID`: optional webhook payload overrides; defaults match the dev Toss test payload.
+- `ORDER_COMPLETION_DETAILS_ENDPOINT`: order completion details endpoint template, defaults to `https://dev-api.musticker.com/index.php/sys/kr/orders/completion/details/{orderId}`.
 - `PAYMENT_METHOD`, `PAYMENT_CARD_NUMBER`, `PAYMENT_CARD_EXPIRY`, `PAYMENT_CARD_CVC`, `PAYMENT_CARD_PASSWORD`, `PAYMENT_BIRTH_DATE`: sandbox payment data.
 - `PAYMENT_GATEWAY_*_SELECTOR`: optional gateway field and confirm selectors for provider-specific payment forms.
 
@@ -95,4 +97,4 @@ Required secrets such as `TEST_USER_EMAIL`, `TEST_USER_PASSWORD`, `API_TOKEN`, a
 
 Payment tests are skipped unless `RUN_PAYMENT_E2E=true`, seeded user credentials are set, and the sandbox gateway fields/selectors required by the current provider are supplied.
 
-The full new-member purchase regression is skipped unless `RUN_PAYMENT_E2E=true`. It registers a disposable member through the UI, fetches the OTP from the configured tester endpoint by sending `{ "email": "..." }` with `Request-From: glophics-dev`, creates the order from checkout, posts the Toss payment-status webhook using the captured `orderId`, and verifies `/kr/orders/{orderId}`.
+The full new-member purchase regression is skipped unless `RUN_PAYMENT_E2E=true`. It registers a disposable member through the UI, fetches the OTP from the configured tester endpoint by sending `{ "email": "..." }` with `Request-From: glophics-dev`, creates the bank-transfer Toss order from checkout, posts the Toss payment-status webhook using the captured `AO-...-dev` order number, waits for `/orders/completion/details/{numericOrderId}` to return matching paid order details, and verifies `/kr/checkout/confirmation?order_id={numericOrderId}`.

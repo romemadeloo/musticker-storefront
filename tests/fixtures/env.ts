@@ -47,8 +47,12 @@ export const env = {
   TOSS_PAYMENT_STATUS_WEBHOOK_URL:
     process.env.TOSS_PAYMENT_STATUS_WEBHOOK_URL ??
     'https://dev-api.musticker.com/index.php/sys/kr/payments/webhook/toss/payment-status',
+  TOSS_PAYMENT_WEBHOOK_CREATED_AT: process.env.TOSS_PAYMENT_WEBHOOK_CREATED_AT ?? '2022-01-01T00:00:00.000000',
   TOSS_PAYMENT_WEBHOOK_PAYMENT_KEY: process.env.TOSS_PAYMENT_WEBHOOK_PAYMENT_KEY ?? 'test_payment_key',
-  TOSS_PAYMENT_WEBHOOK_MID: process.env.TOSS_PAYMENT_WEBHOOK_MID ?? 'tosspayments'
+  TOSS_PAYMENT_WEBHOOK_MID: process.env.TOSS_PAYMENT_WEBHOOK_MID ?? 'tosspayments',
+  ORDER_COMPLETION_DETAILS_ENDPOINT:
+    process.env.ORDER_COMPLETION_DETAILS_ENDPOINT ??
+    'https://dev-api.musticker.com/index.php/sys/kr/orders/completion/details/{orderId}'
 };
 
 export function normalizeBaseURL(baseURL: string): string {

@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import type { CartLineItem, CheckoutProfile, CheckoutSnapshot, ProductConfig } from '../fixtures/types.js';
-import { PaymentGatewayPage } from './payment-gateway-page.js';
+import { PaymentGatewayPage, type PaymentOrderReference } from './payment-gateway-page.js';
 
 const provinceLabel = /\uc2dc\/\ub3c4|Province|State/i;
 const couponLabel = /\ucfe0\ud3f0|coupon/i;
@@ -54,11 +54,6 @@ export class CheckoutPage {
 
   async selectBankTransfer(): Promise<void> {
     await this.selectPaymentMethod('Bank Transfer');
-
-    const tossButton = this.main.getByRole('button', { name: /\ud1a0\uc2a4|Toss/i }).first();
-    if (await tossButton.isVisible().catch(() => false)) {
-      await tossButton.click();
-    }
   }
 
   async applyPointsAndCouponsIfAvailable(): Promise<string> {
@@ -116,8 +111,8 @@ export class CheckoutPage {
     const orderResponsePromise = this.page
       .waitForResponse(
         (response) =>
-          response.request().method() !== 'GET' &&
-          /order|payment|checkout|toss/i.test(response.url()) &&
+          response.request().method() === 'POST' &&
+          /\/sys\/kr\/orders\/checkout\b/i.test(response.url()) &&
           response.status() < 500,
         { timeout: 15_000 }
       )
@@ -130,7 +125,7 @@ export class CheckoutPage {
     const paymentPage = popup ?? this.page;
     await paymentPage.waitForLoadState('domcontentloaded').catch(() => undefined);
 
-    return new PaymentGatewayPage(paymentPage, extractOrderId(orderResponseText));
+    return new PaymentGatewayPage(paymentPage, extractPaymentOrderReference(orderResponseText));
   }
 
   private summary(): Locator {
@@ -362,6 +357,47 @@ function extractLastLabeledAmount(text: string, label: RegExp): string | undefin
 
 function extractOrderId(value: string | undefined): string | undefined {
   return value?.match(/[A-Z]{2}-\d{10,}-[A-Za-z0-9-]+/)?.[0];
+}
+
+function extractPaymentOrderReference(value: string | undefined): PaymentOrderReference {
+  const parsed = parseCheckoutResponse(value);
+  const order = parsed?.data?.order;
+  const paymentFrom = parsed?.data?.payment_information?.from;
+
+  return {
+    orderNumber: typeof order?.order_number === 'string' ? order.order_number : extractOrderId(value),
+    confirmationOrderId:
+      typeof order?.id === 'number' || typeof order?.id === 'string' ? String(order.id) : extractConfirmationOrderId(value),
+    paymentFrom: typeof paymentFrom === 'string' ? paymentFrom : undefined
+  };
+}
+
+function parseCheckoutResponse(
+  value: string | undefined
+): {
+  data?: {
+    order?: { id?: number | string; order_number?: string };
+    payment_information?: { from?: string; redirect_url?: string };
+  };
+} | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(value) as {
+      data?: {
+        order?: { id?: number | string; order_number?: string };
+        payment_information?: { from?: string; redirect_url?: string };
+      };
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function extractConfirmationOrderId(value: string | undefined): string | undefined {
+  return value?.match(/"id"\s*:\s*(\d+)/)?.[1];
 }
 
 function escapeRegExp(value: string): string {

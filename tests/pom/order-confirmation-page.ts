@@ -36,7 +36,7 @@ export class OrderConfirmationPage {
         },
         {
           message: 'Order confirmation did not render all checkout products.',
-          timeout: 30_000
+          timeout: 45_000
         }
       )
       .toBe(true);
@@ -57,6 +57,14 @@ export class OrderConfirmationPage {
 
     if (snapshot.total) {
       expect(bodyText).toMatch(amountPattern(snapshot.total));
+    }
+
+    if (snapshot.subtotal) {
+      expect(bodyText).toMatch(amountPattern(snapshot.subtotal));
+    }
+
+    if (snapshot.shipping) {
+      expect(bodyText).toMatch(amountPattern(snapshot.shipping));
     }
 
     if (snapshot.discount) {

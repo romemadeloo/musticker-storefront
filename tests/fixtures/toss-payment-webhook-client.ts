@@ -19,13 +19,19 @@ type TossPaymentStatusInput = {
   totalAmount: number;
 };
 
+type TossWebhookResult = {
+  status: number;
+  body: string;
+  json?: unknown;
+};
+
 export async function postTossPaymentStatusWebhook(
   request: APIRequestContext,
   input: TossPaymentStatusInput
-): Promise<void> {
+): Promise<TossWebhookResult> {
   const payload: TossPaymentStatusPayload = {
     eventType: 'PAYMENT_STATUS_CHANGED',
-    createdAt: webhookTimestamp(),
+    createdAt: env.TOSS_PAYMENT_WEBHOOK_CREATED_AT,
     data: {
       mId: env.TOSS_PAYMENT_WEBHOOK_MID,
       paymentKey: env.TOSS_PAYMENT_WEBHOOK_PAYMENT_KEY,
@@ -43,12 +49,24 @@ export async function postTossPaymentStatusWebhook(
       'X-E2E-Test': 'true'
     }
   });
+  const body = await response.text();
 
   if (!response.ok()) {
     throw new Error(
-      `Toss payment-status webhook failed with ${response.status()} ${response.url()}: ${await response.text()}`
+      `Toss payment-status webhook failed with ${response.status()} ${response.url()}: ${body}`
     );
   }
+
+  const json = parseJson(body);
+  if (isFailureResponse(json)) {
+    throw new Error(`Toss payment-status webhook returned an unsuccessful response: ${body}`);
+  }
+
+  return {
+    status: response.status(),
+    body,
+    json
+  };
 }
 
 export function checkoutAmountToNumber(amount: string | undefined): number {
@@ -65,6 +83,18 @@ export function checkoutAmountToNumber(amount: string | undefined): number {
   return value;
 }
 
-function webhookTimestamp(): string {
-  return new Date().toISOString().replace('Z', '000');
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function isFailureResponse(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || !('success' in value)) {
+    return false;
+  }
+
+  return (value as { success?: unknown }).success === false;
 }

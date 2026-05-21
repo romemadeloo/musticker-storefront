@@ -5,18 +5,24 @@ import { appPath, env } from '../fixtures/env.js';
 import type { PaymentProfile } from '../fixtures/types.js';
 import { OrderConfirmationPage } from './order-confirmation-page.js';
 
+export type PaymentOrderReference = {
+  orderNumber?: string;
+  confirmationOrderId?: string;
+  paymentFrom?: string;
+};
+
 export class PaymentGatewayPage {
   readonly page: Page;
-  private readonly knownOrderId?: string;
+  private readonly knownOrder?: PaymentOrderReference;
 
-  constructor(page: Page, knownOrderId?: string) {
+  constructor(page: Page, knownOrder?: string | PaymentOrderReference) {
     this.page = page;
-    this.knownOrderId = knownOrderId;
+    this.knownOrder = typeof knownOrder === 'string' ? { orderNumber: knownOrder } : knownOrder;
   }
 
   async captureOrderId(): Promise<string> {
-    if (this.knownOrderId) {
-      return this.knownOrderId;
+    if (this.knownOrder?.orderNumber) {
+      return this.knownOrder.orderNumber;
     }
 
     const urlOrderId = extractOrderId(this.page.url());
@@ -33,8 +39,32 @@ export class PaymentGatewayPage {
     throw new Error(`Could not capture orderId from payment page URL or body. Current URL: ${this.page.url()}`);
   }
 
-  async gotoOrderDetails(orderId: string): Promise<OrderConfirmationPage> {
-    await this.page.goto(appPath(`orders/${orderId}`));
+  async captureConfirmationOrderId(): Promise<string> {
+    if (this.knownOrder?.confirmationOrderId) {
+      return this.knownOrder.confirmationOrderId;
+    }
+
+    const urlConfirmationOrderId = extractConfirmationOrderId(this.page.url());
+    if (urlConfirmationOrderId) {
+      return urlConfirmationOrderId;
+    }
+
+    const bodyText = await this.page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
+    const bodyConfirmationOrderId = extractConfirmationOrderId(bodyText);
+    if (bodyConfirmationOrderId) {
+      return bodyConfirmationOrderId;
+    }
+
+    throw new Error(`Could not capture numeric confirmation order_id. Current URL: ${this.page.url()}`);
+  }
+
+  paymentProvider(): string | undefined {
+    return this.knownOrder?.paymentFrom;
+  }
+
+  async gotoOrderConfirmation(orderId?: string): Promise<OrderConfirmationPage> {
+    const confirmationOrderId = orderId ?? (await this.captureConfirmationOrderId());
+    await this.page.goto(appPath(`checkout/confirmation?order_id=${confirmationOrderId}`));
     await this.page.waitForLoadState('domcontentloaded').catch(() => undefined);
     return new OrderConfirmationPage(this.page);
   }
@@ -111,4 +141,9 @@ export class PaymentGatewayPage {
 function extractOrderId(value: string): string | undefined {
   const decoded = decodeURIComponent(value);
   return decoded.match(/[A-Z]{2}-\d{10,}-[A-Za-z0-9-]+/)?.[0];
+}
+
+function extractConfirmationOrderId(value: string): string | undefined {
+  const decoded = decodeURIComponent(value);
+  return decoded.match(/(?:order_id["'=:\s]+|\/orders\/)(\d{1,})/i)?.[1];
 }
