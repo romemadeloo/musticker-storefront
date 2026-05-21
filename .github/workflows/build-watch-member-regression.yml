@@ -1,0 +1,250 @@
+name: Watch dev build and run member regression
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Run the member regression even if build.txt has not changed.
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: member-regression-build-watch
+  cancel-in-progress: false
+
+jobs:
+  member-regression:
+    name: Check dev build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      API_BUILD_URL: https://dev-api.musticker.com/build.txt
+      STATE_FILE: .github/build-watch/member-regression-state.json
+      STOREFRONT_BUILD_URL: https://dev.musticker.com/build.txt
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version: 22
+
+      - name: Read deployed build state
+        id: build
+        env:
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+        shell: bash
+        run: |
+          node <<'NODE'
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const stateFile = process.env.STATE_FILE;
+          const forceRun = process.env.FORCE_RUN === 'true';
+          const targets = [
+            {
+              id: 'storefront',
+              label: 'Storefront',
+              url: process.env.STOREFRONT_BUILD_URL
+            },
+            {
+              id: 'api',
+              label: 'API',
+              url: process.env.API_BUILD_URL
+            }
+          ];
+
+          function normalizeBuildText(text) {
+            return text
+              .replace(/\r\n/g, '\n')
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .join('\n');
+          }
+
+          function extractValue(text, key) {
+            const match = text.match(new RegExp(`${key}:\\s*\\[?([^\\]\\s]+)\\]?`, 'i'));
+            return match?.[1] ?? null;
+          }
+
+          async function readTarget(target) {
+            const response = await fetch(target.url, {
+              headers: {
+                accept: 'text/plain'
+              }
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch ${target.url}: ${response.status} ${response.statusText}`);
+            }
+
+            const text = normalizeBuildText(await response.text());
+
+            return {
+              id: target.id,
+              label: target.label,
+              url: target.url,
+              text,
+              commit: extractValue(text, 'Commit'),
+              build: extractValue(text, 'Build')
+            };
+          }
+
+          function readPreviousState() {
+            if (!fs.existsSync(stateFile)) {
+              return null;
+            }
+
+            try {
+              return JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+            } catch (error) {
+              console.warn(`Could not parse ${stateFile}; treating this run as initial state.`);
+              console.warn(error);
+              return null;
+            }
+          }
+
+          function setOutput(name, value) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${String(value)}\n`);
+          }
+
+          function setMultilineOutput(name, value) {
+            const delimiter = `EOF_${crypto.randomUUID()}`;
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}<<${delimiter}\n${value}\n${delimiter}\n`);
+          }
+
+          function describeTarget(target) {
+            return `${target.label}: commit ${target.commit ?? 'unknown'}, build ${target.build ?? 'unknown'}`;
+          }
+
+          function targetChanged(previous, currentTarget) {
+            return previous?.targets?.[currentTarget.id]?.text !== currentTarget.text;
+          }
+
+          const previous = readPreviousState();
+          const currentTargets = await Promise.all(targets.map(readTarget));
+          const current = {
+            version: 1,
+            recordedAt: new Date().toISOString(),
+            targets: Object.fromEntries(currentTargets.map((target) => [target.id, target]))
+          };
+          const firstRun = !previous?.targets;
+          const changedTargets = firstRun
+            ? []
+            : currentTargets.filter((target) => targetChanged(previous, target)).map((target) => target.id);
+          const changed = changedTargets.length > 0;
+          const shouldRun = forceRun || changed;
+          const stateUpdated = firstRun || changed;
+
+          if (stateUpdated) {
+            fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+            fs.writeFileSync(stateFile, `${JSON.stringify(current, null, 2)}\n`);
+          }
+
+          const currentSummary = currentTargets.map(describeTarget).join('\n');
+          const changeSummary = changedTargets.length
+            ? changedTargets
+                .map((id) => {
+                  const target = current.targets[id];
+                  const previousTarget = previous.targets[id];
+                  const before = `${previousTarget?.commit ?? 'unknown'} / ${previousTarget?.build ?? 'unknown'}`;
+                  const after = `${target.commit ?? 'unknown'} / ${target.build ?? 'unknown'}`;
+                  return `${target.label}: ${before} -> ${after}`;
+                })
+                .join('\n')
+            : 'No watched build changed.';
+          const status = firstRun
+            ? 'Initialized watched build state. The regression will run on the next detected change.'
+            : forceRun && !changed
+              ? 'Manual force run requested.'
+              : changed
+                ? 'Watched build change detected.'
+                : 'No watched build change detected.';
+
+          setOutput('changed', changed);
+          setOutput('changed_targets', changedTargets.join(','));
+          setOutput('first_run', firstRun);
+          setOutput('should_run', shouldRun);
+          setOutput('state_updated', stateUpdated);
+          setMultilineOutput('current_summary', currentSummary);
+          setMultilineOutput('change_summary', changeSummary);
+
+          fs.appendFileSync(
+            process.env.GITHUB_STEP_SUMMARY,
+            [
+              '### Dev build watch',
+              '',
+              status,
+              '',
+              'Current remote state:',
+              '',
+              '```text',
+              currentSummary,
+              '```',
+              '',
+              'Changes:',
+              '',
+              '```text',
+              changeSummary,
+              '```',
+              ''
+            ].join('\n')
+          );
+          NODE
+
+      - name: Commit watched build state
+        if: ${{ steps.build.outputs.state_updated == 'true' }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$STATE_FILE"
+
+          if git diff --cached --quiet; then
+            echo "Watched build state is already up to date."
+            exit 0
+          fi
+
+          git commit -m "chore(ci): update watched dev build state [skip ci]"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+
+      - name: Skip unchanged build
+        if: ${{ steps.build.outputs.should_run != 'true' }}
+        run: echo "No build change detected; member regression was not run."
+
+      - name: Install dependencies
+        if: ${{ steps.build.outputs.should_run == 'true' }}
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        if: ${{ steps.build.outputs.should_run == 'true' }}
+        run: npx playwright install --with-deps chromium
+
+      - name: Run member purchase regression
+        if: ${{ steps.build.outputs.should_run == 'true' }}
+        run: npm run test:e2e:member-regression -- --reporter=list
+
+      - name: Upload Playwright artifacts
+        if: ${{ always() && steps.build.outputs.should_run == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: ignore
+          name: member-regression-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14
