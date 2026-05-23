@@ -3,6 +3,7 @@ import { test as base, expect } from '@playwright/test';
 type GuardOptions = {
   allowGuestUserMe401: boolean;
   allowKnownPriceWarnings: boolean;
+  allowKnownHydrationMismatch: boolean;
   allowExpectedAuthFailures: boolean;
 };
 
@@ -30,18 +31,27 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
     return true;
   }
 
+  if (options.allowKnownHydrationMismatch && text === 'Hydration completed but contains mismatches.') {
+    return true;
+  }
+
   return false;
 }
 
 export const test = base.extend<GuardOptions>({
   allowGuestUserMe401: [false, { option: true }],
   allowKnownPriceWarnings: [true, { option: true }],
+  allowKnownHydrationMismatch: [false, { option: true }],
   allowExpectedAuthFailures: [false, { option: true }],
 
-  page: async ({ page, allowGuestUserMe401, allowKnownPriceWarnings, allowExpectedAuthFailures }, use) => {
+  page: async (
+    { page, allowGuestUserMe401, allowKnownPriceWarnings, allowKnownHydrationMismatch, allowExpectedAuthFailures },
+    use
+  ) => {
     const guardOptions = {
       allowGuestUserMe401,
       allowKnownPriceWarnings,
+      allowKnownHydrationMismatch,
       allowExpectedAuthFailures
     };
     const consoleFailures: string[] = [];
