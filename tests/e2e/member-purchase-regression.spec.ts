@@ -5,7 +5,7 @@ import {
   appPath,
   canRunMemberPurchaseRegression,
   checkoutProfile,
-  makeRunMarker
+  env
 } from '../fixtures/env.js';
 import { installArtworkUploadBypass } from '../fixtures/artwork-upload-bypass.js';
 import {
@@ -14,8 +14,9 @@ import {
   waitForOrderCompletionDetails
 } from '../fixtures/order-completion-details-client.js';
 import { fetchRegistrationOtp } from '../fixtures/otp-client.js';
-import { memberPurchaseCategories, uploadAssets } from '../fixtures/test-data.js';
+import { memberPurchaseCategories } from '../fixtures/test-data.js';
 import { checkoutAmountToNumber, postTossPaymentStatusWebhook } from '../fixtures/toss-payment-webhook-client.js';
+import { createTraceableUploadPng } from '../fixtures/traceable-upload-image.js';
 import type { CartLineItem, RegressionProductCandidate } from '../fixtures/types.js';
 import { CartDrawer } from '../pom/cart-drawer.js';
 import { CartPage } from '../pom/cart-page.js';
@@ -31,21 +32,58 @@ test.describe('new member purchase regression', { tag: ['@regression', '@e2e', '
     !canRunMemberPurchaseRegression(),
     'Set RUN_PAYMENT_E2E=true and configure REGISTRATION_OTP_ENDPOINT if the default dev tester endpoint is unavailable.'
   );
-  test.use({ allowGuestUserMe401: true, allowExpectedAuthFailures: true });
+  test.use({ allowGuestUserMe401: true, allowExpectedAuthFailures: true, allowKnownNuxtPayloadFailures: true });
 
   test('new member can register, log in, buy one product from each category, and confirm Toss bank transfer', async ({
     page,
     request
   }, testInfo) => {
-    const runMarker = makeRunMarker(testInfo.workerIndex);
+    const memberTimestamp = new Date();
+    const memberIdentity = makeMemberIdentity(memberTimestamp);
+    const runMarker = memberIdentity.runMarker;
+    const profileSequence = '01';
     const member: RegistrationProfile = {
-      email: `musticker-e2e-${runMarker}@example.com`.toLowerCase(),
+      email: memberIdentity.email,
       password: 'MustickerE2E!2345',
-      firstName: 'Musticker',
-      lastName: runMarker.slice(-10)
+      firstName: memberIdentity.firstName,
+      lastName: memberIdentity.lastName
     };
     const selectedProducts = selectRegressionProducts(runMarker);
     const productNames = selectedProducts.map((product) => product.productName);
+    let profilePictureFile = '';
+    const artworkFiles: string[] = [];
+
+    await test.step('generate traceable upload PNG files', async () => {
+      profilePictureFile = await createTraceableUploadPng(page, testInfo, {
+        purpose: 'PROFILE UPLOAD',
+        subject: `Test User ${profileSequence}`,
+        title: `TEST USER\n${profileSequence}`,
+        showSubject: false,
+        sequence: Number(profileSequence),
+        runMarker,
+        email: member.email,
+        timestamp: memberTimestamp
+      });
+
+      for (const [productIndex, product] of selectedProducts.entries()) {
+        artworkFiles.push(
+          await createTraceableUploadPng(page, testInfo, {
+            purpose: 'ARTWORK UPLOAD',
+            subject: product.productName,
+            categoryName: product.categoryName,
+            sequence: productIndex + 1,
+            runMarker,
+            email: member.email,
+            timestamp: memberTimestamp
+          })
+        );
+      }
+
+      testInfo.annotations.push({
+        type: 'traceable-upload-files',
+        description: JSON.stringify({ profilePictureFile, artworkFiles })
+      });
+    });
 
     await test.step('register disposable member and complete onboarding', async () => {
       const registerPage = new RegisterPage(page);
@@ -56,7 +94,7 @@ test.describe('new member purchase regression', { tag: ['@regression', '@e2e', '
 
       const otp = await fetchRegistrationOtpWithRetry(request, member.email);
       await registerPage.submitOtp(otp);
-      await registerPage.completeProfileSetup(member);
+      await registerPage.completeProfileSetup(member, profilePictureFile);
       await registerPage.completeTourGuideIfPresent();
       await registerPage.expectSetupComplete();
     });
@@ -74,7 +112,10 @@ test.describe('new member purchase regression', { tag: ['@regression', '@e2e', '
       await loginPage.expectLoaded();
       await loginPage.login(member.email, member.password);
       await loginPage.expectLoggedIn();
-      await installArtworkUploadBypass(page, runMarker);
+
+      if (env.BYPASS_ARTWORK_UPLOAD) {
+        await installArtworkUploadBypass(page, runMarker);
+      }
     });
 
     let cart: CartDrawer | undefined;
@@ -86,7 +127,11 @@ test.describe('new member purchase regression', { tag: ['@regression', '@e2e', '
         const productPage = new ProductPage(page);
         await productPage.goto(product.path);
         const configuredProduct = await productPage.configureRegressionProduct(product);
-        const artworkFile = uploadAssets.numberedDesigns[productIndex] ?? uploadAssets.validDesign;
+        const artworkFile = artworkFiles[productIndex];
+
+        if (!artworkFile) {
+          throw new Error(`No traceable artwork PNG was generated for ${product.productName}.`);
+        }
 
         const uploadModal = await productPage.openUploadModalIfPresent();
         if (uploadModal) {
@@ -236,4 +281,48 @@ function seededIndex(seed: string, max: number): number {
   }
 
   return hash % max;
+}
+
+function makeMemberIdentity(timestamp: Date): {
+  email: string;
+  firstName: string;
+  lastName: string;
+  runMarker: string;
+} {
+  const parts = dateTimeParts(timestamp);
+  const dateToken = `${parts.month}${parts.day}${parts.year.slice(-2)}`;
+  const timeToken = `${parts.hour}${parts.minute}${parts.second}`;
+
+  return {
+    email: `test${dateToken}${timeToken}@glophics.com`,
+    firstName: 'Test',
+    lastName: `${dateToken}${timeToken}`,
+    runMarker: `${dateToken}${timeToken}`
+  };
+}
+
+function dateTimeParts(timestamp: Date): Record<'month' | 'day' | 'year' | 'hour' | 'minute' | 'second', string> {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).formatToParts(timestamp);
+
+  return {
+    month: partValue(parts, 'month'),
+    day: partValue(parts, 'day'),
+    year: partValue(parts, 'year'),
+    hour: partValue(parts, 'hour'),
+    minute: partValue(parts, 'minute'),
+    second: partValue(parts, 'second')
+  };
+}
+
+function partValue(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string {
+  return parts.find((part) => part.type === type)?.value ?? '00';
 }

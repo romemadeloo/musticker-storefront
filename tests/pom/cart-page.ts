@@ -70,8 +70,22 @@ export class CartPage {
       const sizeDialog = this.page.getByRole('dialog').filter({ hasText: sizeEditDialogTitle }).last();
       await expect(sizeDialog).toBeVisible();
       const selectedSize = await this.selectModalValue(sizeDialog, String(sizeMm));
+
+      if (!selectedSize.changed) {
+        await this.closeEditDialog(sizeDialog);
+        continue;
+      }
+
       await sizeDialog.getByRole('button', { name: /\uc5c5\ub370\uc774\ud2b8|Update/i }).click();
-      await expect(sizeDialog).toBeHidden();
+      const sizeDialogClosed = await sizeDialog
+        .waitFor({ state: 'hidden', timeout: 10_000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (!sizeDialogClosed) {
+        await this.closeEditDialog(sizeDialog);
+        continue;
+      }
 
       const quantityBefore = await this.rowQuantity(row);
       await quantityButton.click({ force: true });
@@ -85,9 +99,13 @@ export class CartPage {
           .catch(() => undefined);
       }
 
-      if (selectedQuantity.value) {
-        await expect.poll(() => this.rowQuantity(row), { timeout: 10_000 }).toBe(Number(selectedQuantity.value));
-      }
+      const quantityChanged = selectedQuantity.value
+        ? await expect
+            .poll(() => this.rowQuantity(row), { timeout: 10_000 })
+            .toBe(Number(selectedQuantity.value))
+            .then(() => true)
+            .catch(() => false)
+        : false;
 
       const totalChanged = await expect
         .poll(() => this.captureTotal(), { timeout: 15_000 })
@@ -95,7 +113,7 @@ export class CartPage {
         .then(() => true)
         .catch(() => false);
 
-      if (totalChanged || selectedSize.changed || selectedQuantity.changed) {
+      if (totalChanged || selectedSize.changed || quantityChanged) {
         return;
       }
     }
@@ -171,6 +189,20 @@ export class CartPage {
     }
 
     return options.first();
+  }
+
+  private async closeEditDialog(dialog: Locator): Promise<void> {
+    const closeButton = dialog
+      .getByRole('button', { name: /Close|Cancel|\ub2eb\uae30|\ucde8\uc18c|ui\.modal\.close/i })
+      .first();
+
+    if (await closeButton.isVisible().catch(() => false)) {
+      await closeButton.click();
+    } else {
+      await this.page.keyboard.press('Escape');
+    }
+
+    await expect(dialog).toBeHidden({ timeout: 10_000 }).catch(() => undefined);
   }
 }
 

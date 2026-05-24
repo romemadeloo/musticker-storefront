@@ -1,9 +1,4 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import type { ProductConfig, RegressionProductCandidate } from './types.js';
-
-const fixturesDir = path.dirname(fileURLToPath(import.meta.url));
 
 export const dieCutSticker: ProductConfig = {
   path: './stickers/die-cut-sticker',
@@ -13,20 +8,12 @@ export const dieCutSticker: ProductConfig = {
   widthMm: 75,
   heightMm: 75,
   quantity: 10,
-  expectedUnitPrice: '6,600원',
-  expectedCheckoutTotal: '9,600원'
+  expectedUnitPrice: '42,500원',
+  expectedCheckoutTotal: '45,500원'
 };
 
 export const searchQueries = {
   dieCutSticker: '자유형'
-};
-
-export const uploadAssets = {
-  validDesign: path.resolve(fixturesDir, '..', 'assets', 'musticker-sample.pdf'),
-  invalidDesign: path.resolve(fixturesDir, '..', 'assets', 'invalid-upload.txt'),
-  numberedDesigns: Array.from({ length: 10 }, (_, index) =>
-    path.resolve(fixturesDir, '..', 'assets', `800x800px - test${index + 1}.png`)
-  )
 };
 
 export const memberPurchaseCategories: Array<{

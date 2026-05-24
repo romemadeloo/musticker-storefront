@@ -1,10 +1,12 @@
-import type { Locator, Page } from '@playwright/test';
+import type { Locator, Page, Response } from '@playwright/test';
 import { expect } from '@playwright/test';
 
+import { firstLocatorWithCount, firstVisibleLocator } from '../fixtures/resilient-locator.js';
 import type { CartLineItem, ProductConfig } from '../fixtures/types.js';
 
 const cartPreviewTitle = /\uc7a5\ubc14\uad6c\ub2c8 \ubbf8\ub9ac\ubcf4\uae30|Cart Preview/i;
 const editDialogTitle = /\uc0ac\uc774\uc988 \ubc0f \uc218\ub7c9 \uc218\uc815|\uc5c5\ub370\uc774\ud2b8|Update/i;
+const cartItemUpdatePath = '/sys/kr/cart/item/update';
 
 type SelectResult = {
   changed: boolean;
@@ -85,16 +87,15 @@ export class CartDrawer {
 
   async editFirstItemSizeAndQuantity(sizeMm: number, quantity: number): Promise<void> {
     const totalBefore = await this.captureTotal();
-    const editButtons = this.dialog.getByTestId('product-category-cart-item-edit-button');
+    const editButtons = await this.editButtons();
     const editButtonCount = await editButtons.count();
 
     for (let index = 0; index < editButtonCount; index += 1) {
       await editButtons.nth(index).click();
 
-      const editDialog = this.page.getByRole('dialog').filter({ hasText: editDialogTitle }).last();
-      await expect(editDialog).toBeVisible();
+      const editDialog = await this.editDialog();
 
-      const editableSelects = editDialog.locator('button.cart-item-edit-select-trigger');
+      const editableSelects = this.editDialogSelectTriggers(editDialog);
       if ((await editableSelects.count()) < 2) {
         await this.closeEditDialog(editDialog);
         continue;
@@ -102,8 +103,29 @@ export class CartDrawer {
 
       const selectedSize = await this.selectFromEditDialog(editDialog, 0, String(sizeMm));
       const selectedQuantity = await this.selectFromEditDialog(editDialog, 1, String(quantity));
-      await editDialog.getByRole('button', { name: /\uc5c5\ub370\uc774\ud2b8|Update/i }).click();
-      await expect(editDialog).toBeHidden();
+      const updateResponsePromise = this.waitForCartItemUpdateResponse();
+      const updateButton = await firstVisibleLocator([
+        {
+          name: 'cart edit update button role',
+          locator: editDialog.getByRole('button', { name: /\uc5c5\ub370\uc774\ud2b8|Update/i })
+        },
+        {
+          name: 'cart edit submit button',
+          locator: editDialog.locator('button[type="submit"]')
+        }
+      ]);
+
+      await updateButton.click();
+      await this.expectCartItemUpdateSucceeded(await updateResponsePromise);
+
+      const dialogClosed = await editDialog
+        .waitFor({ state: 'hidden', timeout: 10_000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (!dialogClosed) {
+        throw new Error('Cart item edit dialog stayed open after Update, and no failed cart update response was captured.');
+      }
 
       if (selectedSize.value) {
         await expect(this.dialog.getByText(new RegExp(`Size:\\s*${selectedSize.value}x${selectedSize.value}`, 'i')).first())
@@ -182,7 +204,7 @@ export class CartDrawer {
   }
 
   private async selectFromEditDialog(editDialog: Locator, triggerIndex: number, preferredValue: string): Promise<SelectResult> {
-    const trigger = editDialog.locator('button.cart-item-edit-select-trigger').nth(triggerIndex);
+    const trigger = this.editDialogSelectTriggers(editDialog).nth(triggerIndex);
     const previousValue = extractLeadingNumber(await trigger.innerText());
 
     await trigger.click({ force: true });
@@ -190,7 +212,20 @@ export class CartDrawer {
     const listbox = this.page.getByRole('listbox').last();
     await expect(listbox).toBeVisible({ timeout: 5_000 });
 
-    const options = listbox.getByRole('button');
+    const options = await firstLocatorWithCount([
+      {
+        name: 'listbox button options',
+        locator: listbox.getByRole('button')
+      },
+      {
+        name: 'listbox role options',
+        locator: listbox.getByRole('option')
+      },
+      {
+        name: 'listbox data-value options',
+        locator: listbox.locator('[data-value]')
+      }
+    ]);
     const option = await this.optionForValue(options, preferredValue, previousValue);
     const selectedText = await option.innerText();
     const selectedValue = extractLeadingNumber(selectedText);
@@ -207,8 +242,22 @@ export class CartDrawer {
 
   private async optionForValue(options: Locator, preferredValue: string, previousValue: string): Promise<Locator> {
     const preferred = options.filter({ hasText: new RegExp(`^\\s*${escapeRegExp(preferredValue)}\\b`) }).first();
+    const preferredChanged = await expect
+      .poll(
+        async () => {
+          if (!(await preferred.isVisible().catch(() => false)) || (await preferred.isDisabled().catch(() => false))) {
+            return false;
+          }
 
-    if ((await preferred.isVisible().catch(() => false)) && extractLeadingNumber(await preferred.innerText()) !== previousValue) {
+          return extractLeadingNumber(await preferred.innerText()) !== previousValue;
+        },
+        { timeout: 5_000 }
+      )
+      .toBe(true)
+      .then(() => true)
+      .catch(() => false);
+
+    if (preferredChanged) {
       return preferred;
     }
 
@@ -230,11 +279,21 @@ export class CartDrawer {
   }
 
   private async closeEditDialog(editDialog: Locator): Promise<void> {
-    const closeButton = editDialog
-      .getByRole('button', { name: /Close|Cancel|\ub2eb\uae30|\ucde8\uc18c|ui\.modal\.close/i })
-      .first();
+    const closeButton = await firstVisibleLocator(
+      [
+        {
+          name: 'cart edit close or cancel button role',
+          locator: editDialog.getByRole('button', { name: /Close|Cancel|\ub2eb\uae30|\ucde8\uc18c|ui\.modal\.close/i })
+        },
+        {
+          name: 'cart edit close aria-label',
+          locator: editDialog.locator('button[aria-label*="close" i]')
+        }
+      ],
+      1_000
+    ).catch(() => undefined);
 
-    if (await closeButton.isVisible().catch(() => false)) {
+    if (closeButton) {
       await closeButton.click();
     } else {
       await this.page.keyboard.press('Escape');
@@ -250,6 +309,70 @@ export class CartDrawer {
       await deleteButton.click();
       await expect(deleteButton).toBeHidden();
     }
+  }
+
+  private editDialogSelectTriggers(editDialog: Locator): Locator {
+    return editDialog.locator('button.cart-item-edit-select-trigger, [role="combobox"]');
+  }
+
+  private async editButtons(): Promise<Locator> {
+    return firstLocatorWithCount([
+      {
+        name: 'cart item edit button test id',
+        locator: this.dialog.getByTestId('product-category-cart-item-edit-button')
+      },
+      {
+        name: 'cart item edit button role',
+        locator: this.dialog.getByRole('button', { name: /\uc0c1\ud488 \uc218\uc815|Edit item|Edit product/i })
+      },
+      {
+        name: 'cart item edit button aria-label',
+        locator: this.dialog.locator('button[aria-label*="edit" i]')
+      }
+    ]);
+  }
+
+  private async editDialog(): Promise<Locator> {
+    return firstVisibleLocator([
+      {
+        name: 'cart edit dialog accessible name',
+        locator: this.page.getByRole('dialog', { name: editDialogTitle }).last()
+      },
+      {
+        name: 'cart edit dialog title text',
+        locator: this.page.getByRole('dialog').filter({ hasText: editDialogTitle }).last()
+      },
+      {
+        name: 'cart edit dialog shell class',
+        locator: this.page.locator('.cart-item-edit-modal-shell').last()
+      }
+    ]);
+  }
+
+  private async waitForCartItemUpdateResponse(): Promise<Response | undefined> {
+    return this.page
+      .waitForResponse(
+        (response) => response.url().includes(cartItemUpdatePath) && response.request().method() === 'POST',
+        { timeout: 15_000 }
+      )
+      .catch(() => undefined);
+  }
+
+  private async expectCartItemUpdateSucceeded(response: Response | undefined): Promise<void> {
+    if (!response || response.ok()) {
+      return;
+    }
+
+    const requestBody = response.request().postData() ?? '<empty>';
+    const responseBody = await response.text().catch((error: unknown) => `Could not read response body: ${String(error)}`);
+
+    throw new Error(
+      [
+        `Cart item update API failed with ${response.status()} ${response.url()}.`,
+        `Request body: ${clipText(requestBody)}`,
+        `Response body: ${clipText(responseBody)}`
+      ].join('\n')
+    );
   }
 }
 
@@ -280,4 +403,8 @@ function normalizeSelectText(value: string): string {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function clipText(value: string, maxLength = 1_000): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }

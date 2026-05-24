@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
@@ -10,14 +13,7 @@ export type RegistrationProfile = {
   lastName: string;
 };
 
-const profilePicture = {
-  name: 'profile-picture.png',
-  mimeType: 'image/png',
-  buffer: Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
-    'base64'
-  )
-};
+type ProfilePreviewSignature = string;
 
 export class RegisterPage {
   readonly page: Page;
@@ -109,11 +105,14 @@ export class RegisterPage {
     await this.page.waitForLoadState('domcontentloaded').catch(() => undefined);
   }
 
-  async completeProfileSetup(profile: RegistrationProfile): Promise<void> {
-    await this.uploadProfilePictureIfPresent();
+  async completeProfileSetup(profile: RegistrationProfile, profilePicturePath: string): Promise<void> {
+    await this.expectProfileSetupReady();
+    await this.uploadProfilePictureIfPresent(profilePicturePath);
+    const setupResponsePromise = this.waitForProfileSetupResponse();
     await this.fillIfVisible(/이름|First/i, profile.firstName);
     await this.fillIfVisible(/성|Last/i, profile.lastName);
     await this.clickFirstVisibleButton(/저장|완료|계속|시작|다음|Save|Complete|Continue|Start|Finish/i, false);
+    await setupResponsePromise;
     await this.page.waitForLoadState('domcontentloaded').catch(() => undefined);
   }
 
@@ -137,26 +136,185 @@ export class RegisterPage {
     await expect(this.page.getByTestId('app-header-account-toggle-button')).toBeVisible();
   }
 
-  private async uploadProfilePictureIfPresent(): Promise<void> {
-    const fileInput = this.page.locator('input[type="file"]').first();
+  private async uploadProfilePictureIfPresent(profilePicturePath: string): Promise<void> {
+    await this.expectUploadFileExists(profilePicturePath);
 
-    if (await fileInput.count()) {
-      await fileInput.setInputFiles(profilePicture).catch(() => undefined);
-      return;
+    const beforePreviewSignatures = await this.profilePreviewSignatures();
+    const uploadedByChooser = await this.uploadViaFileChooser(profilePicturePath);
+
+    if (!uploadedByChooser) {
+      await this.uploadViaFileInput(profilePicturePath);
     }
 
-    const uploadButton = this.page.getByRole('button', {
-      name: /프로필|사진|이미지|업로드|Upload|Choose|Photo|Image/i
-    }).first();
+    await this.expectProfilePicturePreview(profilePicturePath, beforePreviewSignatures);
+  }
 
-    if (!(await uploadButton.isVisible().catch(() => false))) {
-      return;
+  private async uploadViaFileChooser(profilePicturePath: string): Promise<boolean> {
+    const uploadButtons = this.profileUploadButtons();
+    const uploadButtonCount = await uploadButtons.count();
+
+    for (let index = 0; index < uploadButtonCount; index += 1) {
+      const uploadButton = uploadButtons.nth(index);
+
+      if (
+        !(await uploadButton.isVisible().catch(() => false)) ||
+        !(await uploadButton.isEnabled().catch(() => false))
+      ) {
+        continue;
+      }
+
+      const chooserPromise = this.page.waitForEvent('filechooser', { timeout: 3_000 }).catch(() => null);
+      await uploadButton.click();
+      const chooser = await chooserPromise;
+
+      if (!chooser) {
+        continue;
+      }
+
+      const uploadResponsePromise = this.waitForProfilePictureUploadResponse();
+      await chooser.setFiles(profilePicturePath);
+      await uploadResponsePromise;
+      return true;
     }
 
-    const chooserPromise = this.page.waitForEvent('filechooser', { timeout: 3_000 }).catch(() => null);
-    await uploadButton.click();
-    const chooser = await chooserPromise;
-    await chooser?.setFiles(profilePicture);
+    return false;
+  }
+
+  private async expectProfileSetupReady(): Promise<void> {
+    await expect
+      .poll(
+        async () => {
+          const uploadButtons = this.profileUploadButtons();
+          const uploadButtonCount = await uploadButtons.count();
+
+          for (let index = 0; index < uploadButtonCount; index += 1) {
+            const uploadButton = uploadButtons.nth(index);
+
+            if (
+              (await uploadButton.isVisible().catch(() => false)) &&
+              (await uploadButton.isEnabled().catch(() => false))
+            ) {
+              return true;
+            }
+          }
+
+          return false;
+        },
+        {
+          message: 'Profile setup upload button should be visible after OTP verification.',
+          timeout: 20_000
+        }
+      )
+      .toBe(true);
+  }
+
+  private profileUploadButtons(): Locator {
+    return this.page.locator('button').filter({
+      hasText: /프로필|사진|이미지|업로드|Upload|Choose|Photo|Image/i
+    });
+  }
+
+  private async uploadViaFileInput(profilePicturePath: string): Promise<void> {
+    const fileName = path.basename(profilePicturePath);
+    const fileInputs = this.page.locator('input[type="file"]');
+    const fileInputCount = await fileInputs.count();
+    let lastError: unknown;
+
+    for (let index = 0; index < fileInputCount; index += 1) {
+      const fileInput = fileInputs.nth(index);
+      const accept = await fileInput.getAttribute('accept').catch(() => undefined);
+
+      if (accept && !/image|\*/i.test(accept)) {
+        continue;
+      }
+
+      try {
+        const uploadResponsePromise = this.waitForProfilePictureUploadResponse();
+        await fileInput.setInputFiles(profilePicturePath);
+        await this.expectSelectedFile(fileInput, fileName);
+        await uploadResponsePromise;
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+
+    throw new Error('No profile picture file input or file chooser was available during registration setup.');
+  }
+
+  private async expectUploadFileExists(filePath: string): Promise<void> {
+    const file = await fs.stat(filePath);
+    expect(file.size, `Generated profile image should not be empty: ${filePath}`).toBeGreaterThan(0);
+  }
+
+  private async expectSelectedFile(fileInput: Locator, fileName: string): Promise<void> {
+    await expect
+      .poll(
+        async () =>
+          fileInput.evaluate(
+            (input, expectedFileName) =>
+              input instanceof HTMLInputElement && input.files?.[0]?.name === expectedFileName,
+            fileName
+          ),
+        {
+          message: `Profile picture input should contain ${fileName}.`,
+          timeout: 5_000
+        }
+      )
+      .toBe(true);
+  }
+
+  private async expectProfilePicturePreview(
+    profilePicturePath: string,
+    beforePreviewSignatures: ProfilePreviewSignature[]
+  ): Promise<void> {
+    const fileName = path.basename(profilePicturePath);
+    const beforeSet = new Set(beforePreviewSignatures);
+
+    await expect
+      .poll(
+        async () => {
+          const afterPreviewSignatures = await this.profilePreviewSignatures();
+          return afterPreviewSignatures.some((signature) => !beforeSet.has(signature));
+        },
+        {
+          message: `Profile picture should render a non-blank preview after uploading ${fileName}.`,
+          timeout: 15_000
+        }
+      )
+      .toBe(true);
+  }
+
+  private async profilePreviewSignatures(): Promise<ProfilePreviewSignature[]> {
+    return this.page.evaluate(renderedProfilePreviewSignatures);
+  }
+
+  private async waitForProfilePictureUploadResponse(): Promise<unknown> {
+    return this.page
+      .waitForResponse(
+        (response) =>
+          response.request().method() !== 'GET' &&
+          /profile|avatar|image|file|upload|aws|pre-signed/i.test(response.url()) &&
+          response.status() < 500,
+        { timeout: 15_000 }
+      )
+      .catch(() => null);
+  }
+
+  private async waitForProfileSetupResponse(): Promise<unknown> {
+    return this.page
+      .waitForResponse(
+        (response) =>
+          response.request().method() !== 'GET' &&
+          /profile|setup|onboarding|user|member/i.test(response.url()) &&
+          response.status() < 500,
+        { timeout: 15_000 }
+      )
+      .catch(() => null);
   }
 
   private async fillIfVisible(name: RegExp, value: string): Promise<void> {
@@ -184,4 +342,45 @@ export class RegisterPage {
 
     return false;
   }
+}
+
+function renderedProfilePreviewSignatures(): ProfilePreviewSignature[] {
+  const imageSignatures = Array.from(document.images)
+    .filter((image) => {
+      const rect = image.getBoundingClientRect();
+      const style = window.getComputedStyle(image);
+      const alt = image.alt ?? '';
+      const source = image.currentSrc || image.src;
+
+      return (
+        rect.width >= 40 &&
+        rect.height >= 40 &&
+        image.naturalWidth > 0 &&
+        image.naturalHeight > 0 &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        !/logo/i.test(alt) &&
+        !/logo/i.test(source)
+      );
+    })
+    .map((image) => `img:${image.currentSrc || image.src}:${image.naturalWidth}x${image.naturalHeight}`);
+
+  const backgroundSignatures = Array.from(document.querySelectorAll<HTMLElement>('*'))
+    .filter((element) => {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+
+      return (
+        rect.width >= 40 &&
+        rect.height >= 40 &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        style.backgroundImage !== 'none' &&
+        /url\(/i.test(style.backgroundImage) &&
+        !/logo/i.test(style.backgroundImage)
+      );
+    })
+    .map((element) => `bg:${window.getComputedStyle(element).backgroundImage}`);
+
+  return [...imageSignatures, ...backgroundSignatures];
 }

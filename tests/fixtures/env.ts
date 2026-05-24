@@ -52,7 +52,8 @@ export const env = {
   TOSS_PAYMENT_WEBHOOK_MID: process.env.TOSS_PAYMENT_WEBHOOK_MID ?? 'tosspayments',
   ORDER_COMPLETION_DETAILS_ENDPOINT:
     process.env.ORDER_COMPLETION_DETAILS_ENDPOINT ??
-    'https://dev-api.musticker.com/index.php/sys/kr/orders/completion/details/{orderId}'
+    'https://dev-api.musticker.com/index.php/sys/kr/orders/completion/details/{orderId}',
+  BYPASS_ARTWORK_UPLOAD: process.env.BYPASS_ARTWORK_UPLOAD === 'true'
 };
 
 export function normalizeBaseURL(baseURL: string): string {
@@ -134,5 +135,14 @@ export function canRunApiSetup(): boolean {
 }
 
 export function makeRunMarker(workerIndex: number): string {
-  return `e2e-${new Date().toISOString().replace(/[:.]/g, '-')}-${workerIndex}`;
+  const now = new Date();
+
+  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(now.getUTCDate()).padStart(2, '0');
+  const yy = String(now.getUTCFullYear()).slice(-2);
+
+  const hh = String(now.getUTCHours()).padStart(2, '0');
+  const min = String(now.getUTCMinutes()).padStart(2, '0');
+
+  return `${mm}${dd}${yy}-${hh}${min}-${workerIndex}`;
 }

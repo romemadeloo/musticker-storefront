@@ -29,7 +29,7 @@ export default defineConfig({
   reporter: process.env.CI ? ciReporters : localReporters,
   use: {
     baseURL: env.BASE_URL,
-    headless: process.env.HEADED !== 'true',
+    headless: process.env.HEADED !== 'false',
     locale: 'ko-KR',
     timezoneId: 'Asia/Seoul',
     trace: 'on-first-retry',

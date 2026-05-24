@@ -20,11 +20,19 @@ export class DesignUploadModal {
     await expect(this.dialog.getByRole('textbox', { name: '여기에 상세 주문 요청 사항을 입력해 주세요' })).toBeVisible();
   }
 
-  async uploadDesignFile(filePath: string): Promise<void> {
+  async uploadDesignFile(filePath: string, options: { waitForAddToCart?: boolean } = {}): Promise<void> {
     const chooserPromise = this.page.waitForEvent('filechooser');
     await this.dialog.getByRole('button', { name: '파일 선택' }).click();
     const chooser = await chooserPromise;
     await chooser.setFiles(filePath);
+
+    if (options.waitForAddToCart === false) {
+      return;
+    }
+
+    // eslint-disable-next-line playwright/no-networkidle
+    await this.page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => undefined);
+    await expect(this.addToCartButton()).toBeEnabled({ timeout: 30_000 });
   }
 
   async expectSelectedFile(filePath: string): Promise<void> {
@@ -74,5 +82,12 @@ export class DesignUploadModal {
   async close(): Promise<void> {
     await this.dialog.getByRole('button', { name: 'Close modal' }).click();
     await expect(this.dialog).toBeHidden();
+  }
+
+  private addToCartButton(): Locator {
+    return this.page
+      .getByTestId('product-category-upload-add-to-cart-button')
+      .or(this.dialog.getByRole('button', { name: /\uc7a5\ubc14\uad6c\ub2c8\s*\ub2f4\uae30|Add to cart/i }))
+      .first();
   }
 }

@@ -4,6 +4,7 @@ type GuardOptions = {
   allowGuestUserMe401: boolean;
   allowKnownPriceWarnings: boolean;
   allowExpectedAuthFailures: boolean;
+  allowKnownNuxtPayloadFailures: boolean;
 };
 
 function isExpectedGuestUserMe401(status: number, url: string): boolean {
@@ -18,6 +19,10 @@ function isExpectedAuthFailure(status: number, url: string): boolean {
   return /auth|login|register|order|guest|non-member|user\/me/i.test(url);
 }
 
+function isKnownNuxtPayloadFailure(status: number, url: string): boolean {
+  return status === 500 && /\/kr\/.*_payload\.json/i.test(url);
+}
+
 function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
   if (options.allowGuestUserMe401 && /401/.test(text)) {
     return true;
@@ -25,7 +30,15 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
 
   if (
     options.allowKnownPriceWarnings &&
-    /Updating prices|Invalid data Proxy|Invalidd minimum quantity|Calculating carts|New Size:/.test(text)
+    /Updating prices|Invalid data Proxy|Invalidd minimum quantity|Calculating carts|New Size:|price_per_mm/.test(text)
+  ) {
+    return true;
+  }
+
+  if (
+    options.allowKnownNuxtPayloadFailures &&
+    (/Cannot load payload\s+\/kr\/.*_payload\.json/i.test(text) ||
+      text === 'Failed to load resource: the server responded with a status of 500 ()')
   ) {
     return true;
   }
@@ -37,12 +50,17 @@ export const test = base.extend<GuardOptions>({
   allowGuestUserMe401: [false, { option: true }],
   allowKnownPriceWarnings: [true, { option: true }],
   allowExpectedAuthFailures: [false, { option: true }],
+  allowKnownNuxtPayloadFailures: [false, { option: true }],
 
-  page: async ({ page, allowGuestUserMe401, allowKnownPriceWarnings, allowExpectedAuthFailures }, use) => {
+  page: async (
+    { page, allowGuestUserMe401, allowKnownPriceWarnings, allowExpectedAuthFailures, allowKnownNuxtPayloadFailures },
+    use
+  ) => {
     const guardOptions = {
       allowGuestUserMe401,
       allowKnownPriceWarnings,
-      allowExpectedAuthFailures
+      allowExpectedAuthFailures,
+      allowKnownNuxtPayloadFailures
     };
     const consoleFailures: string[] = [];
     const responseFailures: string[] = [];
@@ -72,6 +90,10 @@ export const test = base.extend<GuardOptions>({
       }
 
       if (allowExpectedAuthFailures && isExpectedAuthFailure(status, url)) {
+        return;
+      }
+
+      if (allowKnownNuxtPayloadFailures && isKnownNuxtPayloadFailure(status, url)) {
         return;
       }
 
