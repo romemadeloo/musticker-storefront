@@ -19,10 +19,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  member-regression:
+  check-dev-build:
     name: Check dev build
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 15
+    outputs:
+      should_run: ${{ steps.build.outputs.should_run }}
     env:
       API_BUILD_URL: https://dev-api.musticker.com/build.txt
       STATE_FILE: .github/build-watch/member-regression-state.json
@@ -233,20 +235,34 @@ jobs:
         if: ${{ steps.build.outputs.should_run != 'true' }}
         run: echo "No build change detected; member regression was not run."
 
+  member-regression:
+    name: Run member regression
+    needs: check-dev-build
+    if: ${{ needs.check-dev-build.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version: 22
+
       - name: Install dependencies
-        if: ${{ steps.build.outputs.should_run == 'true' }}
         run: npm ci
 
       - name: Install Playwright Chromium
-        if: ${{ steps.build.outputs.should_run == 'true' }}
         run: npx playwright install --with-deps chromium
 
       - name: Run member purchase regression
-        if: ${{ steps.build.outputs.should_run == 'true' }}
         run: npm run test:e2e:member-regression -- --reporter=list
 
       - name: Upload Playwright artifacts
-        if: ${{ always() && steps.build.outputs.should_run == 'true' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           if-no-files-found: ignore
