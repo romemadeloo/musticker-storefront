@@ -64,9 +64,10 @@ export class PaymentGatewayPage {
 
   async gotoOrderConfirmation(orderId?: string): Promise<OrderConfirmationPage> {
     const confirmationOrderId = orderId ?? (await this.captureConfirmationOrderId());
-    await this.page.goto(appPath(`checkout/confirmation?order_id=${confirmationOrderId}`));
-    await this.page.waitForLoadState('domcontentloaded').catch(() => undefined);
-    return new OrderConfirmationPage(this.page);
+    const confirmationUrl = appPath(`checkout/confirmation?order_id=${confirmationOrderId}`);
+    const confirmationPage = await this.gotoConfirmationUrl(confirmationUrl);
+
+    return new OrderConfirmationPage(confirmationPage);
   }
 
   async completeSandboxPayment(profile: PaymentProfile): Promise<OrderConfirmationPage> {
@@ -136,6 +137,21 @@ export class PaymentGatewayPage {
 
     throw new Error('No visible sandbox payment confirmation control was found.');
   }
+
+  private async gotoConfirmationUrl(url: string): Promise<Page> {
+    try {
+      await this.page.goto(url, { waitUntil: 'domcontentloaded' });
+      return this.page;
+    } catch (error) {
+      if (!isNavigationAbort(error)) {
+        throw error;
+      }
+    }
+
+    const page = await this.page.context().newPage();
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    return page;
+  }
 }
 
 function extractOrderId(value: string): string | undefined {
@@ -146,4 +162,8 @@ function extractOrderId(value: string): string | undefined {
 function extractConfirmationOrderId(value: string): string | undefined {
   const decoded = decodeURIComponent(value);
   return decoded.match(/(?:order_id["'=:\s]+|\/orders\/)(\d{1,})/i)?.[1];
+}
+
+function isNavigationAbort(error: unknown): boolean {
+  return error instanceof Error && /ERR_ABORTED|frame was detached|Target page, context or browser has been closed/i.test(error.message);
 }

@@ -44,25 +44,32 @@ export class RegisterPage {
 
   async expectClientValidationWithoutSubmittingUser(): Promise<void> {
     await this.page.getByTestId('auth-register-submit').click();
-    await expect(this.page.getByTestId('auth-register-first-name-input-control')).toBeVisible();
+    await expect(this.registrationNameInput()).toBeVisible();
     await expect(this.page.getByTestId('auth-register-email-input-control')).toBeVisible();
     await expect(this.page.getByTestId('auth-register-password-input-control')).toBeVisible();
     await expect(this.page).toHaveURL(/\/kr\/auth\/register\/?$/);
   }
 
   async submitRegistration(profile: RegistrationProfile): Promise<void> {
+    const fullNameInput = this.page.getByTestId('auth-register-full-name-input-control');
     const firstName = this.page.getByTestId('auth-register-first-name-input-control');
     const lastName = this.page.getByTestId('auth-register-last-name-input-control');
     const email = this.page.getByTestId('auth-register-email-input-control');
     const password = this.page.getByTestId('auth-register-password-input-control');
+    const fullName = `${profile.firstName} ${profile.lastName}`;
 
-    await expect(firstName).toBeVisible();
-    await firstName.fill(profile.firstName);
-    await lastName.fill(profile.lastName);
+    if (await fullNameInput.isVisible().catch(() => false)) {
+      await fullNameInput.fill(fullName);
+      await expect(fullNameInput).toHaveValue(fullName);
+    } else {
+      await expect(firstName).toBeVisible();
+      await firstName.fill(profile.firstName);
+      await lastName.fill(profile.lastName);
+      await expect(firstName).toHaveValue(profile.firstName);
+      await expect(lastName).toHaveValue(profile.lastName);
+    }
     await email.fill(profile.email);
     await password.fill(profile.password);
-    await expect(firstName).toHaveValue(profile.firstName);
-    await expect(lastName).toHaveValue(profile.lastName);
     await expect(email).toHaveValue(profile.email);
     await expect(password).toHaveValue(profile.password);
     await this.page.getByTestId('auth-register-agree-terms-control').check({ force: true });
@@ -212,6 +219,13 @@ export class RegisterPage {
     return this.page.locator('button').filter({
       hasText: /프로필|사진|이미지|업로드|Upload|Choose|Photo|Image/i
     });
+  }
+
+  private registrationNameInput(): Locator {
+    return this.page
+      .getByTestId('auth-register-full-name-input-control')
+      .or(this.page.getByTestId('auth-register-first-name-input-control'))
+      .first();
   }
 
   private async uploadViaFileInput(profilePicturePath: string): Promise<void> {

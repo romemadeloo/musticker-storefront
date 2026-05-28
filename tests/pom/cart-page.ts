@@ -3,7 +3,7 @@ import { expect } from '@playwright/test';
 
 import type { CartLineItem } from '../fixtures/types.js';
 
-const changeSizeButtonName = /\uc0ac\uc774\uc988 \ubcc0\uacbd|Change size/i;
+const changeSizeButtonName = /\uc0ac\uc774\uc988 (?:\ubcc0\uacbd|\uc218\uc815)|Change size|Edit size/i;
 const sizeEditDialogTitle = /\uc0ac\uc774\uc988 \uc218\uc815|\uc5c5\ub370\uc774\ud2b8|Update/i;
 
 type SelectResult = {
@@ -51,13 +51,13 @@ export class CartPage {
 
   async editFirstItemSizeAndQuantity(sizeMm: number, quantity: number): Promise<void> {
     const totalBefore = await this.captureTotal();
-    const rows = this.page.getByTestId('cart-page-row');
+    const rows = this.rows();
     const rowCount = await rows.count();
 
     for (let index = 0; index < rowCount; index += 1) {
       const row = rows.nth(index);
       const sizeButton = row.getByRole('button', { name: changeSizeButtonName });
-      const quantityButton = row.locator('button.cart-qty-select-trigger');
+      const quantityButton = this.rowQuantityButton(row);
 
       if (
         !(await sizeButton.isVisible().catch(() => false)) ||
@@ -127,11 +127,15 @@ export class CartPage {
   }
 
   private row(productName: string): Locator {
-    return this.page.getByTestId('cart-page-row').filter({ hasText: productName }).first();
+    return this.rows().filter({ hasText: productName }).first();
+  }
+
+  private rows(): Locator {
+    return this.page.getByTestId('cart-page-row').or(this.main.getByRole('article'));
   }
 
   private async rowQuantity(row: Locator): Promise<number | undefined> {
-    const trigger = row.locator('button.cart-qty-select-trigger');
+    const trigger = this.rowQuantityButton(row);
     if (!(await trigger.count())) {
       return undefined;
     }
@@ -141,11 +145,19 @@ export class CartPage {
   }
 
   private async selectModalValue(dialog: Locator, preferredValue: string): Promise<SelectResult> {
-    const trigger = dialog.locator('button.cart-item-edit-select-trigger').first();
+    const trigger = this.editDialogSelectTriggers(dialog).first();
     const previousValue = extractLeadingNumber(await trigger.innerText());
 
     await trigger.click({ force: true });
     return this.selectOpenListboxValue(preferredValue, previousValue);
+  }
+
+  private rowQuantityButton(row: Locator): Locator {
+    return row.locator('button.cart-qty-select-trigger').or(row.getByRole('button', { name: /^\d[\d,]*$/ })).first();
+  }
+
+  private editDialogSelectTriggers(dialog: Locator): Locator {
+    return dialog.locator('button.cart-item-edit-select-trigger, [role="combobox"]');
   }
 
   private async selectOpenListboxValue(preferredValue: string, previousValue: string): Promise<SelectResult> {
@@ -169,23 +181,58 @@ export class CartPage {
 
   private async optionForValue(options: Locator, preferredValue: string, previousValue: string): Promise<Locator> {
     const preferred = options.filter({ hasText: new RegExp(`^\\s*${escapeRegExp(preferredValue)}\\b`) }).first();
+    const preferredNumber = selectNumber(preferredValue);
+    const previousNumber = selectNumber(previousValue);
 
     if ((await preferred.isVisible().catch(() => false)) && extractLeadingNumber(await preferred.innerText()) !== previousValue) {
       return preferred;
     }
 
     const optionCount = await options.count();
+    let higherFallback: Locator | undefined;
+    let changedFallback: Locator | undefined;
+
     for (let index = 0; index < optionCount; index += 1) {
       const option = options.nth(index);
       const optionValue = extractLeadingNumber(await option.innerText());
 
       if (optionValue && optionValue !== previousValue && !(await option.isDisabled().catch(() => false))) {
-        return option;
+        const optionNumber = selectNumber(optionValue);
+
+        if (optionNumber !== undefined && preferredNumber !== undefined && optionNumber >= preferredNumber) {
+          return option;
+        }
+
+        if (
+          !higherFallback &&
+          optionNumber !== undefined &&
+          previousNumber !== undefined &&
+          optionNumber > previousNumber
+        ) {
+          higherFallback = option;
+        }
+
+        changedFallback ??= option;
       }
+    }
+
+    if (higherFallback) {
+      return higherFallback;
     }
 
     if (await preferred.isVisible().catch(() => false)) {
       return preferred;
+    }
+
+    if (previousValue) {
+      const current = options.filter({ hasText: new RegExp(`^\\s*${escapeRegExp(previousValue)}\\b`) }).first();
+      if (await current.isVisible().catch(() => false)) {
+        return current;
+      }
+    }
+
+    if (previousNumber === undefined && changedFallback) {
+      return changedFallback;
     }
 
     return options.first();
@@ -224,6 +271,11 @@ function extractWonAmount(value: string): string | undefined {
 
 function extractLeadingNumber(value: string): string {
   return normalizeSelectText(value).match(/^\d[\d,]*/)?.[0].replace(/,/g, '') ?? '';
+}
+
+function selectNumber(value: string): number | undefined {
+  const parsed = Number(value.replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function normalizeSelectText(value: string): string {

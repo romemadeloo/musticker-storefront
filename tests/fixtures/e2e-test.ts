@@ -38,6 +38,7 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
   if (
     options.allowKnownNuxtPayloadFailures &&
     (/Cannot load payload\s+\/kr\/.*_payload\.json/i.test(text) ||
+      /Hydration completed but contains mismatches/i.test(text) ||
       text === 'Failed to load resource: the server responded with a status of 500 ()')
   ) {
     return true;

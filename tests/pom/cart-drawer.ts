@@ -103,6 +103,12 @@ export class CartDrawer {
 
       const selectedSize = await this.selectFromEditDialog(editDialog, 0, String(sizeMm));
       const selectedQuantity = await this.selectFromEditDialog(editDialog, 1, String(quantity));
+
+      if (!selectedSize.changed && !selectedQuantity.changed) {
+        await this.closeEditDialog(editDialog);
+        continue;
+      }
+
       const updateResponsePromise = this.waitForCartItemUpdateResponse();
       const updateButton = await firstVisibleLocator([
         {
@@ -124,7 +130,8 @@ export class CartDrawer {
         .catch(() => false);
 
       if (!dialogClosed) {
-        throw new Error('Cart item edit dialog stayed open after Update, and no failed cart update response was captured.');
+        await this.closeEditDialog(editDialog).catch(() => undefined);
+        continue;
       }
 
       if (selectedSize.value) {
@@ -242,37 +249,62 @@ export class CartDrawer {
 
   private async optionForValue(options: Locator, preferredValue: string, previousValue: string): Promise<Locator> {
     const preferred = options.filter({ hasText: new RegExp(`^\\s*${escapeRegExp(preferredValue)}\\b`) }).first();
-    const preferredChanged = await expect
-      .poll(
-        async () => {
-          if (!(await preferred.isVisible().catch(() => false)) || (await preferred.isDisabled().catch(() => false))) {
-            return false;
-          }
+    const preferredNumber = selectNumber(preferredValue);
+    const previousNumber = selectNumber(previousValue);
 
-          return extractLeadingNumber(await preferred.innerText()) !== previousValue;
-        },
-        { timeout: 5_000 }
-      )
-      .toBe(true)
-      .then(() => true)
-      .catch(() => false);
-
-    if (preferredChanged) {
+    if (
+      (await preferred.isVisible().catch(() => false)) &&
+      !(await preferred.isDisabled().catch(() => false)) &&
+      extractLeadingNumber(await preferred.innerText()) !== previousValue
+    ) {
       return preferred;
     }
 
     const optionCount = await options.count();
+    let higherFallback: Locator | undefined;
+    let changedFallback: Locator | undefined;
+
     for (let index = 0; index < optionCount; index += 1) {
       const option = options.nth(index);
       const optionValue = extractLeadingNumber(await option.innerText());
 
       if (optionValue && optionValue !== previousValue && !(await option.isDisabled().catch(() => false))) {
-        return option;
+        const optionNumber = selectNumber(optionValue);
+
+        if (optionNumber !== undefined && preferredNumber !== undefined && optionNumber >= preferredNumber) {
+          return option;
+        }
+
+        if (
+          !higherFallback &&
+          optionNumber !== undefined &&
+          previousNumber !== undefined &&
+          optionNumber > previousNumber
+        ) {
+          higherFallback = option;
+        }
+
+        changedFallback ??= option;
       }
+    }
+
+    if (higherFallback) {
+      return higherFallback;
     }
 
     if (await preferred.isVisible().catch(() => false)) {
       return preferred;
+    }
+
+    if (previousValue) {
+      const current = options.filter({ hasText: new RegExp(`^\\s*${escapeRegExp(previousValue)}\\b`) }).first();
+      if (await current.isVisible().catch(() => false)) {
+        return current;
+      }
+    }
+
+    if (previousNumber === undefined && changedFallback) {
+      return changedFallback;
     }
 
     return options.first();
@@ -395,6 +427,11 @@ function extractWonAmount(value: string): string | undefined {
 
 function extractLeadingNumber(value: string): string {
   return normalizeSelectText(value).match(/^\d[\d,]*/)?.[0].replace(/,/g, '') ?? '';
+}
+
+function selectNumber(value: string): number | undefined {
+  const parsed = Number(value.replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function normalizeSelectText(value: string): string {

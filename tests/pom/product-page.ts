@@ -6,6 +6,8 @@ import type { CartLineItem, ProductConfig, RegressionProductCandidate } from '..
 import { CartDrawer } from './cart-drawer.js';
 import { DesignUploadModal } from './design-upload-modal.js';
 
+const customOptionLabel = /\uCEE4\uC2A4\uD140|\uC9C1\uC811|Custom|Direct/i;
+
 export class ProductPage {
   readonly page: Page;
   readonly optionsPanel: Locator;
@@ -65,7 +67,10 @@ export class ProductPage {
   }
 
   async openCustomSizeFields(): Promise<void> {
-    await this.optionsPanel.getByRole('button', { name: '직접 입력' }).first().click();
+    const customSizeButton = this.customOptionButtons().first();
+
+    await expect(customSizeButton).toBeVisible({ timeout: 10_000 });
+    await customSizeButton.click();
     await expect(this.customSizeInputs().first()).toBeVisible();
   }
 
@@ -77,7 +82,10 @@ export class ProductPage {
   }
 
   async openCustomQuantityField(): Promise<void> {
-    await this.optionsPanel.getByRole('button', { name: '직접 입력' }).last().click();
+    const customQuantityButton = this.customOptionButtons().last();
+
+    await expect(customQuantityButton).toBeVisible({ timeout: 10_000 });
+    await customQuantityButton.click();
     await expect(this.optionsPanel.getByRole('spinbutton').last()).toBeVisible();
   }
 
@@ -139,6 +147,10 @@ export class ProductPage {
 
   private customSizeInputs(): Locator {
     return this.optionsPanel.getByPlaceholder('Width').or(this.optionsPanel.getByRole('spinbutton'));
+  }
+
+  private customOptionButtons(): Locator {
+    return this.optionsPanel.getByRole('button', { name: customOptionLabel });
   }
 
   private async configureLetteringText(candidate: RegressionProductCandidate): Promise<void> {
