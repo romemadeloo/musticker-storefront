@@ -216,8 +216,19 @@ export class CartDrawer {
 
     await trigger.click({ force: true });
 
-    const listbox = this.page.getByRole('listbox').last();
-    await expect(listbox).toBeVisible({ timeout: 5_000 });
+    const listbox = await firstVisibleLocator(
+      [
+        {
+          name: 'cart edit dialog listbox',
+          locator: editDialog.getByRole('listbox').last()
+        },
+        {
+          name: 'page listbox',
+          locator: this.page.getByRole('listbox').last()
+        }
+      ],
+      5_000
+    );
 
     const options = await firstLocatorWithCount([
       {
@@ -225,14 +236,22 @@ export class CartDrawer {
         locator: listbox.getByRole('button')
       },
       {
+        name: 'listbox css button options',
+        locator: listbox.locator('button')
+      },
+      {
         name: 'listbox role options',
         locator: listbox.getByRole('option')
+      },
+      {
+        name: 'listbox css role options',
+        locator: listbox.locator('[role="option"]')
       },
       {
         name: 'listbox data-value options',
         locator: listbox.locator('[data-value]')
       }
-    ]);
+    ], 5_000);
     const option = await this.optionForValue(options, preferredValue, previousValue);
     const selectedText = await option.innerText();
     const selectedValue = extractLeadingNumber(selectedText);

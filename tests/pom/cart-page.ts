@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
+import { firstLocatorWithCount } from '../fixtures/resilient-locator.js';
 import type { CartLineItem } from '../fixtures/types.js';
 
 const changeSizeButtonName = /\uc0ac\uc774\uc988 (?:\ubcc0\uacbd|\uc218\uc815)|Change size|Edit size/i;
@@ -164,7 +165,28 @@ export class CartPage {
     const listbox = this.page.getByRole('listbox').last();
     await expect(listbox).toBeVisible({ timeout: 5_000 });
 
-    const options = listbox.getByRole('button');
+    const options = await firstLocatorWithCount([
+      {
+        name: 'listbox button options',
+        locator: listbox.getByRole('button')
+      },
+      {
+        name: 'listbox css button options',
+        locator: listbox.locator('button')
+      },
+      {
+        name: 'listbox role options',
+        locator: listbox.getByRole('option')
+      },
+      {
+        name: 'listbox css role options',
+        locator: listbox.locator('[role="option"]')
+      },
+      {
+        name: 'listbox data-value options',
+        locator: listbox.locator('[data-value]')
+      }
+    ], 5_000);
     const option = await this.optionForValue(options, preferredValue, previousValue);
     const selectedText = await option.innerText();
     const selectedValue = extractLeadingNumber(selectedText);

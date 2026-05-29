@@ -118,7 +118,14 @@ export class CheckoutPage {
       )
       .catch(() => null);
 
-    await this.page.getByRole('button', { name: /\uacb0\uc81c \uc644\ub8cc|Place order|Pay/i }).click();
+    const submitButton = this
+      .summary()
+      .locator('button.checkout-summary-submit')
+      .or(this.summary().getByRole('button', { name: /\uacb0\uc81c \uc644\ub8cc|Place order|Pay/i }))
+      .first();
+
+    await expect(submitButton).toBeVisible();
+    await submitButton.click();
 
     const [popup, orderResponse] = await Promise.all([popupPromise, orderResponsePromise]);
     const orderResponseText = await orderResponse?.text().catch(() => undefined);
