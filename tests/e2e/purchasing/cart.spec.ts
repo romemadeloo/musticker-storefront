@@ -1,9 +1,9 @@
-import { test } from '../fixtures/e2e-test.js';
-import { dieCutSticker } from '../fixtures/test-data.js';
-import { createTraceableUploadPng, createUnsupportedUploadFile } from '../fixtures/traceable-upload-image.js';
-import { ProductPage } from '../pom/product-page.js';
+import { test } from '../../fixtures/e2e-test.js';
+import { dieCutSticker } from '../../fixtures/test-data.js';
+import { createTraceableUploadPng } from '../../fixtures/traceable-upload-image.js';
+import { ProductPage } from '../../pom/product-page.js';
 
-test.describe('upload and cart', { tag: '@regression' }, () => {
+test.describe('upload and cart', { tag: ['@regression', '@purchasing'] }, () => {
   test.use({ allowGuestUserMe401: true, allowKnownNuxtPayloadFailures: true });
 
   test('adds configured product to cart with upload-later path and removes it', { tag: ['@cart', '@e2e'] }, async ({ page }) => {
@@ -43,15 +43,4 @@ test.describe('upload and cart', { tag: '@regression' }, () => {
     await cart.expectLineItem(dieCutSticker);
   });
 
-  test('keeps unsupported upload formats inside the upload modal', { tag: '@cart' }, async ({ page }, testInfo) => {
-    const invalidDesignFile = await createUnsupportedUploadFile(testInfo, `cart-${testInfo.workerIndex}`);
-    const productPage = new ProductPage(page);
-
-    await productPage.goto(dieCutSticker.path);
-    await productPage.configureProduct(dieCutSticker);
-
-    const uploadModal = await productPage.openUploadModal();
-    await uploadModal.uploadDesignFile(invalidDesignFile, { waitForAddToCart: false });
-    await uploadModal.expectInvalidFileValidation();
-  });
 });

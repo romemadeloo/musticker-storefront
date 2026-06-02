@@ -1,0 +1,141 @@
+name: Manual Playwright
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Playwright suite to run.
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - buyer-flow
+          - regression
+          - admin
+          - custom-grep
+      browser_project:
+        description: Browser project to run.
+        required: true
+        default: chromium-desktop
+        type: choice
+        options:
+          - chromium-desktop
+          - firefox-desktop
+          - webkit-desktop
+          - all-desktop
+      custom_grep:
+        description: Required only when suite is custom-grep. Example: @cart|@payment
+        required: false
+        default: ''
+        type: string
+      run_payment_e2e:
+        description: Enable payment and long purchase regression gates.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  BASE_URL: ${{ vars.BASE_URL || 'https://dev.musticker.com/kr' }}
+  BYPASS_ARTWORK_UPLOAD: ${{ vars.BYPASS_ARTWORK_UPLOAD || 'false' }}
+  E2E_BROWSER_PROJECT: ${{ inputs.browser_project }}
+  RUN_PAYMENT_E2E: ${{ inputs.run_payment_e2e }}
+  TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+  TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+
+jobs:
+  playwright:
+    name: ${{ inputs.suite }} on ${{ inputs.browser_project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install selected Playwright browsers
+        shell: bash
+        run: |
+          case "${{ inputs.browser_project }}" in
+            chromium-desktop)
+              npx playwright install --with-deps chromium
+              ;;
+            firefox-desktop)
+              npx playwright install --with-deps firefox
+              ;;
+            webkit-desktop)
+              npx playwright install --with-deps webkit
+              ;;
+            all-desktop)
+              npx playwright install --with-deps chromium firefox webkit
+              ;;
+            *)
+              echo "Unsupported browser project: ${{ inputs.browser_project }}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Run selected suite
+        shell: bash
+        env:
+          SUITE: ${{ inputs.suite }}
+          CUSTOM_GREP: ${{ inputs.custom_grep }}
+        run: |
+          set -euo pipefail
+
+          pass_with_no_tests=()
+          grep_invert=()
+
+          case "$SUITE" in
+            smoke)
+              grep='@smoke'
+              ;;
+            buyer-flow)
+              grep='@smoke|@search|@product|@cart'
+              grep_invert=(--grep-invert '@slow|@payment')
+              ;;
+            regression)
+              grep='@regression|@checkout|@coupon|@points|@admin'
+              ;;
+            admin)
+              grep='@admin'
+              pass_with_no_tests=(--pass-with-no-tests)
+              ;;
+            custom-grep)
+              if [ -z "$CUSTOM_GREP" ]; then
+                echo "custom_grep is required when suite is custom-grep." >&2
+                exit 1
+              fi
+              grep="$CUSTOM_GREP"
+              pass_with_no_tests=(--pass-with-no-tests)
+              ;;
+            *)
+              echo "Unsupported suite: $SUITE" >&2
+              exit 1
+              ;;
+          esac
+
+          npx playwright test --grep "$grep" "${grep_invert[@]}" "${pass_with_no_tests[@]}"
+
+      - name: Upload Playwright artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: ignore
+          name: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14

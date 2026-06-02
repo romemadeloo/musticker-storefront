@@ -1,16 +1,16 @@
-import { test } from '../fixtures/e2e-test.js';
+import { test } from '../../fixtures/e2e-test.js';
 import {
   AUTH_STORAGE_STATE,
   canRunPaymentE2E,
   checkoutProfile,
   makeRunMarker,
   paymentProfile
-} from '../fixtures/env.js';
-import { dieCutSticker } from '../fixtures/test-data.js';
-import { CheckoutPage } from '../pom/checkout-page.js';
-import { ProductPage } from '../pom/product-page.js';
+} from '../../fixtures/env.js';
+import { dieCutSticker } from '../../fixtures/test-data.js';
+import { CheckoutPage } from '../../pom/checkout-page.js';
+import { ProductPage } from '../../pom/product-page.js';
 
-test.describe('full payment checkout', { tag: ['@regression', '@e2e', '@payment', '@slow'] }, () => {
+test.describe('full payment checkout', { tag: ['@regression', '@e2e', '@purchasing', '@payment', '@slow'] }, () => {
   test.skip(!canRunPaymentE2E(), 'Set RUN_PAYMENT_E2E=true and seeded user credentials to run full payment checkout.');
   test.use({ storageState: AUTH_STORAGE_STATE });
 

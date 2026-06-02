@@ -15,6 +15,48 @@ const localReporters: ReporterDescription[] = [
   ['list']
 ];
 
+const desktopProjects = [
+  {
+    name: 'chromium-desktop',
+    use: {
+      ...devices['Desktop Chrome'],
+      viewport: { width: 1440, height: 900 }
+    }
+  },
+  {
+    name: 'firefox-desktop',
+    use: {
+      ...devices['Desktop Firefox'],
+      viewport: { width: 1440, height: 900 }
+    }
+  },
+  {
+    name: 'webkit-desktop',
+    use: {
+      ...devices['Desktop Safari'],
+      viewport: { width: 1440, height: 900 }
+    }
+  }
+];
+
+function selectedProjects(): typeof desktopProjects {
+  const requestedProject = process.env.E2E_BROWSER_PROJECT ?? 'chromium-desktop';
+
+  if (requestedProject === 'all-desktop') {
+    return desktopProjects;
+  }
+
+  const project = desktopProjects.find((candidate) => candidate.name === requestedProject);
+
+  if (!project) {
+    throw new Error(
+      `Unsupported E2E_BROWSER_PROJECT "${requestedProject}". Use chromium-desktop, firefox-desktop, webkit-desktop, or all-desktop.`
+    );
+  }
+
+  return [project];
+}
+
 export default defineConfig({
   testDir: './tests/e2e',
   globalSetup: './tests/global-setup.ts',
@@ -36,15 +78,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
   },
-  projects: [
-    {
-      name: 'chromium-desktop',
-      use: {
-        ...devices['Desktop Chrome'],
-        viewport: { width: 1440, height: 900 }
-      }
-    }
-  ],
+  projects: selectedProjects(),
   metadata: {
     authStorageState: AUTH_STORAGE_STATE
   },

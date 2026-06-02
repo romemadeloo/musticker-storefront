@@ -1,31 +1,31 @@
 import type { APIRequestContext } from '@playwright/test';
 
-import { test } from '../fixtures/e2e-test.js';
+import { test } from '../../fixtures/e2e-test.js';
 import {
   appPath,
   canRunMemberPurchaseRegression,
   checkoutProfile,
   env
-} from '../fixtures/env.js';
-import { installArtworkUploadBypass } from '../fixtures/artwork-upload-bypass.js';
+} from '../../fixtures/env.js';
+import { installArtworkUploadBypass } from '../../fixtures/artwork-upload-bypass.js';
 import {
   expectOrderCompletionDetailsToMatchCheckout,
   summarizeOrderCompletionDetails,
   waitForOrderCompletionDetails
-} from '../fixtures/order-completion-details-client.js';
-import { fetchRegistrationOtp } from '../fixtures/otp-client.js';
-import { memberPurchaseCategories } from '../fixtures/test-data.js';
-import { checkoutAmountToNumber, postTossPaymentStatusWebhook } from '../fixtures/toss-payment-webhook-client.js';
-import { createTraceableUploadPng } from '../fixtures/traceable-upload-image.js';
-import type { CartLineItem, RegressionProductCandidate } from '../fixtures/types.js';
-import { CartDrawer } from '../pom/cart-drawer.js';
-import { CartPage } from '../pom/cart-page.js';
-import { CheckoutPage } from '../pom/checkout-page.js';
-import { LoginPage } from '../pom/login-page.js';
-import { ProductPage } from '../pom/product-page.js';
-import { RegisterPage, type RegistrationProfile } from '../pom/register-page.js';
+} from '../../fixtures/order-completion-details-client.js';
+import { fetchRegistrationOtp } from '../../fixtures/otp-client.js';
+import { memberPurchaseCategories } from '../../fixtures/test-data.js';
+import { checkoutAmountToNumber, postTossPaymentStatusWebhook } from '../../fixtures/toss-payment-webhook-client.js';
+import { createTraceableUploadPng } from '../../fixtures/traceable-upload-image.js';
+import type { CartLineItem, RegressionProductCandidate } from '../../fixtures/types.js';
+import { CartDrawer } from '../../pom/cart-drawer.js';
+import { CartPage } from '../../pom/cart-page.js';
+import { CheckoutPage } from '../../pom/checkout-page.js';
+import { LoginPage } from '../../pom/login-page.js';
+import { ProductPage } from '../../pom/product-page.js';
+import { RegisterPage, type RegistrationProfile } from '../../pom/register-page.js';
 
-test.describe('new member purchase regression', { tag: ['@regression', '@e2e', '@payment', '@slow'] }, () => {
+test.describe('new member purchase regression', { tag: ['@regression', '@e2e', '@purchasing', '@payment', '@slow'] }, () => {
   test.setTimeout(300_000);
 
   test.skip(

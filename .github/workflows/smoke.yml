@@ -1,0 +1,57 @@
+name: Buyer smoke
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buyer-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_URL: ${{ vars.BASE_URL || 'https://dev.musticker.com/kr' }}
+  E2E_BROWSER_PROJECT: chromium-desktop
+  RUN_PAYMENT_E2E: 'false'
+  TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+  TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+
+jobs:
+  buyer-flow:
+    name: Important buyer flow tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run buyer smoke coverage
+        run: npx playwright test --grep "@smoke|@search|@product|@cart" --grep-invert "@slow|@payment"
+
+      - name: Upload Playwright artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: ignore
+          name: buyer-smoke-playwright-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
