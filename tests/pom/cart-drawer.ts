@@ -207,7 +207,10 @@ export class CartDrawer {
   }
 
   private lineItems(productName: string): Locator {
-    return this.dialog.getByRole('article').filter({ hasText: productName });
+    return this.dialog
+      .getByRole('article')
+      .filter({ hasText: productName })
+      .filter({ hasText: /Size:|Quantity:|\uc0ac\uc774\uc988:|\uc218\ub7c9:/i });
   }
 
   private async selectFromEditDialog(editDialog: Locator, triggerIndex: number, preferredValue: string): Promise<SelectResult> {

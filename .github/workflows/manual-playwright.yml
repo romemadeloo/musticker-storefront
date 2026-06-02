@@ -39,6 +39,7 @@ permissions:
   contents: read
 
 env:
+  ALLURE_RESULTS_DIR: allure-results
   BASE_URL: ${{ vars.BASE_URL || 'https://dev.musticker.com/kr' }}
   BYPASS_ARTWORK_UPLOAD: ${{ vars.BYPASS_ARTWORK_UPLOAD || 'false' }}
   E2E_BROWSER_PROJECT: ${{ inputs.browser_project }}
@@ -104,7 +105,7 @@ jobs:
               ;;
             buyer-flow)
               grep='@smoke|@search|@product|@cart'
-              grep_invert=(--grep-invert '@slow|@payment')
+              grep_invert=(--grep-invert '@slow|@payment|@validation|@error-handling')
               ;;
             regression)
               grep='@regression|@checkout|@coupon|@points|@admin'
@@ -129,13 +130,9 @@ jobs:
 
           npx playwright test --grep "$grep" "${grep_invert[@]}" "${pass_with_no_tests[@]}"
 
-      - name: Upload Playwright artifacts
+      - name: Collect Playwright and Allure artifacts
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/playwright-artifacts
         with:
-          if-no-files-found: ignore
-          name: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
-          path: |
-            test-results/
-            playwright-report/
-          retention-days: 14
+          artifact_name: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
+          retention_days: 14

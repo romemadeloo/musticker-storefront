@@ -15,6 +15,14 @@ const localReporters: ReporterDescription[] = [
   ['list']
 ];
 
+function reportersWithAllure(reporters: ReporterDescription[]): ReporterDescription[] {
+  if (!process.env.ALLURE_RESULTS_DIR) {
+    return reporters;
+  }
+
+  return [...reporters, ['allure-playwright', { outputFolder: process.env.ALLURE_RESULTS_DIR }]];
+}
+
 const desktopProjects = [
   {
     name: 'chromium-desktop',
@@ -68,7 +76,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,
   workers: process.env.CI ? 2 : 1,
-  reporter: process.env.CI ? ciReporters : localReporters,
+  reporter: reportersWithAllure(process.env.CI ? ciReporters : localReporters),
   use: {
     baseURL: env.BASE_URL,
     headless: process.env.HEADED !== 'false',

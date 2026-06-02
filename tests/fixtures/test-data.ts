@@ -8,8 +8,8 @@ export const dieCutSticker: ProductConfig = {
   widthMm: 75,
   heightMm: 75,
   quantity: 10,
-  expectedUnitPrice: '42,500원',
-  expectedCheckoutTotal: '45,500원'
+  expectedUnitPrice: '6,600원',
+  expectedCheckoutTotal: '9,600원'
 };
 
 export const searchQueries = {

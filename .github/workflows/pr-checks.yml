@@ -14,6 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  ALLURE_RESULTS_DIR: allure-results
   BASE_URL: ${{ vars.BASE_URL || 'https://dev.musticker.com/kr' }}
   E2E_BROWSER_PROJECT: chromium-desktop
   RUN_PAYMENT_E2E: 'false'
@@ -51,13 +52,9 @@ jobs:
       - name: Run smoke tests
         run: npm run test:smoke
 
-      - name: Upload Playwright artifacts
+      - name: Collect Playwright and Allure artifacts
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/playwright-artifacts
         with:
-          if-no-files-found: ignore
-          name: pr-checks-playwright-results
-          path: |
-            test-results/
-            playwright-report/
-          retention-days: 7
+          artifact_name: pr-checks-playwright-results
+          retention_days: 7

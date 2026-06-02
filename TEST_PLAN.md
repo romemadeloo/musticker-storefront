@@ -57,6 +57,8 @@ tests/
 | `nightly-regression.yml` | Daily at 02:00 Asia/Manila, plus manual dispatch | Runs full regression-tagged coverage, including checkout/payment-enabled flows when the environment is configured. |
 | `manual-playwright.yml` | Manual QA dispatch | Lets QA choose smoke, buyer-flow, regression, admin, custom grep, and Chromium/Firefox/WebKit/all desktop projects. |
 
+Each Playwright workflow writes Allure results, generates an `allure-report/`, and uploads it with the Playwright artifacts. The shared artifact packaging lives in `.github/actions/playwright-artifacts/action.yml`.
+
 ## Environment Requirements
 
 Default storefront target:

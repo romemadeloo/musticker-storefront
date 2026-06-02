@@ -244,7 +244,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     outputs:
-      allure_results_found: ${{ steps.allure_results.outputs.found }}
+      allure_results_found: ${{ steps.test_artifacts.outputs.allure_results_found }}
 
     steps:
       - name: Checkout
@@ -265,32 +265,15 @@ jobs:
       - name: Run member purchase regression
         env:
           ALLURE_RESULTS_DIR: allure-results
-        run: npm run test:e2e:member-regression -- --reporter=list,allure-playwright
+        run: npm run test:e2e:member-regression
 
-      - name: Check Allure results
-        id: allure_results
+      - name: Collect Playwright and Allure artifacts
+        id: test_artifacts
         if: ${{ always() }}
-        shell: bash
-        run: |
-          if [ ! -d allure-results ] || [ -z "$(find allure-results -type f -print -quit)" ]; then
-            echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "No Allure results were found."
-            exit 0
-          fi
-
-          echo "found=true" >> "$GITHUB_OUTPUT"
-
-      - name: Upload Playwright artifacts
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/playwright-artifacts
         with:
-          if-no-files-found: ignore
-          name: member-regression-results
-          path: |
-            allure-results/
-            test-results/
-            playwright-report/
-          retention-days: 14
+          artifact_name: member-regression-results
+          retention_days: 14
 
   allure-report:
     name: Publish failed regression Allure report

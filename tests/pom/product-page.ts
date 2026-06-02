@@ -14,7 +14,10 @@ export class ProductPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.optionsPanel = page.getByTestId('product-category-options');
+    this.optionsPanel = page
+      .getByTestId('product-category-options')
+      .or(page.getByRole('complementary').filter({ hasText: /사이즈|수량|Quantity|Size/i }))
+      .first();
   }
 
   async goto(path = './stickers/die-cut-sticker'): Promise<void> {
@@ -24,8 +27,9 @@ export class ProductPage {
   async expectLoaded(productName = '자유형 스티커'): Promise<void> {
     await expect(this.page).toHaveTitle('머스티커 - 커스텀 스티커');
     await expect(this.page.getByRole('heading', { name: productName })).toBeVisible();
-    await expect(this.optionsPanel.getByRole('heading', { name: '사이즈를 선택하세요' })).toBeVisible();
-    await expect(this.optionsPanel.getByRole('heading', { name: '수량을 선택하세요' })).toBeVisible();
+    await expect(this.optionsPanel).toBeVisible();
+    await expect(this.optionsPanel.getByRole('heading', { name: /사이즈.*선택|Size/i })).toBeVisible();
+    await expect(this.optionsPanel.getByRole('heading', { name: /수량.*선택|Quantity/i })).toBeVisible();
   }
 
   async selectSize(sizeLabel: string): Promise<void> {

@@ -80,7 +80,7 @@ export class DesignUploadModal {
   }
 
   async close(): Promise<void> {
-    await this.dialog.getByRole('button', { name: 'Close modal' }).click();
+    await this.dialog.getByRole('button', { name: /Close modal|모달 닫기|닫기/i }).click();
     await expect(this.dialog).toBeHidden();
   }
 
