@@ -25,7 +25,7 @@ on:
           - webkit-desktop
           - all-desktop
       custom_grep:
-        description: Required only when suite is custom-grep. Example: @cart|@payment
+        description: 'Required only when suite is custom-grep. Example: @cart|@payment'
         required: false
         default: ''
         type: string
