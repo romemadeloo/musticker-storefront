@@ -1,4 +1,4 @@
-import { test } from '../../fixtures/e2e-test.js';
+import { test, expect } from '../../fixtures/e2e-test.js';
 import { hasSeededUser, seededUser } from '../../fixtures/env.js';
 import { HeaderComponent } from '../../pom/header-component.js';
 import { HomePage } from '../../pom/home-page.js';
@@ -29,6 +29,6 @@ test.describe('auth', { tag: ['@regression', '@auth'] }, () => {
     await home.goto();
     await header.openAccountMenu();
     await page.getByRole('menuitem', { name: '회원가입' }).click();
-    await page.waitForURL(/\/kr\/auth\/register\/?$/);
+    await expect(page).toHaveURL(/\/kr\/auth\/register\/?$/);
   });
 });

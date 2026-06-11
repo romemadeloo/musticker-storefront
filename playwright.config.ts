@@ -79,7 +79,7 @@ export default defineConfig({
   reporter: reportersWithAllure(process.env.CI ? ciReporters : localReporters),
   use: {
     baseURL: env.BASE_URL,
-    headless: process.env.HEADED !== 'false',
+    headless: process.env.HEADED !== 'true',
     locale: 'ko-KR',
     timezoneId: 'Asia/Seoul',
     trace: 'on-first-retry',

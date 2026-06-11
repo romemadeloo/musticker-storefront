@@ -32,18 +32,13 @@ export class SearchDialog {
 
   async expectDieCutStickerResults(): Promise<void> {
     await expect(this.dialog.getByRole('heading', { name: '스티커', exact: true })).toBeVisible();
-    await expect(this.dialog.getByRole('button', { name: /자유형 스티커/ }).first()).toBeVisible();
+    await expect(this.dieCutStickerResult()).toBeVisible();
     await expect(this.dialog.getByRole('button', { name: /자유형 시트 스티커/ }).first()).toBeVisible();
     await expect(this.dialog.getByRole('button', { name: /다이컷 롤 스티커/ }).first()).toBeVisible();
   }
 
   async chooseDieCutSticker(): Promise<void> {
-    const resultByTestId = this.page.getByTestId('app-header-search-result-stickers:die-cut-sticker-button');
-    if (await resultByTestId.count()) {
-      await resultByTestId.click();
-    } else {
-      await this.dialog.getByRole('button', { name: /자유형 스티커/ }).first().click();
-    }
+    await this.dieCutStickerResult().click();
 
     await expect(this.page).toHaveURL(/\/kr\/stickers\/die-cut-sticker\/?$/);
   }
@@ -56,5 +51,12 @@ export class SearchDialog {
   async closeWithButton(): Promise<void> {
     await this.dialog.getByRole('button', { name: '닫기' }).click();
     await expect(this.dialog).toBeHidden();
+  }
+
+  private dieCutStickerResult(): Locator {
+    return this.page
+      .getByTestId('app-header-search-result-stickers:die-cut-sticker-button')
+      .or(this.dialog.getByRole('button', { name: /다이컷 스티커|자유형 스티커/ }).first())
+      .first();
   }
 }

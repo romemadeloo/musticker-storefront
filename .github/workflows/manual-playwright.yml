@@ -12,6 +12,7 @@ on:
           - smoke
           - buyer-flow
           - regression
+          - order-all-products
           - admin
           - custom-grep
       browser_project:
@@ -34,6 +35,11 @@ on:
         required: true
         default: false
         type: boolean
+      order_all_products_payload:
+        description: Optional JSON payload for order-all-products. Prefer secrets for credentials.
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -43,7 +49,9 @@ env:
   BASE_URL: ${{ vars.BASE_URL || 'https://dev.musticker.com/kr' }}
   BYPASS_ARTWORK_UPLOAD: ${{ vars.BYPASS_ARTWORK_UPLOAD || 'false' }}
   E2E_BROWSER_PROJECT: ${{ inputs.browser_project }}
+  ORDER_ALL_PRODUCTS_PAYLOAD: ${{ inputs.order_all_products_payload }}
   RUN_PAYMENT_E2E: ${{ inputs.run_payment_e2e }}
+  RUN_ORDER_ALL_PRODUCTS_E2E: ${{ inputs.suite == 'order-all-products' && 'true' || 'false' }}
   TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
   TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
 
@@ -109,6 +117,13 @@ jobs:
               ;;
             regression)
               grep='@regression|@checkout|@coupon|@points|@admin'
+              ;;
+            order-all-products)
+              if [ "${{ inputs.run_payment_e2e }}" != "true" ]; then
+                echo "run_payment_e2e must be true for order-all-products." >&2
+                exit 1
+              fi
+              grep='@order-all-products'
               ;;
             admin)
               grep='@admin'

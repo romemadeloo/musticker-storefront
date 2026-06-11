@@ -1,4 +1,4 @@
-import { test } from '../../fixtures/e2e-test.js';
+import { test, expect } from '../../fixtures/e2e-test.js';
 import { searchQueries } from '../../fixtures/test-data.js';
 import { HomePage } from '../../pom/home-page.js';
 
@@ -22,6 +22,7 @@ test.describe('search', { tag: ['@regression', '@discovery'] }, () => {
     await home.goto();
     const searchDialog = await home.header.openSearch();
     await searchDialog.closeWithEscape();
+    await expect(searchDialog.dialog).toBeHidden();
   });
 
   test('search dialog closes with the close button', { tag: '@search' }, async ({ page }) => {
@@ -30,5 +31,6 @@ test.describe('search', { tag: ['@regression', '@discovery'] }, () => {
     await home.goto();
     const searchDialog = await home.header.openSearch();
     await searchDialog.closeWithButton();
+    await expect(searchDialog.dialog).toBeHidden();
   });
 });

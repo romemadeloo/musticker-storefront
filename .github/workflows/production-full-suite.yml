@@ -1,0 +1,146 @@
+name: Production full suite
+
+on:
+  push:
+    branches:
+      - main
+      - production-mode-test-suite
+  schedule:
+    # 04:00 Asia/Manila every day.
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Production suite to run.
+        required: true
+        default: production-safe-full
+        type: choice
+        options:
+          - production-safe-full
+          - smoke
+      browser_project:
+        description: Browser project to run.
+        required: true
+        default: chromium-desktop
+        type: choice
+        options:
+          - chromium-desktop
+          - firefox-desktop
+          - webkit-desktop
+          - all-desktop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-full-suite-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ALLURE_RESULTS_DIR: allure-results
+  BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
+  BYPASS_ARTWORK_UPLOAD: 'false'
+  E2E_BROWSER_PROJECT: ${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}
+  RUN_ORDER_ALL_PRODUCTS_E2E: 'false'
+  RUN_PAYMENT_E2E: 'false'
+  SKIP_SEEDED_AUTH_SETUP: 'true'
+  TEST_USER_EMAIL: ${{ secrets.PRODUCTION_TEST_USER_EMAIL }}
+  TEST_USER_PASSWORD: ${{ secrets.PRODUCTION_TEST_USER_PASSWORD }}
+
+jobs:
+  static-quality:
+    name: Lint, type check, and discover tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: List Playwright tests
+        run: npm run test:e2e:list
+
+  production-tests:
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }} on ${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}
+    runs-on: ubuntu-latest
+    needs: static-quality
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: npm
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install selected Playwright browsers
+        shell: bash
+        run: |
+          case "$E2E_BROWSER_PROJECT" in
+            chromium-desktop)
+              npx playwright install --with-deps chromium
+              ;;
+            firefox-desktop)
+              npx playwright install --with-deps firefox
+              ;;
+            webkit-desktop)
+              npx playwright install --with-deps webkit
+              ;;
+            all-desktop)
+              npx playwright install --with-deps chromium firefox webkit
+              ;;
+            *)
+              echo "Unsupported browser project: $E2E_BROWSER_PROJECT" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Run production suite
+        shell: bash
+        env:
+          SUITE: ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}
+        run: |
+          set -euo pipefail
+
+          production_excludes='@payment|@slow|@api|@setup|@destructive'
+
+          case "$SUITE" in
+            smoke)
+              npx playwright test --grep '@smoke' --grep-invert "$production_excludes"
+              ;;
+            production-safe-full)
+              npx playwright test --grep-invert "$production_excludes"
+              ;;
+            *)
+              echo "Unsupported production suite: $SUITE" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Collect Playwright and Allure artifacts
+        if: ${{ always() }}
+        uses: ./.github/actions/playwright-artifacts
+        with:
+          artifact_name: production-${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}-${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}-${{ github.run_attempt }}
+          retention_days: 14

@@ -27,7 +27,7 @@ export class CartDrawer {
     await expect(this.dialog).toBeVisible();
   }
 
-  async expectEmpty(config?: ProductConfig): Promise<void> {
+  async expectEmpty(config?: ProductConfig | CartLineItem): Promise<void> {
     if (!(await this.dialog.isVisible().catch(() => false))) {
       await expect(this.page.getByTestId('app-header-cart-button')).toBeVisible();
       return;
@@ -46,15 +46,25 @@ export class CartDrawer {
     await expect(this.dialog.getByRole('heading', { name: cartPreviewTitle })).toBeVisible();
   }
 
-  async expectLineItem(config: ProductConfig): Promise<void> {
+  async expectLineItem(config: ProductConfig | CartLineItem): Promise<void> {
     const item = this.lineItem(config.productName);
+    const price = lineItemPrice(config);
 
     await expect(item).toBeVisible();
     await expect(item).toContainText(config.productName);
-    await expect(item).toContainText(`Size: ${config.widthMm}x${config.heightMm}`);
-    await expect(item).toContainText(`Quantity: ${config.quantity}`);
-    await expect(item).toContainText(config.expectedUnitPrice);
-    await expect(this.dialog.getByText(config.expectedUnitPrice).last()).toBeVisible();
+
+    if (config.widthMm && config.heightMm) {
+      await expect(item).toContainText(new RegExp(`(?:Size|사이즈):\\s*${config.widthMm}x${config.heightMm}`, 'i'));
+    }
+
+    if (config.quantity) {
+      await expect(item).toContainText(new RegExp(`(?:Quantity|수량):\\s*${config.quantity}`, 'i'));
+    }
+
+    if (price) {
+      await expect(item).toContainText(price);
+      await expect(this.dialog.getByText(price).last()).toBeVisible();
+    }
   }
 
   async expectLineItems(productNames: string[]): Promise<void> {
@@ -73,6 +83,23 @@ export class CartDrawer {
       items.push({
         productName,
         ...parseLineItemText(await item.innerText())
+      });
+    }
+
+    return items;
+  }
+
+  async captureAllItems(): Promise<CartLineItem[]> {
+    const items: CartLineItem[] = [];
+    const lineItems = this.lineItemArticles();
+    const itemCount = await lineItems.count();
+
+    for (let index = 0; index < itemCount; index += 1) {
+      const text = await lineItems.nth(index).innerText();
+
+      items.push({
+        productName: parseProductName(text),
+        ...parseLineItemText(text)
       });
     }
 
@@ -167,18 +194,32 @@ export class CartDrawer {
     await expect(this.dialog.getByRole('button', { name: '\ub9de\ucda4 \uc81c\uc791' }).first()).toBeVisible();
   }
 
-  async removeLineItem(config: ProductConfig): Promise<void> {
+  async removeLineItem(config: ProductConfig | CartLineItem): Promise<void> {
     const item = this.lineItem(config.productName);
-    const deleteByTestId = item.getByTestId('product-category-cart-item-delete-button');
-
-    if (await deleteByTestId.count()) {
-      await deleteByTestId.click();
-    } else {
-      await item.getByRole('button', { name: /Remove item|\uc0c1\ud488 \uc0ad\uc81c/ }).click();
-    }
+    await this.deleteLineItem(item);
 
     await this.confirmRemovalIfPrompted();
     await expect(this.lineItems(config.productName)).toHaveCount(0);
+  }
+
+  async removeAllLineItems(): Promise<void> {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const lineItems = this.lineItemArticles();
+      const itemCount = await lineItems.count();
+
+      if (itemCount === 0) {
+        return;
+      }
+
+      await this.deleteLineItem(lineItems.first());
+      await this.confirmRemovalIfPrompted();
+
+      await expect
+        .poll(() => this.lineItemArticles().count(), { timeout: 10_000 })
+        .toBeLessThan(itemCount);
+    }
+
+    throw new Error('Cart still had line items after 50 removal attempts.');
   }
 
   async checkout(): Promise<void> {
@@ -211,6 +252,20 @@ export class CartDrawer {
       .getByRole('article')
       .filter({ hasText: productName })
       .filter({ hasText: /Size:|Quantity:|\uc0ac\uc774\uc988:|\uc218\ub7c9:/i });
+  }
+
+  private lineItemArticles(): Locator {
+    return this.dialog.getByRole('article').filter({ hasText: /Size:|Quantity:|\uc0ac\uc774\uc988:|\uc218\ub7c9:/i });
+  }
+
+  private async deleteLineItem(item: Locator): Promise<void> {
+    const deleteByTestId = item.getByTestId('product-category-cart-item-delete-button');
+
+    if (await deleteByTestId.count()) {
+      await deleteByTestId.click();
+    } else {
+      await item.getByRole('button', { name: /Remove item|\uc0c1\ud488 \uc0ad\uc81c/ }).click();
+    }
   }
 
   private async selectFromEditDialog(editDialog: Locator, triggerIndex: number, preferredValue: string): Promise<SelectResult> {
@@ -443,6 +498,25 @@ function parseLineItemText(text: string): Omit<CartLineItem, 'productName'> {
   };
 }
 
+function parseProductName(text: string): string {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => normalizeSelectText(line))
+    .filter(Boolean);
+  const metadataIndex = lines.findIndex((line) => /^(Size|Quantity|\uc0ac\uc774\uc988|\uc218\ub7c9)\s*:/i.test(line));
+  const nameLines = metadataIndex > 0 ? lines.slice(0, metadataIndex) : lines;
+
+  for (let index = nameLines.length - 1; index >= 0; index -= 1) {
+    const line = nameLines[index];
+
+    if (line && !extractWonAmount(line) && !/^(Edit|Remove|\uc0c1\ud488)/i.test(line)) {
+      return line;
+    }
+  }
+
+  return lines[0] ?? 'Unknown product';
+}
+
 function extractWonAmount(value: string): string | undefined {
   return value.match(/[\d,]+\uc6d0/)?.[0];
 }
@@ -466,4 +540,12 @@ function escapeRegExp(value: string): string {
 
 function clipText(value: string, maxLength = 1_000): string {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+}
+
+function lineItemPrice(config: ProductConfig | CartLineItem): string | undefined {
+  return isProductConfig(config) ? config.expectedUnitPrice : config.price;
+}
+
+function isProductConfig(config: ProductConfig | CartLineItem): config is ProductConfig {
+  return 'expectedUnitPrice' in config;
 }

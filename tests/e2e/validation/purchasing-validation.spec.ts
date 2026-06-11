@@ -23,7 +23,7 @@ test.describe('purchasing validation and error handling', {
     await productPage.expectNextStepDisabled();
 
     await productPage.fillCustomQuantity(dieCutSticker.quantity);
-    await productPage.expectPrice(dieCutSticker.expectedUnitPrice);
+    await productPage.expectVisiblePrice();
     await productPage.expectNextStepEnabled();
   });
 

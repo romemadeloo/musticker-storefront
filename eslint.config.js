@@ -25,13 +25,36 @@ export default [
     },
     rules: {
       ...playwright.configs.recommended.rules,
+      "playwright/expect-expect": [
+        "warn",
+        {
+          assertFunctionPatterns: ["^expect"],
+        },
+      ],
+      "playwright/no-skipped-test": "off",
+      "playwright/no-conditional-in-test": "off",
+    },
+  },
+
+  {
+    files: ["tests/pom/**/*.ts", "tests/fixtures/**/*.ts"],
+    rules: {
+      "playwright/no-conditional-expect": "off",
+      "playwright/no-force-option": "off",
+      "playwright/no-wait-for-timeout": "off",
     },
   },
 
   {
     rules: {
-      // General rules you probably want
-      "no-unused-vars": "warn",
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
       "no-console": "off",
     },
   },

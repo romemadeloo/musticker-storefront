@@ -3,7 +3,7 @@ import { ApiClient } from '../../fixtures/api-client.js';
 import { canRunApiSetup, makeRunMarker } from '../../fixtures/env.js';
 import type { ApiTestUser } from '../../fixtures/types.js';
 
-test.describe('api test data management', { tag: ['@api', '@setup'] }, () => {
+test.describe('api test data management', { tag: ['@api', '@setup', '@destructive'] }, () => {
   test('creates and deletes a disposable user via API', async ({ request }, testInfo) => {
     test.skip(
       !canRunApiSetup(),

@@ -25,7 +25,9 @@ import { LoginPage } from '../../pom/login-page.js';
 import { ProductPage } from '../../pom/product-page.js';
 import { RegisterPage, type RegistrationProfile } from '../../pom/register-page.js';
 
-test.describe('new member purchase regression', { tag: ['@regression', '@e2e', '@purchasing', '@payment', '@slow'] }, () => {
+test.describe('new member purchase regression', {
+  tag: ['@regression', '@e2e', '@purchasing', '@payment', '@slow', '@destructive']
+}, () => {
   test.setTimeout(300_000);
 
   test.skip(

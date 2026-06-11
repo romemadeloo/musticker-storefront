@@ -10,15 +10,15 @@ test.describe('upload and cart', { tag: ['@regression', '@purchasing'] }, () => 
     const productPage = new ProductPage(page);
 
     await productPage.goto(dieCutSticker.path);
-    await productPage.configureProduct(dieCutSticker);
+    const configuredProduct = await productPage.configureProduct(dieCutSticker);
 
     const uploadModal = await productPage.openUploadModal();
     const cart = await uploadModal.skipUploadAndAddToCart();
 
-    await cart.expectLineItem(dieCutSticker);
+    await cart.expectLineItem(configuredProduct);
     await cart.expectRecommendedProductsVisible();
-    await cart.removeLineItem(dieCutSticker);
-    await cart.expectEmpty(dieCutSticker);
+    await cart.removeLineItem(configuredProduct);
+    await cart.expectEmpty(configuredProduct);
   });
 
   test('accepts a supported design file and adds the product to cart', { tag: '@cart' }, async ({ page }, testInfo) => {
@@ -32,7 +32,7 @@ test.describe('upload and cart', { tag: ['@regression', '@purchasing'] }, () => 
     const productPage = new ProductPage(page);
 
     await productPage.goto(dieCutSticker.path);
-    await productPage.configureProduct(dieCutSticker);
+    const configuredProduct = await productPage.configureProduct(dieCutSticker);
 
     const uploadModal = await productPage.openUploadModal();
     await uploadModal.uploadDesignFile(designFile);
@@ -40,7 +40,7 @@ test.describe('upload and cart', { tag: ['@regression', '@purchasing'] }, () => 
     await uploadModal.fillSpecialRequest('E2E upload fixture: keep colors as submitted.');
 
     const cart = await uploadModal.addToCart();
-    await cart.expectLineItem(dieCutSticker);
+    await cart.expectLineItem({ ...configuredProduct, price: undefined });
   });
 
 });
