@@ -15,16 +15,18 @@ concurrency:
 
 env:
   ALLURE_RESULTS_DIR: allure-results
-  BASE_URL: ${{ vars.BASE_URL || 'https://dev.musticker.com/kr' }}
-  BYPASS_ARTWORK_UPLOAD: ${{ vars.BYPASS_ARTWORK_UPLOAD || 'false' }}
+  BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
+  BYPASS_ARTWORK_UPLOAD: 'false'
   E2E_BROWSER_PROJECT: chromium-desktop
-  RUN_PAYMENT_E2E: 'true'
-  TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-  TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+  RUN_ORDER_ALL_PRODUCTS_E2E: 'false'
+  RUN_PAYMENT_E2E: 'false'
+  SKIP_SEEDED_AUTH_SETUP: 'true'
+  TEST_USER_EMAIL: ${{ secrets.PRODUCTION_TEST_USER_EMAIL }}
+  TEST_USER_PASSWORD: ${{ secrets.PRODUCTION_TEST_USER_PASSWORD }}
 
 jobs:
   regression:
-    name: Product, cart, checkout, coupon, points, and admin regression
+    name: Production-safe regression
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
@@ -45,7 +47,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run full regression suite
-        run: npx playwright test --grep "@regression|@checkout|@coupon|@points|@admin"
+        run: npx playwright test --grep "@regression|@checkout|@coupon|@points|@admin" --grep-invert "@payment|@slow|@api|@setup|@destructive"
 
       - name: Collect Playwright and Allure artifacts
         if: ${{ always() }}

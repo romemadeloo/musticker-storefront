@@ -15,11 +15,13 @@ concurrency:
 
 env:
   ALLURE_RESULTS_DIR: allure-results
-  BASE_URL: ${{ vars.BASE_URL || 'https://dev.musticker.com/kr' }}
+  BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
   E2E_BROWSER_PROJECT: chromium-desktop
   RUN_PAYMENT_E2E: 'false'
-  TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-  TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+  RUN_ORDER_ALL_PRODUCTS_E2E: 'false'
+  SKIP_SEEDED_AUTH_SETUP: 'true'
+  TEST_USER_EMAIL: ${{ secrets.PRODUCTION_TEST_USER_EMAIL }}
+  TEST_USER_PASSWORD: ${{ secrets.PRODUCTION_TEST_USER_PASSWORD }}
 
 jobs:
   lint-typecheck-smoke:
@@ -50,7 +52,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run smoke tests
-        run: npm run test:smoke
+        run: npx playwright test --grep "@smoke" --grep-invert "@payment|@slow|@api|@setup|@destructive"
 
       - name: Collect Playwright and Allure artifacts
         if: ${{ always() }}

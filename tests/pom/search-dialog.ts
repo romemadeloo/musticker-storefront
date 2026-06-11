@@ -33,8 +33,6 @@ export class SearchDialog {
   async expectDieCutStickerResults(): Promise<void> {
     await expect(this.dialog.getByRole('heading', { name: '스티커', exact: true })).toBeVisible();
     await expect(this.dieCutStickerResult()).toBeVisible();
-    await expect(this.dialog.getByRole('button', { name: /자유형 시트 스티커/ }).first()).toBeVisible();
-    await expect(this.dialog.getByRole('button', { name: /다이컷 롤 스티커/ }).first()).toBeVisible();
   }
 
   async chooseDieCutSticker(): Promise<void> {

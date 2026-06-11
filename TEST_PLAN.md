@@ -84,8 +84,8 @@ tests/
 | --- | --- | --- |
 | `pr-checks.yml` | Pull requests to `develop` or `main` | Runs lint, TypeScript, and smoke tests. |
 | `smoke.yml` | Push to `develop` or `main` | Runs fast buyer-facing smoke coverage. |
-| `nightly-regression.yml` | Daily at 02:00 Asia/Manila, plus manual dispatch | Runs deeper non-production regression coverage when environment variables are configured. |
-| `manual-playwright.yml` | Manual QA dispatch | Lets QA choose suite, grep, and browser project. |
+| `nightly-regression.yml` | Daily at 02:00 Asia/Manila, plus manual dispatch | Runs production-safe regression coverage against `https://www.musticker.com/kr`. |
+| `manual-playwright.yml` | Manual QA dispatch | Lets QA choose suite, grep, and browser project with production as the default target. |
 | `production-full-suite.yml` | Push to `main` or `production-mode-test-suite`, daily schedule, and manual dispatch | Runs production static checks, availability smoke, and the production-safe full suite against `https://www.musticker.com/kr`. |
 
 Each Playwright workflow publishes Playwright artifacts, test results, traces, screenshots, videos on failure, and Allure output when results exist.

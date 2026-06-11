@@ -111,8 +111,8 @@ GitHub Actions workflows:
 
 - `pr-checks.yml`: lint, typecheck, and smoke coverage for pull requests.
 - `smoke.yml`: fast buyer smoke checks on pushes to `develop` and `main`.
-- `nightly-regression.yml`: deeper scheduled/manual regression for configured non-production environments.
-- `manual-playwright.yml`: manual QA dispatch with suite and browser selection.
+- `nightly-regression.yml`: production-safe scheduled/manual regression against `https://www.musticker.com/kr`.
+- `manual-playwright.yml`: manual QA dispatch with suite and browser selection, defaulting to production mode.
 - `production-full-suite.yml`: production mode workflow for `https://www.musticker.com/kr`; runs static checks, production availability smoke, and the production-safe full suite on pushes to `main` or `production-mode-test-suite`, daily schedule, and manual dispatch.
 
 Production mode safety:

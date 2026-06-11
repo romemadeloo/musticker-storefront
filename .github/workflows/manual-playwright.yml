@@ -46,14 +46,14 @@ permissions:
 
 env:
   ALLURE_RESULTS_DIR: allure-results
-  BASE_URL: ${{ vars.BASE_URL || 'https://dev.musticker.com/kr' }}
+  BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
   BYPASS_ARTWORK_UPLOAD: ${{ vars.BYPASS_ARTWORK_UPLOAD || 'false' }}
   E2E_BROWSER_PROJECT: ${{ inputs.browser_project }}
   ORDER_ALL_PRODUCTS_PAYLOAD: ${{ inputs.order_all_products_payload }}
   RUN_PAYMENT_E2E: ${{ inputs.run_payment_e2e }}
   RUN_ORDER_ALL_PRODUCTS_E2E: ${{ inputs.suite == 'order-all-products' && 'true' || 'false' }}
-  TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-  TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+  TEST_USER_EMAIL: ${{ secrets.PRODUCTION_TEST_USER_EMAIL }}
+  TEST_USER_PASSWORD: ${{ secrets.PRODUCTION_TEST_USER_PASSWORD }}
 
 jobs:
   playwright:
@@ -106,17 +106,20 @@ jobs:
 
           pass_with_no_tests=()
           grep_invert=()
+          production_excludes='@payment|@slow|@api|@setup|@destructive'
 
           case "$SUITE" in
             smoke)
               grep='@smoke'
+              grep_invert=(--grep-invert "$production_excludes")
               ;;
             buyer-flow)
               grep='@smoke|@search|@product|@cart'
-              grep_invert=(--grep-invert '@slow|@payment|@validation|@error-handling')
+              grep_invert=(--grep-invert '@slow|@payment|@validation|@error-handling|@api|@setup|@destructive')
               ;;
             regression)
               grep='@regression|@checkout|@coupon|@points|@admin'
+              grep_invert=(--grep-invert "$production_excludes")
               ;;
             order-all-products)
               if [ "${{ inputs.run_payment_e2e }}" != "true" ]; then
