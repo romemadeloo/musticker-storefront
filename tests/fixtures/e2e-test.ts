@@ -23,6 +23,12 @@ function isKnownNuxtPayloadFailure(status: number, url: string): boolean {
   return status === 500 && /\/kr\/.*_payload\.json/i.test(url);
 }
 
+function isSupersededPricingRequest(text: string): boolean {
+  return /Pricing request failed! FetchError: \[GET\] "https:\/\/api\.musticker\.com\/.*\/pricing\/quotation\/[^"]+": <no response> Canceled due to newer request\./.test(
+    text
+  );
+}
+
 function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
   if (options.allowGuestUserMe401 && /401/.test(text)) {
     return true;
@@ -65,6 +71,7 @@ export const test = base.extend<GuardOptions>({
     };
     const consoleFailures: string[] = [];
     const responseFailures: string[] = [];
+    let hadSupersededPricingRequest = false;
 
     page.on('console', (message) => {
       if (!['error', 'warning'].includes(message.type())) {
@@ -72,6 +79,16 @@ export const test = base.extend<GuardOptions>({
       }
 
       const text = message.text();
+      if (allowKnownPriceWarnings && isSupersededPricingRequest(text)) {
+        hadSupersededPricingRequest = true;
+        return;
+      }
+
+      if (allowKnownPriceWarnings && hadSupersededPricingRequest && text === 'Unable to retrieve prices.') {
+        hadSupersededPricingRequest = false;
+        return;
+      }
+
       if (isKnownConsoleMessage(text, guardOptions)) {
         return;
       }

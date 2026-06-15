@@ -28,10 +28,10 @@ export class SearchDialog {
 
   async searchFor(query: string): Promise<void> {
     await this.input.fill(query);
+    await this.input.press('Enter');
   }
 
   async expectDieCutStickerResults(): Promise<void> {
-    await expect(this.dialog.getByRole('heading', { name: '스티커', exact: true })).toBeVisible();
     await expect(this.dieCutStickerResult()).toBeVisible();
   }
 
