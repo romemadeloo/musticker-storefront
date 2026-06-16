@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "recordedAt": "2026-06-16T07:07:48.787Z",
+  "recordedAt": "2026-06-16T12:19:58.345Z",
   "targets": {
     "storefront": {
       "id": "storefront",
@@ -14,9 +14,9 @@
       "id": "api",
       "label": "API",
       "url": "https://dev-api.musticker.com/build.txt",
-      "text": "Staged\nCommit: [bcf69b83]\nBuild: [1449-20260616]",
-      "commit": "bcf69b83",
-      "build": "1449-20260616"
+      "text": "Staged\nCommit: [c5e94e2b]\nBuild: [1618-20260616]",
+      "commit": "c5e94e2b",
+      "build": "1618-20260616"
     }
   }
 }
