@@ -9,7 +9,7 @@ export const projectRoot = path.resolve(fixturesDir, '..', '..');
 export const AUTH_STORAGE_STATE = path.join(projectRoot, '.auth', 'seeded-user.json');
 
 export const env = {
-  BASE_URL: process.env.BASE_URL ?? 'https://dev.musticker.com/kr',
+  BASE_URL: process.env.BASE_URL ?? 'https://musticker.com/kr',
   API_BASE_URL: process.env.API_BASE_URL,
   API_TOKEN: process.env.API_TOKEN,
   TEST_DATA_USER_ENDPOINT: process.env.TEST_DATA_USER_ENDPOINT,
@@ -53,6 +53,24 @@ export const env = {
   TOSS_PAYMENT_WEBHOOK_CREATED_AT: process.env.TOSS_PAYMENT_WEBHOOK_CREATED_AT ?? '2022-01-01T00:00:00.000000',
   TOSS_PAYMENT_WEBHOOK_PAYMENT_KEY: process.env.TOSS_PAYMENT_WEBHOOK_PAYMENT_KEY ?? 'test_payment_key',
   TOSS_PAYMENT_WEBHOOK_MID: process.env.TOSS_PAYMENT_WEBHOOK_MID ?? 'tosspayments',
+  PAYAPP_FEEDBACK_WEBHOOK_URL:
+    process.env.PAYAPP_FEEDBACK_WEBHOOK_URL ??
+    'https://api.musticker.com/index.php/sys/kr/payments/webhook/payapp/feedback',
+  PAYAPP_FEEDBACK_USERID: process.env.PAYAPP_FEEDBACK_USERID ?? 'glophics',
+  PAYAPP_FEEDBACK_LINKKEY: process.env.PAYAPP_FEEDBACK_LINKKEY ?? 'jinkey',
+  PAYAPP_FEEDBACK_LINKVAL: process.env.PAYAPP_FEEDBACK_LINKVAL ?? 'jinkval',
+  PAYAPP_FEEDBACK_RECVPHONE: process.env.PAYAPP_FEEDBACK_RECVPHONE,
+  PAYAPP_FEEDBACK_REQDATE: process.env.PAYAPP_FEEDBACK_REQDATE,
+  PAYAPP_FEEDBACK_PAY_TYPE: process.env.PAYAPP_FEEDBACK_PAY_TYPE ?? '7',
+  PAYAPP_FEEDBACK_PAY_STATE: process.env.PAYAPP_FEEDBACK_PAY_STATE ?? '4',
+  PAYAPP_FEEDBACK_VBANK: process.env.PAYAPP_FEEDBACK_VBANK ?? '\uae30\uc5c5\uc740\ud589',
+  PAYAPP_FEEDBACK_VBANKNO: process.env.PAYAPP_FEEDBACK_VBANKNO ?? '48011060187132',
+  PAYAPP_FEEDBACK_DEPOSITOR: process.env.PAYAPP_FEEDBACK_DEPOSITOR ?? '\uc8fc)\uc720\ub514\uc544\uc774\ub514_\uacfd\uc9c0\uc5f0',
+  PAYAPP_FEEDBACK_CURRENCY: process.env.PAYAPP_FEEDBACK_CURRENCY ?? 'krw',
+  PAYAPP_FEEDBACK_AMOUNT_TAXABLE: process.env.PAYAPP_FEEDBACK_AMOUNT_TAXABLE ?? '1000000',
+  PAYAPP_FEEDBACK_AMOUNT_TAXFREE: process.env.PAYAPP_FEEDBACK_AMOUNT_TAXFREE ?? '0',
+  PAYAPP_FEEDBACK_AMOUNT_VAT: process.env.PAYAPP_FEEDBACK_AMOUNT_VAT ?? '100000',
+  PAYAPP_FEEDBACK_TYPE: process.env.PAYAPP_FEEDBACK_TYPE ?? '0',
   ORDER_COMPLETION_DETAILS_ENDPOINT:
     process.env.ORDER_COMPLETION_DETAILS_ENDPOINT ??
     'https://dev-api.musticker.com/index.php/sys/kr/orders/completion/details/{orderId}',

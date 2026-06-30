@@ -68,8 +68,19 @@ export class HeaderComponent {
   }
 
   async openCart(): Promise<CartDrawer> {
-    await this.cartButton.click();
     const cart = new CartDrawer(this.page);
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await this.cartButton.click({ force: attempt > 0 });
+
+      if (await cart.isVisible({ timeout: 3_000 })) {
+        await cart.expectVisible();
+        return cart;
+      }
+
+      await this.page.waitForTimeout(500);
+    }
+
     await cart.expectVisible();
     return cart;
   }

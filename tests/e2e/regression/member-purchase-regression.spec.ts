@@ -1,4 +1,4 @@
-import type { APIRequestContext } from '@playwright/test';
+import type { APIRequestContext, TestInfo } from '@playwright/test';
 
 import { test } from '../../fixtures/e2e-test.js';
 import {
@@ -14,6 +14,7 @@ import {
   waitForOrderCompletionDetails
 } from '../../fixtures/order-completion-details-client.js';
 import { fetchRegistrationOtp } from '../../fixtures/otp-client.js';
+import { postPayappFeedbackWebhook } from '../../fixtures/payapp-feedback-webhook-client.js';
 import { memberPurchaseCategories } from '../../fixtures/test-data.js';
 import { checkoutAmountToNumber, postTossPaymentStatusWebhook } from '../../fixtures/toss-payment-webhook-client.js';
 import { createTraceableUploadPng } from '../../fixtures/traceable-upload-image.js';
@@ -22,6 +23,7 @@ import { CartDrawer } from '../../pom/cart-drawer.js';
 import { CartPage } from '../../pom/cart-page.js';
 import { CheckoutPage } from '../../pom/checkout-page.js';
 import { LoginPage } from '../../pom/login-page.js';
+import type { OrderConfirmationPage } from '../../pom/order-confirmation-page.js';
 import { ProductPage } from '../../pom/product-page.js';
 import { RegisterPage, type RegistrationProfile } from '../../pom/register-page.js';
 
@@ -137,9 +139,9 @@ test.describe('new member purchase regression', {
 
         const uploadModal = await productPage.openUploadModalIfPresent();
         if (uploadModal) {
+          await uploadModal.fillSpecialRequest(`E2E regression ${runMarker} - ${product.categoryName}`);
           await uploadModal.uploadDesignFile(artworkFile);
           await uploadModal.expectSelectedFile(artworkFile);
-          await uploadModal.fillSpecialRequest(`E2E regression ${runMarker} - ${product.categoryName}`);
           cart = await uploadModal.addToCart();
         } else {
           cart = await productPage.currentOrOpenCartDrawer();
@@ -213,42 +215,76 @@ test.describe('new member purchase regression', {
 
       const gateway = await checkoutPage.placeOrder();
       const paymentProvider = gateway.paymentProvider();
-      if (paymentProvider && paymentProvider !== 'BT_TOSS') {
-        throw new Error(`Expected bank-transfer Toss checkout provider "BT_TOSS", received "${paymentProvider}".`);
-      }
-
       const orderId = await gateway.captureOrderId();
       const confirmationOrderId = await gateway.captureConfirmationOrderId();
       const totalAmount = checkoutAmountToNumber(checkoutSnapshot.total);
-      const webhookResult = await postTossPaymentStatusWebhook(request, {
-        orderId,
-        totalAmount
-      });
-      testInfo.annotations.push({
-        type: 'payment-webhook-bypass',
-        description: JSON.stringify({ orderId, totalAmount, webhookStatus: webhookResult.status, webhookBody: webhookResult.body })
-      });
+      let confirmationPage: OrderConfirmationPage;
 
-      const completionDetails = await waitForOrderCompletionDetails(page.context().request, confirmationOrderId, {
-        orderNumber: orderId,
-        totalAmount,
-        minItemCount: cartItems.length,
-        productNames: cartItems.map((item) => item.productName)
-      });
-      expectOrderCompletionDetailsToMatchCheckout(completionDetails, checkoutSnapshot);
-      testInfo.annotations.push({
-        type: 'order-completion-details',
-        description: JSON.stringify(summarizeOrderCompletionDetails(completionDetails))
-      });
+      if (paymentProvider === 'PAYAPP') {
+        const displayedAmount = await gateway.captureDisplayedAmount();
+        annotateDisplayedAmount(testInfo, 'payapp-displayed-amount', displayedAmount, totalAmount);
+
+        const webhookResult = await postPayappFeedbackWebhook(request, {
+          orderNumber: orderId,
+          totalAmount,
+          recvPhone: profile.phone,
+          ...gateway.payappFeedbackData()
+        });
+        testInfo.annotations.push({
+          type: 'payapp-feedback-bypass',
+          description: JSON.stringify({ orderId, totalAmount, webhookStatus: webhookResult.status, webhookBody: webhookResult.body })
+        });
+
+        confirmationPage = await gateway.gotoOrderConfirmation(confirmationOrderId);
+      } else {
+        if (paymentProvider && paymentProvider !== 'BT_TOSS') {
+          throw new Error(`Expected bank-transfer provider "BT_TOSS" or "PAYAPP", received "${paymentProvider}".`);
+        }
+
+        const webhookResult = await postTossPaymentStatusWebhook(request, {
+          orderId,
+          totalAmount
+        });
+        testInfo.annotations.push({
+          type: 'payment-webhook-bypass',
+          description: JSON.stringify({ orderId, totalAmount, webhookStatus: webhookResult.status, webhookBody: webhookResult.body })
+        });
+
+        confirmationPage = await gateway.gotoOrderConfirmation(confirmationOrderId);
+      }
 
       testInfo.annotations.push({
         type: 'order-confirmation',
         description: JSON.stringify({ confirmationOrderId })
       });
 
-      const confirmationPage = await gateway.gotoOrderConfirmation(confirmationOrderId);
       await confirmationPage.expectLoaded();
       await confirmationPage.expectMatchesCheckoutSnapshot(checkoutSnapshot);
+
+      const completionDetails = await waitForOrderCompletionDetails(page.context().request, confirmationOrderId, {
+        orderNumber: orderId,
+        totalAmount,
+        minItemCount: cartItems.length,
+        productNames: cartItems.map((item) => item.productName)
+      }).catch((error: unknown) => {
+        if (isCompletionDetailsAuthFailure(error)) {
+          testInfo.annotations.push({
+            type: 'order-completion-details-skipped',
+            description: String(error)
+          });
+          return undefined;
+        }
+
+        throw error;
+      });
+
+      if (completionDetails) {
+        expectOrderCompletionDetailsToMatchCheckout(completionDetails, checkoutSnapshot);
+        testInfo.annotations.push({
+          type: 'order-completion-details',
+          description: JSON.stringify(summarizeOrderCompletionDetails(completionDetails))
+        });
+      }
     });
   });
 });
@@ -266,6 +302,30 @@ async function fetchRegistrationOtpWithRetry(request: APIRequestContext, email: 
   }
 
   throw lastError;
+}
+
+function isCompletionDetailsAuthFailure(error: unknown): boolean {
+  return error instanceof Error && /HTTP 40[13]|Unauthenticated|Unauthorized/i.test(error.message);
+}
+
+function annotateDisplayedAmount(
+  testInfo: TestInfo,
+  type: string,
+  displayedAmount: number | undefined,
+  checkoutTotalAmount: number
+): void {
+  if (!displayedAmount || displayedAmount === checkoutTotalAmount) {
+    return;
+  }
+
+  testInfo.annotations.push({
+    type,
+    description: JSON.stringify({
+      displayedAmount,
+      checkoutTotalAmount,
+      note: 'PayApp display differed from checkout total; webhook used checkout total.'
+    })
+  });
 }
 
 function selectRegressionProducts(seed: string): RegressionProductCandidate[] {

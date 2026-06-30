@@ -65,9 +65,11 @@ export async function waitForOrderCompletionDetails(
   let lastResponse: string | undefined;
 
   do {
+    const requestTimeout = Math.max(1_000, Math.min(10_000, deadline - Date.now()));
     const response = await request.get(url, {
       failOnStatusCode: false,
-      headers: completionDetailsHeaders()
+      headers: completionDetailsHeaders(),
+      timeout: requestTimeout
     });
     const body = await response.text();
 

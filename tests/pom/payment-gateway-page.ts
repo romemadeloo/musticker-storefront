@@ -9,6 +9,9 @@ export type PaymentOrderReference = {
   orderNumber?: string;
   confirmationOrderId?: string;
   paymentFrom?: string;
+  redirectUrl?: string;
+  mulNo?: string;
+  var1Data?: string;
 };
 
 export class PaymentGatewayPage {
@@ -62,6 +65,38 @@ export class PaymentGatewayPage {
     return this.knownOrder?.paymentFrom;
   }
 
+  payappFeedbackData(): { payUrl: string; mulNo: string; var1Data: string } {
+    const payUrl = this.knownOrder?.redirectUrl ?? this.page.url();
+    const mulNo = this.knownOrder?.mulNo;
+    const var1Data = this.knownOrder?.var1Data;
+
+    if (!payUrl || payUrl === 'about:blank') {
+      throw new Error('PayApp feedback requires the checkout redirect URL or opened payment page URL.');
+    }
+
+    if (!mulNo) {
+      throw new Error('PayApp feedback requires payment_information.mul_no from the checkout response.');
+    }
+
+    if (!var1Data) {
+      throw new Error('PayApp feedback requires payment_information.var1_data from the checkout response.');
+    }
+
+    return {
+      payUrl,
+      mulNo,
+      var1Data
+    };
+  }
+
+  async captureDisplayedAmount(): Promise<number | undefined> {
+    const bodyText = await this.page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
+    const match = bodyText.match(/(?:Amount|Total|í•©ê³„|ê¸ˆì•¡)\s*[:\s]*([\d,]+)/i);
+    const amount = match?.[1] ? Number(match[1].replace(/,/g, '')) : undefined;
+
+    return amount && Number.isFinite(amount) ? amount : undefined;
+  }
+
   async gotoOrderConfirmation(orderId?: string): Promise<OrderConfirmationPage> {
     const confirmationOrderId = orderId ?? (await this.captureConfirmationOrderId());
     const confirmationUrl = appPath(`checkout/confirmation?order_id=${confirmationOrderId}`);
@@ -83,6 +118,7 @@ export class PaymentGatewayPage {
       await this.page.locator(profile.selectors.confirm).click();
     } else {
       await this.clickFirstVisible([
+        this.page.getByRole('button', { name: /Complete .*payment/i }),
         this.page.getByRole('button', { name: /결제|확인|완료|동의|Pay|Confirm|Submit/i }),
         this.page.getByText(/결제|확인|완료|Pay|Confirm/i)
       ]);

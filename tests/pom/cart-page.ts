@@ -288,7 +288,7 @@ function parseCartRow(text: string, selectedQuantity: number | undefined): Omit<
 }
 
 function extractWonAmount(value: string): string | undefined {
-  return value.match(/[\d,]+\uc6d0/)?.[0];
+  return [...value.matchAll(/[\d,]+\uc6d0/g)].at(-1)?.[0];
 }
 
 function extractLeadingNumber(value: string): string {

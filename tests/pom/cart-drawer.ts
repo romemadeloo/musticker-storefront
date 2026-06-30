@@ -27,6 +27,11 @@ export class CartDrawer {
     await expect(this.dialog).toBeVisible();
   }
 
+  async isVisible(options?: { timeout?: number }): Promise<boolean> {
+    await this.dialog.waitFor({ state: 'visible', timeout: options?.timeout ?? 10_000 }).catch(() => undefined);
+    return this.dialog.isVisible().catch(() => false);
+  }
+
   async expectEmpty(config?: ProductConfig | CartLineItem): Promise<void> {
     if (!(await this.dialog.isVisible().catch(() => false))) {
       await expect(this.page.getByTestId('app-header-cart-button')).toBeVisible();
@@ -91,6 +96,8 @@ export class CartDrawer {
 
   async captureAllItems(): Promise<CartLineItem[]> {
     const items: CartLineItem[] = [];
+    await this.waitForLineItems();
+
     const lineItems = this.lineItemArticles();
     const itemCount = await lineItems.count();
 
@@ -203,23 +210,42 @@ export class CartDrawer {
   }
 
   async removeAllLineItems(): Promise<void> {
-    for (let attempt = 0; attempt < 50; attempt += 1) {
+    await this.waitForLineItems(3_000).catch(() => undefined);
+
+    for (let attempt = 0; attempt < 200; attempt += 1) {
       const lineItems = this.lineItemArticles();
       const itemCount = await lineItems.count();
+      const totalBefore = await this.cartItemCount();
 
-      if (itemCount === 0) {
+      if (itemCount === 0 || totalBefore === 0) {
         return;
       }
 
+      const firstItemText = await lineItems.first().innerText().catch(() => '');
       await this.deleteLineItem(lineItems.first());
       await this.confirmRemovalIfPrompted();
 
       await expect
-        .poll(() => this.lineItemArticles().count(), { timeout: 10_000 })
-        .toBeLessThan(itemCount);
+        .poll(
+          async () => {
+            const totalAfter = await this.cartItemCount();
+
+            if (totalBefore !== undefined && totalAfter !== undefined && totalAfter < totalBefore) {
+              return true;
+            }
+
+            const updatedItems = this.lineItemArticles();
+            const updatedCount = await updatedItems.count();
+            const updatedFirstItemText = await updatedItems.first().innerText().catch(() => '');
+
+            return updatedCount < itemCount || updatedFirstItemText !== firstItemText;
+          },
+          { timeout: 10_000 }
+        )
+        .toBe(true);
     }
 
-    throw new Error('Cart still had line items after 50 removal attempts.');
+    throw new Error('Cart still had line items after 200 removal attempts.');
   }
 
   async checkout(): Promise<void> {
@@ -256,6 +282,18 @@ export class CartDrawer {
 
   private lineItemArticles(): Locator {
     return this.dialog.getByRole('article').filter({ hasText: /Size:|Quantity:|\uc0ac\uc774\uc988:|\uc218\ub7c9:/i });
+  }
+
+  private async waitForLineItems(timeout = 10_000): Promise<void> {
+    await expect.poll(() => this.lineItemArticles().count(), { timeout }).toBeGreaterThan(0);
+  }
+
+  private async cartItemCount(): Promise<number | undefined> {
+    const heading = this.dialog.getByRole('heading', { name: cartPreviewTitle }).first();
+    const text = await heading.innerText().catch(() => '');
+    const match = text.match(/\((\d+)\)/);
+
+    return match?.[1] ? Number(match[1]) : undefined;
   }
 
   private async deleteLineItem(item: Locator): Promise<void> {
@@ -412,11 +450,14 @@ export class CartDrawer {
   }
 
   private async confirmRemovalIfPrompted(): Promise<void> {
-    const deleteButton = this.page.getByRole('dialog').getByRole('button', { name: '\uc0ad\uc81c' }).last();
+    const deleteButton = this.page
+      .getByTestId('cart-item-delete-modal-confirm')
+      .or(this.page.locator('.delete-confirm-modal-confirm'))
+      .last();
 
     if (await deleteButton.isVisible().catch(() => false)) {
       await deleteButton.click();
-      await expect(deleteButton).toBeHidden();
+      await expect(deleteButton).toBeHidden({ timeout: 5_000 });
     }
   }
 
@@ -487,8 +528,8 @@ export class CartDrawer {
 
 function parseLineItemText(text: string): Omit<CartLineItem, 'productName'> {
   const normalized = text.replace(/\s+/g, ' ');
-  const size = normalized.match(/Size:\s*(\d+)x(\d+)/i);
-  const quantity = normalized.match(/Quantity:\s*(\d+)/i);
+  const size = normalized.match(/(?:Size|사이즈):\s*(\d+)x\s*(\d+)/i);
+  const quantity = normalized.match(/(?:Quantity|수량):\s*(\d+)/i);
 
   return {
     widthMm: size ? Number(size[1]) : undefined,
@@ -506,6 +547,11 @@ function parseProductName(text: string): string {
   const metadataIndex = lines.findIndex((line) => /^(Size|Quantity|\uc0ac\uc774\uc988|\uc218\ub7c9)\s*:/i.test(line));
   const nameLines = metadataIndex > 0 ? lines.slice(0, metadataIndex) : lines;
 
+  const productName = nameLines.find(isProductNameLine);
+  if (productName) {
+    return productName;
+  }
+
   for (let index = nameLines.length - 1; index >= 0; index -= 1) {
     const line = nameLines[index];
 
@@ -518,7 +564,21 @@ function parseProductName(text: string): string {
 }
 
 function extractWonAmount(value: string): string | undefined {
-  return value.match(/[\d,]+\uc6d0/)?.[0];
+  return [...value.matchAll(/[\d,]+\uc6d0/g)].at(-1)?.[0];
+}
+
+function isProductNameLine(line: string): boolean {
+  return Boolean(line && !extractWonAmount(line) && !isActionLine(line) && !isOptionLine(line));
+}
+
+function isActionLine(line: string): boolean {
+  return /^(Edit|Remove|\uc0c1\ud488)/i.test(line);
+}
+
+function isOptionLine(line: string): boolean {
+  return /^(Color|\uc0c9\uc0c1|\uceec\ub7ec|Font|\ud3f0\ud2b8|Text|\ubb38\uad6c|Size|\uc0ac\uc774\uc988|Quantity|\uc218\ub7c9)\s*:/i.test(
+    line
+  );
 }
 
 function extractLeadingNumber(value: string): string {

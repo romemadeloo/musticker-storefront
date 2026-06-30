@@ -376,7 +376,7 @@ export class ProductPage {
   private async quantityButtonWithAnyPrice(quantity: number): Promise<Locator> {
     const quantityText = quantity.toLocaleString('en-US');
     const button = this.optionsPanel
-      .getByRole('button', { name: new RegExp(`^${escapeRegExp(quantityText)}\\s+[\\d,]+원`) })
+      .getByRole('button', { name: new RegExp(`^${escapeRegExp(quantityText)}(?:\\s*개)?\\s+[\\d,]+원`) })
       .first();
 
     await expect(button).toBeVisible({ timeout: 15_000 });
@@ -410,7 +410,7 @@ export class ProductPage {
   }
 
   private quantityButtonsWithAnyPrice(): Locator {
-    return this.optionsPanel.getByRole('button', { name: /^\d[\d,]*\s+[\d,]+\uC6D0/u });
+    return this.optionsPanel.getByRole('button', { name: /^\d[\d,]*(?:\s*개)?\s+[\d,]+\uC6D0/u });
   }
 }
 

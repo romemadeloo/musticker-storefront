@@ -53,8 +53,8 @@ export const memberPurchaseCategories: Array<{
         path: './stickers/sticker-sheet',
         productName: 'Sticker Sheet',
         categoryName: 'sheet stickers',
-        widthMm: 75,
-        heightMm: 75,
+        widthMm: 105,
+        heightMm: 145,
         quantity: 10
       }
     ]

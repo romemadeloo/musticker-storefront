@@ -30,9 +30,7 @@ export class DesignUploadModal {
       return;
     }
 
-    // eslint-disable-next-line playwright/no-networkidle
-    await this.page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => undefined);
-    await expect(this.addToCartButton()).toBeEnabled({ timeout: 30_000 });
+    await expect(this.addToCartButton()).toBeEnabled({ timeout: 15_000 });
   }
 
   async expectSelectedFile(filePath: string): Promise<void> {
@@ -67,6 +65,9 @@ export class DesignUploadModal {
   }
 
   async addToCart(): Promise<CartDrawer> {
+    const addButton = this.addToCartButton();
+    await expect(addButton).toBeEnabled({ timeout: 30_000 });
+
     const addByTestId = this.page.getByTestId('product-category-upload-add-to-cart-button');
     if (await addByTestId.count()) {
       await addByTestId.click();

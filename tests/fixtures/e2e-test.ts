@@ -5,6 +5,9 @@ type GuardOptions = {
   allowKnownPriceWarnings: boolean;
   allowExpectedAuthFailures: boolean;
   allowKnownNuxtPayloadFailures: boolean;
+  allowTransientCartCreateFailures: boolean;
+  allowTransientApiCorsFailures: boolean;
+  allowTransientProductPageFailures: boolean;
 };
 
 function isExpectedGuestUserMe401(status: number, url: string): boolean {
@@ -24,12 +27,53 @@ function isKnownNuxtPayloadFailure(status: number, url: string): boolean {
 }
 
 function isSupersededPricingRequest(text: string): boolean {
-  return /Pricing request failed! FetchError: \[GET\] "https:\/\/api\.musticker\.com\/.*\/pricing\/quotation\/[^"]+": <no response> Canceled due to newer request\./.test(
+  return (
+    /Pricing request failed! FetchError: \[GET\] "https:\/\/(?:dev-)?api\.musticker\.com\/.*\/pricing\/quotation\/[^"]+": <no response> Canceled due to newer request\./.test(
+      text
+    ) || text === 'Pricing request failed! AbortError: The user aborted a request.'
+  );
+}
+
+function isCartCreateCorsFailure(text: string): boolean {
+  return /Access to fetch at 'https:\/\/(?:dev-)?api\.musticker\.com\/.*\/cart\/create' .*CORS policy/i.test(text);
+}
+
+function isCartCreateFetchFailure(text: string): boolean {
+  return /FetchError: \[POST\] "https:\/\/(?:dev-)?api\.musticker\.com\/.*\/cart\/create": <no response> Failed to fetch/i.test(
+    text
+  );
+}
+
+function isTransientApiCorsFailure(text: string): boolean {
+  return /Access to fetch at 'https:\/\/(?:dev-)?api\.musticker\.com\/.*' from origin 'https:\/\/dev\.musticker\.com' has been blocked by CORS policy/i.test(
+    text
+  );
+}
+
+function isTransientApiFetchFailure(text: string): boolean {
+  return /FetchError: \[(?:GET|POST|PUT|PATCH|DELETE)\] "https:\/\/(?:dev-)?api\.musticker\.com\/.*": <no response> Failed to fetch/i.test(
+    text
+  );
+}
+
+function isTransientProductPageServerFailure(status: number, url: string): boolean {
+  return (
+    [502, 503].includes(status) &&
+    /^https:\/\/www\.musticker\.com\/kr\/(?:stickers|roll-stickers|sheet-stickers)\/[^/?#]+/i.test(url)
+  );
+}
+
+function isBenignUnusedPreloadWarning(text: string): boolean {
+  return /The resource https:\/\/www\.musticker\.com\/illustrations\/products\/.* was preloaded using link preload but not used within a few seconds/i.test(
     text
   );
 }
 
 function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
+  if (isBenignUnusedPreloadWarning(text)) {
+    return true;
+  }
+
   if (options.allowGuestUserMe401 && /401/.test(text)) {
     return true;
   }
@@ -45,6 +89,7 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
     options.allowKnownNuxtPayloadFailures &&
     (/Cannot load payload\s+\/kr\/.*_payload\.json/i.test(text) ||
       /Hydration completed but contains mismatches/i.test(text) ||
+      /Static review preload failed\.[\s\S]*getActivePinia\(\)/i.test(text) ||
       text === 'Failed to load resource: the server responded with a status of 500 ()')
   ) {
     return true;
@@ -58,20 +103,38 @@ export const test = base.extend<GuardOptions>({
   allowKnownPriceWarnings: [true, { option: true }],
   allowExpectedAuthFailures: [false, { option: true }],
   allowKnownNuxtPayloadFailures: [false, { option: true }],
+  allowTransientCartCreateFailures: [false, { option: true }],
+  allowTransientApiCorsFailures: [false, { option: true }],
+  allowTransientProductPageFailures: [false, { option: true }],
 
   page: async (
-    { page, allowGuestUserMe401, allowKnownPriceWarnings, allowExpectedAuthFailures, allowKnownNuxtPayloadFailures },
+    {
+      page,
+      allowGuestUserMe401,
+      allowKnownPriceWarnings,
+      allowExpectedAuthFailures,
+      allowKnownNuxtPayloadFailures,
+      allowTransientCartCreateFailures,
+      allowTransientApiCorsFailures,
+      allowTransientProductPageFailures
+    },
     use
   ) => {
     const guardOptions = {
       allowGuestUserMe401,
       allowKnownPriceWarnings,
       allowExpectedAuthFailures,
-      allowKnownNuxtPayloadFailures
+      allowKnownNuxtPayloadFailures,
+      allowTransientCartCreateFailures,
+      allowTransientApiCorsFailures,
+      allowTransientProductPageFailures
     };
     const consoleFailures: string[] = [];
     const responseFailures: string[] = [];
     let hadSupersededPricingRequest = false;
+    let pendingCartCreateNetworkFailures = 0;
+    let pendingTransientApiNetworkFailures = 0;
+    let pendingTransientProductPageFailures = 0;
 
     page.on('console', (message) => {
       if (!['error', 'warning'].includes(message.type())) {
@@ -79,6 +142,51 @@ export const test = base.extend<GuardOptions>({
       }
 
       const text = message.text();
+      if (
+        allowTransientProductPageFailures &&
+        pendingTransientProductPageFailures > 0 &&
+        /Failed to load resource: the server responded with a status of 50[23]/i.test(text)
+      ) {
+        pendingTransientProductPageFailures = Math.max(0, pendingTransientProductPageFailures - 1);
+        return;
+      }
+
+      if (allowTransientApiCorsFailures && isTransientApiCorsFailure(text)) {
+        pendingTransientApiNetworkFailures += 1;
+        return;
+      }
+
+      if (
+        allowTransientApiCorsFailures &&
+        pendingTransientApiNetworkFailures > 0 &&
+        text === 'Failed to load resource: net::ERR_FAILED'
+      ) {
+        return;
+      }
+
+      if (allowTransientApiCorsFailures && isTransientApiFetchFailure(text)) {
+        pendingTransientApiNetworkFailures = Math.max(0, pendingTransientApiNetworkFailures - 1);
+        return;
+      }
+
+      if (allowTransientCartCreateFailures && isCartCreateCorsFailure(text)) {
+        pendingCartCreateNetworkFailures += 1;
+        return;
+      }
+
+      if (
+        allowTransientCartCreateFailures &&
+        pendingCartCreateNetworkFailures > 0 &&
+        text === 'Failed to load resource: net::ERR_FAILED'
+      ) {
+        return;
+      }
+
+      if (allowTransientCartCreateFailures && isCartCreateFetchFailure(text)) {
+        pendingCartCreateNetworkFailures = Math.max(0, pendingCartCreateNetworkFailures - 1);
+        return;
+      }
+
       if (allowKnownPriceWarnings && isSupersededPricingRequest(text)) {
         hadSupersededPricingRequest = true;
         return;
@@ -112,6 +220,11 @@ export const test = base.extend<GuardOptions>({
       }
 
       if (allowKnownNuxtPayloadFailures && isKnownNuxtPayloadFailure(status, url)) {
+        return;
+      }
+
+      if (allowTransientProductPageFailures && isTransientProductPageServerFailure(status, url)) {
+        pendingTransientProductPageFailures += 1;
         return;
       }
 

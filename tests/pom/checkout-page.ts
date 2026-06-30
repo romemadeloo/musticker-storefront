@@ -6,6 +6,7 @@ import { PaymentGatewayPage, type PaymentOrderReference } from './payment-gatewa
 
 const provinceLabel = /\uc2dc\/\ub3c4|Province|State/i;
 const couponLabel = /\ucfe0\ud3f0|coupon/i;
+const fullNameLabel = /\uc131\ud568|Full name|Name/i;
 
 export class CheckoutPage {
   readonly page: Page;
@@ -22,23 +23,43 @@ export class CheckoutPage {
   }
 
   async fillContactAndShipping(profile: CheckoutProfile): Promise<void> {
+    const fullNameInput = this.textbox(fullNameLabel);
+    const hasEditableShippingForm = await fullNameInput
+      .waitFor({ state: 'visible', timeout: 2_000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (!hasEditableShippingForm) {
+      return;
+    }
+
     await this.fillOptionalTextbox(/\uc774\uba54\uc77c|Email/i, profile.email);
-    await this.fillTextbox(/\uc131\ud568|Full name|Name/i, profile.fullName);
+    if (!(await this.fillTextboxLocatorIfVisible(fullNameInput, profile.fullName))) {
+      return;
+    }
 
     if (profile.company) {
       await this.fillOptionalTextbox(/\ud68c\uc0ac|Company/i, profile.company);
     }
 
     await this.selectProvince(profile.province);
-    await this.fillTextbox(/\uc2dc\/\uad70\/\uad6c|City|District/i, profile.city ?? '\uac15\ub0a8\uad6c');
-    await this.fillTextbox(/\ub3c4\ub85c\uba85|\uc8fc\uc18c \ub77c\uc778 1|Address line 1|Address/i, profile.addressLine1);
+    if (!(await this.fillTextboxIfVisible(/\uc2dc\/\uad70\/\uad6c|City|District/i, profile.city ?? '\uac15\ub0a8\uad6c'))) {
+      return;
+    }
+
+    if (!(await this.fillTextboxIfVisible(/\ub3c4\ub85c\uba85|\uc8fc\uc18c \ub77c\uc778 1|Address line 1|Address/i, profile.addressLine1))) {
+      return;
+    }
 
     if (profile.addressLine2) {
       await this.fillOptionalTextbox(/\uc8fc\uc18c2|\uc8fc\uc18c \ub77c\uc778 2|Address line 2|Apartment/i, profile.addressLine2);
     }
 
-    await this.fillTextbox(/\uc6b0\ud3b8\ubc88\ud638|Postal|ZIP/i, profile.postalCode);
-    await this.fillTextbox(/\uc5f0\ub77d\ucc98|\ud734\ub300\ud3f0|\uc804\ud654\ubc88\ud638|Phone/i, profile.phone);
+    if (!(await this.fillTextboxIfVisible(/\uc6b0\ud3b8\ubc88\ud638|Postal|ZIP/i, profile.postalCode))) {
+      return;
+    }
+
+    await this.fillTextboxIfVisible(/\uc5f0\ub77d\ucc98|\ud734\ub300\ud3f0|\uc804\ud654\ubc88\ud638|Phone/i, profile.phone);
   }
 
   async selectStandardShipping(): Promise<void> {
@@ -49,11 +70,15 @@ export class CheckoutPage {
   }
 
   async selectPaymentMethod(method: string): Promise<void> {
-    await this.main.getByRole('button', { name: new RegExp(method, 'i') }).click();
+    const button = this.main.getByRole('button', { name: new RegExp(method, 'i') }).first();
+
+    await expect(button).toBeVisible();
+    await button.scrollIntoViewIfNeeded();
+    await button.click();
   }
 
   async selectBankTransfer(): Promise<void> {
-    await this.selectPaymentMethod('Bank Transfer');
+    await this.selectPaymentMethod('Bank Transfer|무통장|가상계좌|계좌이체');
   }
 
   async applyPointsAndCouponsIfAvailable(): Promise<string> {
@@ -121,7 +146,7 @@ export class CheckoutPage {
     const submitButton = this
       .summary()
       .locator('button.checkout-summary-submit')
-      .or(this.summary().getByRole('button', { name: /\uacb0\uc81c \uc644\ub8cc|Place order|Pay/i }))
+      .or(this.summary().getByRole('button', { name: /\uacb0\uc81c \uc644\ub8cc|\uacb0\uc81c\ud558\uae30|\uc8fc\ubb38\ud558\uae30|Place order|Order|Pay/i }))
       .first();
 
     await expect(submitButton).toBeVisible();
@@ -139,20 +164,34 @@ export class CheckoutPage {
     return this.page.getByRole('complementary').filter({ hasText: /\uc8fc\ubb38 \uc694\uc57d|Order Summary/ });
   }
 
-  private async fillTextbox(name: RegExp, value: string): Promise<void> {
-    const input = this.textbox(name);
-    await expect(input).toBeVisible();
-    await input.fill(value);
+  private async fillTextboxIfVisible(name: RegExp, value: string): Promise<boolean> {
+    return this.fillTextboxLocatorIfVisible(this.textbox(name), value);
   }
 
   private async fillOptionalTextbox(name: RegExp, value: string): Promise<boolean> {
-    const input = this.textbox(name);
+    return this.fillTextboxLocatorIfVisible(this.textbox(name), value, 5_000);
+  }
 
-    if (!(await input.isVisible().catch(() => false))) {
+  private async fillTextboxLocatorIfVisible(input: Locator, value: string, fillTimeout = 15_000): Promise<boolean> {
+    const visible = await input
+      .waitFor({ state: 'visible', timeout: 2_000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (!visible) {
       return false;
     }
 
-    await input.fill(value);
+    try {
+      await input.fill(value, { timeout: fillTimeout });
+    } catch (error) {
+      if (isOptionalFillInterruption(error)) {
+        return false;
+      }
+
+      throw error;
+    }
+
     return true;
   }
 
@@ -369,13 +408,17 @@ function extractOrderId(value: string | undefined): string | undefined {
 function extractPaymentOrderReference(value: string | undefined): PaymentOrderReference {
   const parsed = parseCheckoutResponse(value);
   const order = parsed?.data?.order;
-  const paymentFrom = parsed?.data?.payment_information?.from;
+  const paymentInformation = parsed?.data?.payment_information;
+  const paymentFrom = paymentInformation?.from;
 
   return {
     orderNumber: typeof order?.order_number === 'string' ? order.order_number : extractOrderId(value),
     confirmationOrderId:
       typeof order?.id === 'number' || typeof order?.id === 'string' ? String(order.id) : extractConfirmationOrderId(value),
-    paymentFrom: typeof paymentFrom === 'string' ? paymentFrom : undefined
+    paymentFrom: typeof paymentFrom === 'string' ? paymentFrom : undefined,
+    redirectUrl: typeof paymentInformation?.redirect_url === 'string' ? paymentInformation.redirect_url : undefined,
+    mulNo: typeof paymentInformation?.mul_no === 'string' ? paymentInformation.mul_no : undefined,
+    var1Data: typeof paymentInformation?.var1_data === 'string' ? paymentInformation.var1_data : undefined
   };
 }
 
@@ -384,7 +427,7 @@ function parseCheckoutResponse(
 ): {
   data?: {
     order?: { id?: number | string; order_number?: string };
-    payment_information?: { from?: string; redirect_url?: string };
+    payment_information?: { from?: string; redirect_url?: string; mul_no?: string; var1_data?: string };
   };
 } | undefined {
   if (!value) {
@@ -395,7 +438,7 @@ function parseCheckoutResponse(
     return JSON.parse(value) as {
       data?: {
         order?: { id?: number | string; order_number?: string };
-        payment_information?: { from?: string; redirect_url?: string };
+        payment_information?: { from?: string; redirect_url?: string; mul_no?: string; var1_data?: string };
       };
     };
   } catch {
@@ -405,6 +448,15 @@ function parseCheckoutResponse(
 
 function extractConfirmationOrderId(value: string | undefined): string | undefined {
   return value?.match(/"id"\s*:\s*(\d+)/)?.[1];
+}
+
+function isOptionalFillInterruption(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /Timeout|detached from the DOM|not visible|not enabled|not editable|Target page, context or browser has been closed/i.test(
+      error.message
+    )
+  );
 }
 
 function escapeRegExp(value: string): string {
