@@ -1,22 +1,22 @@
 {
   "version": 1,
-  "recordedAt": "2026-07-02T05:39:36.564Z",
+  "recordedAt": "2026-07-02T08:31:53.735Z",
   "targets": {
     "storefront": {
       "id": "storefront",
       "label": "Storefront",
       "url": "https://dev.musticker.com/build.txt",
-      "text": "Staged\nCommit: [3332eda2]\nBuild: [1316-20260702]",
-      "commit": "3332eda2",
-      "build": "1316-20260702"
+      "text": "Staged\nCommit: [ecfcc9c2]\nBuild: [1614-20260702]",
+      "commit": "ecfcc9c2",
+      "build": "1614-20260702"
     },
     "api": {
       "id": "api",
       "label": "API",
       "url": "https://dev-api.musticker.com/build.txt",
-      "text": "Staged\nCommit: [53e3aca0]\nBuild: [1328-20260702]",
-      "commit": "53e3aca0",
-      "build": "1328-20260702"
+      "text": "Staged\nCommit: [04355791]\nBuild: [1614-20260702]",
+      "commit": "04355791",
+      "build": "1614-20260702"
     }
   }
 }
