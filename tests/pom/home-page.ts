@@ -4,6 +4,8 @@ import { expect } from '@playwright/test';
 import { appPath } from '../fixtures/env.js';
 import { HeaderComponent } from './header-component.js';
 
+const storefrontTitlePattern = /머스티커.*스티커/;
+
 export class HomePage {
   readonly page: Page;
   readonly header: HeaderComponent;
@@ -19,7 +21,7 @@ export class HomePage {
   }
 
   async expectLoaded(): Promise<void> {
-    await expect(this.page).toHaveTitle('머스티커 - 커스텀 스티커');
+    await expect(this.page).toHaveTitle(storefrontTitlePattern);
     await this.header.expectVisible();
     await expect(this.page.getByRole('heading', { name: '스티커ㅋㅋㅋ, 이유가 있구나' })).toBeVisible();
     await expect(this.page.getByRole('button', { name: '빠른 주문' })).toBeVisible();

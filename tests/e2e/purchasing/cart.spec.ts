@@ -3,10 +3,24 @@ import { env } from '../../fixtures/env.js';
 import { installArtworkUploadBypass } from '../../fixtures/artwork-upload-bypass.js';
 import { dieCutSticker } from '../../fixtures/test-data.js';
 import { createTraceableUploadPng } from '../../fixtures/traceable-upload-image.js';
+import { CartDrawer } from '../../pom/cart-drawer.js';
 import { ProductPage } from '../../pom/product-page.js';
 
 test.describe('upload and cart', { tag: ['@regression', '@purchasing'] }, () => {
   test.use({ allowGuestUserMe401: true, allowKnownNuxtPayloadFailures: true });
+
+  test.beforeEach(async ({ page }) => {
+    const productPage = new ProductPage(page);
+
+    await productPage.goto(dieCutSticker.path);
+    await page.getByTestId('app-header-cart-button').click();
+
+    const cart = new CartDrawer(page);
+    if (await cart.isVisible({ timeout: 3_000 })) {
+      await cart.removeAllLineItems();
+      await cart.expectEmpty();
+    }
+  });
 
   test('adds configured product to cart with upload-later path and removes it', { tag: ['@cart', '@e2e'] }, async ({ page }) => {
     const productPage = new ProductPage(page);
@@ -47,8 +61,16 @@ test.describe('upload and cart', { tag: ['@regression', '@purchasing'] }, () => 
     await uploadModal.uploadDesignFile(designFile);
     await uploadModal.expectSelectedFile(designFile);
 
-    const cart = await uploadModal.addToCart();
-    await cart.expectLineItem({ ...configuredProduct, price: undefined });
+    let cart: CartDrawer | undefined;
+
+    try {
+      cart = await uploadModal.addToCart();
+      await cart.expectLineItem({ ...configuredProduct, price: undefined });
+    } finally {
+      if (cart) {
+        await cart.removeLineItem({ ...configuredProduct, price: undefined });
+      }
+    }
   });
 
 });

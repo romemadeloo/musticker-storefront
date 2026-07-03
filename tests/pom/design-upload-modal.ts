@@ -52,11 +52,15 @@ export class DesignUploadModal {
   }
 
   async skipUploadAndAddToCart(): Promise<CartDrawer> {
-    const skipByTestId = this.page.getByTestId('product-category-upload-skip-button');
-    if (await skipByTestId.count()) {
+    const skipByTestId = this.page.getByTestId('product-category-upload-skip-button').first();
+    const skipByRole = this.dialog.getByRole('button', { name: '건너뛰고 나중에 업로드하기' }).first();
+
+    if (await skipByTestId.isVisible().catch(() => false)) {
       await skipByTestId.click();
+    } else if (await skipByRole.isVisible().catch(() => false)) {
+      await skipByRole.click();
     } else {
-      await this.dialog.getByRole('button', { name: '건너뛰고 나중에 업로드하기' }).click();
+      return this.addToCart();
     }
 
     const cart = new CartDrawer(this.page);

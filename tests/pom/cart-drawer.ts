@@ -52,7 +52,7 @@ export class CartDrawer {
   }
 
   async expectLineItem(config: ProductConfig | CartLineItem): Promise<void> {
-    const item = this.lineItem(config.productName);
+    const item = this.lineItem(config);
     const price = lineItemPrice(config);
 
     await expect(item).toBeVisible();
@@ -202,11 +202,11 @@ export class CartDrawer {
   }
 
   async removeLineItem(config: ProductConfig | CartLineItem): Promise<void> {
-    const item = this.lineItem(config.productName);
+    const item = this.lineItem(config);
     await this.deleteLineItem(item);
 
     await this.confirmRemovalIfPrompted();
-    await expect(this.lineItems(config.productName)).toHaveCount(0);
+    await expect(this.lineItem(config)).toHaveCount(0);
   }
 
   async removeAllLineItems(): Promise<void> {
@@ -269,8 +269,29 @@ export class CartDrawer {
     await expect(this.page).toHaveURL(/\/kr\/cart\/?$/);
   }
 
-  private lineItem(productName: string): Locator {
-    return this.lineItems(productName).first();
+  private lineItem(product: string | ProductConfig | CartLineItem): Locator {
+    if (typeof product === 'string') {
+      return this.lineItems(product).first();
+    }
+
+    let items = this.lineItems(product.productName);
+    const price = lineItemPrice(product);
+
+    if (product.widthMm && product.heightMm) {
+      items = items.filter({
+        hasText: new RegExp(`(?:Size|사이즈):\\s*${product.widthMm}x\\s*${product.heightMm}(?:mm)?`, 'i')
+      });
+    }
+
+    if (product.quantity) {
+      items = items.filter({ hasText: new RegExp(`(?:Quantity|수량):\\s*${product.quantity}`, 'i') });
+    }
+
+    if (price) {
+      items = items.filter({ hasText: price });
+    }
+
+    return items.first();
   }
 
   private lineItems(productName: string): Locator {

@@ -86,14 +86,34 @@ export class HeaderComponent {
   }
 
   async openAccountMenu(): Promise<void> {
-    const accountMenu = this.page.getByRole('menu', { name: '계정 메뉴' });
+    const accountMenu = this.accountMenu();
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      await this.accountButton.click();
+    await this.page.waitForLoadState('load').catch(() => undefined);
+    // Production can render the header before Nuxt has bound the account-menu click handler.
+    await this.page.waitForTimeout(1_000);
 
-      if (await accountMenu.isVisible().catch(() => false)) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (await this.isAccountMenuVisible(accountMenu)) {
         await expect(accountMenu).toBeVisible();
         return;
+      }
+
+      await expect(this.accountButton).toBeEnabled();
+      await this.accountButton.click({ force: attempt > 0 });
+
+      const opened = await accountMenu
+        .waitFor({ state: 'visible', timeout: 2_000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (opened) {
+        await expect(accountMenu).toBeVisible();
+        return;
+      }
+
+      if ((await this.accountButton.getAttribute('aria-expanded').catch(() => null)) === 'true') {
+        await this.page.keyboard.press('Escape').catch(() => undefined);
+        await accountMenu.waitFor({ state: 'hidden', timeout: 1_000 }).catch(() => undefined);
       }
 
       await this.page.waitForTimeout(500);
@@ -106,5 +126,17 @@ export class HeaderComponent {
     await this.openAccountMenu();
     await this.page.getByTestId('app-header-account-login').click();
     await expect(this.page).toHaveURL(/\/kr\/auth\/login/);
+  }
+
+  private accountMenu(): Locator {
+    return this.page
+      .getByTestId('app-header-account-dropdown-guest')
+      .or(this.page.getByTestId('app-header-account-dropdown-member'))
+      .or(this.page.getByRole('menu', { name: '계정 메뉴' }))
+      .first();
+  }
+
+  private async isAccountMenuVisible(accountMenu: Locator): Promise<boolean> {
+    return accountMenu.isVisible().catch(() => false);
   }
 }

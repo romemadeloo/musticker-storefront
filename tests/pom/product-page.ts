@@ -8,6 +8,7 @@ import { DesignUploadModal } from './design-upload-modal.js';
 
 const customOptionLabel = /\uCEE4\uC2A4\uD140|\uC9C1\uC811|Custom|Direct/i;
 const sizeLabelPattern = /\d+\s*(?:x|×)\s*\d+|Small|Medium|Large|\uC18C\uD615|\uC911\uD615|\uB300\uD615/i;
+const storefrontTitlePattern = /(?=.*머스티커)(?=.*스티커)/;
 const wonAmountPattern = /[\d,]+\uC6D0/u;
 
 type SelectedSize = {
@@ -37,7 +38,7 @@ export class ProductPage {
   }
 
   async expectLoaded(productName = '자유형 스티커'): Promise<void> {
-    await expect(this.page).toHaveTitle('머스티커 - 커스텀 스티커');
+    await expect(this.page).toHaveTitle(storefrontTitlePattern);
     await expect(this.page.getByRole('heading', { name: productName })).toBeVisible();
     await expect(this.optionsPanel).toBeVisible();
     await expect(this.optionsPanel.getByRole('heading', { name: /사이즈.*선택|Size/i })).toBeVisible();

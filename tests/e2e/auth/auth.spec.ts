@@ -28,7 +28,7 @@ test.describe('auth', { tag: ['@regression', '@auth'] }, () => {
 
     await home.goto();
     await header.openAccountMenu();
-    await page.getByRole('menuitem', { name: '회원가입' }).click();
+    await page.getByTestId('app-header-account-register').click();
     await expect(page).toHaveURL(/\/kr\/auth\/register\/?$/);
   });
 });
