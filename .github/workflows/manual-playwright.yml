@@ -65,10 +65,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           cache: npm
           node-version: 22
@@ -161,7 +161,7 @@ jobs:
   allure-report:
     name: Publish Allure report with history
     needs: playwright
-    if: ${{ always() && needs.playwright.outputs.allure_results_found == 'true' }}
+    if: ${{ always() && github.ref == 'refs/heads/main' && needs.playwright.outputs.allure_results_found == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -178,7 +178,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Publish Allure report
         id: publish_allure

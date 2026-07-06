@@ -41,7 +41,7 @@ runs:
   using: composite
   steps:
     - name: Set up Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v5
       with:
         cache: npm
         node-version: ${{ inputs.node_version }}
@@ -51,13 +51,13 @@ runs:
       run: npm ci
 
     - name: Download Playwright artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: ${{ inputs.artifact_name }}
         path: .allure-artifact
 
     - name: Set up Java for Allure
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         distribution: temurin
         java-version: 21
@@ -262,17 +262,17 @@ runs:
         done
 
     - name: Configure GitHub Pages
-      uses: actions/configure-pages@v5
+      uses: actions/configure-pages@v6
 
     - name: Upload Pages artifact
-      uses: actions/upload-pages-artifact@v4
+      uses: actions/upload-pages-artifact@v5
       with:
         include-hidden-files: true
         path: ${{ inputs.pages_dir }}
 
     - name: Deploy to GitHub Pages
       id: deploy_pages
-      uses: actions/deploy-pages@v4
+      uses: actions/deploy-pages@v5
 
     - name: Resolve report URL
       id: report_url

@@ -33,10 +33,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           cache: npm
           node-version: 22
@@ -67,7 +67,7 @@ jobs:
   allure-report:
     name: Publish Allure report with history
     needs: lint-typecheck-smoke
-    if: ${{ always() && needs['lint-typecheck-smoke'].outputs.allure_results_found == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ always() && github.ref == 'refs/heads/main' && needs['lint-typecheck-smoke'].outputs.allure_results_found == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -84,7 +84,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Publish Allure report
         id: publish_allure
