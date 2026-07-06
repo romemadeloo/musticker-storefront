@@ -60,6 +60,8 @@ jobs:
     name: ${{ inputs.suite }} on ${{ inputs.browser_project }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    outputs:
+      allure_results_found: ${{ steps.test_artifacts.outputs.allure_results_found }}
 
     steps:
       - name: Checkout
@@ -149,8 +151,39 @@ jobs:
           npx playwright test --grep "$grep" "${grep_invert[@]}" "${pass_with_no_tests[@]}"
 
       - name: Collect Playwright and Allure artifacts
+        id: test_artifacts
         if: ${{ always() }}
         uses: ./.github/actions/playwright-artifacts
         with:
           artifact_name: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
           retention_days: 14
+
+  allure-report:
+    name: Publish Allure report with history
+    needs: playwright
+    if: ${{ always() && needs.playwright.outputs.allure_results_found == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: allure-pages
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.publish_allure.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Publish Allure report
+        id: publish_allure
+        uses: ./.github/actions/publish-allure-report
+        with:
+          artifact_name: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
+          report_name: Manual Playwright ${{ inputs.suite }} on ${{ inputs.browser_project }}
+          report_slug: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}

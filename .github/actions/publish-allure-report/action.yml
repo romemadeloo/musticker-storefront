@@ -1,0 +1,299 @@
+name: Publish Allure report
+description: Publish an Allure report to GitHub Pages with preserved history.
+
+inputs:
+  artifact_name:
+    description: Name of the uploaded Playwright artifact containing allure-results.
+    required: true
+  report_name:
+    description: Human-readable report name for summaries and commit messages.
+    required: true
+  report_slug:
+    description: URL-safe directory name for this report on GitHub Pages.
+    required: true
+  node_version:
+    description: Node.js version used to run the Allure CLI.
+    required: false
+    default: '22'
+  pages_branch:
+    description: Branch used to persist the generated Pages site.
+    required: false
+    default: gh-pages
+  pages_dir:
+    description: Local directory used for the Pages worktree.
+    required: false
+    default: .allure-pages
+  history_url:
+    description: Optional fallback URL to existing Allure history files.
+    required: false
+    default: ''
+  fallback_root_history:
+    description: Whether to try the repository Pages root /history path when no persisted history exists.
+    required: false
+    default: 'false'
+
+outputs:
+  page_url:
+    description: URL of the published Allure report.
+    value: ${{ steps.report_url.outputs.page_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        cache: npm
+        node-version: ${{ inputs.node_version }}
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Download Playwright artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.artifact_name }}
+        path: .allure-artifact
+
+    - name: Set up Java for Allure
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 21
+
+    - name: Prepare Pages worktree
+      shell: bash
+      env:
+        PAGES_BRANCH: ${{ inputs.pages_branch }}
+        PAGES_DIR: ${{ inputs.pages_dir }}
+        REPORT_SLUG: ${{ inputs.report_slug }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "$REPORT_SLUG" || "$REPORT_SLUG" == /* || "$REPORT_SLUG" == *..* || ! "$REPORT_SLUG" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          echo "Invalid report_slug: $REPORT_SLUG" >&2
+          exit 1
+        fi
+
+        rm -rf "$PAGES_DIR"
+
+        if git ls-remote --exit-code --heads origin "$PAGES_BRANCH" >/dev/null 2>&1; then
+          git fetch --depth=1 origin "$PAGES_BRANCH"
+          git worktree add "$PAGES_DIR" FETCH_HEAD
+          git -C "$PAGES_DIR" checkout -B "$PAGES_BRANCH"
+        else
+          git worktree add --detach "$PAGES_DIR"
+          git -C "$PAGES_DIR" checkout --orphan "$PAGES_BRANCH"
+          git -C "$PAGES_DIR" rm -rf . >/dev/null 2>&1 || true
+          find "$PAGES_DIR" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+        fi
+
+    - name: Restore Allure history
+      shell: bash
+      env:
+        FALLBACK_ROOT_HISTORY: ${{ inputs.fallback_root_history }}
+        HISTORY_URL: ${{ inputs.history_url }}
+        PAGES_DIR: ${{ inputs.pages_dir }}
+        REPORT_SLUG: ${{ inputs.report_slug }}
+      run: |
+        set -euo pipefail
+
+        results_dir=".allure-artifact/allure-results"
+        if [ ! -d "$results_dir" ] || [ -z "$(find "$results_dir" -type f -print -quit)" ]; then
+          echo "No Allure results were found in the downloaded artifact." >&2
+          exit 1
+        fi
+
+        history_dir="$PAGES_DIR/$REPORT_SLUG/history"
+        history_restored=0
+
+        if [ -d "$history_dir" ] && [ -n "$(find "$history_dir" -type f -print -quit)" ]; then
+          mkdir -p "$results_dir/history"
+          cp -R "$history_dir/." "$results_dir/history/"
+          history_restored=1
+          echo "Restored Allure history from $history_dir."
+        fi
+
+        history_url="$HISTORY_URL"
+        if [ "$history_restored" -eq 0 ] && [ -z "$history_url" ] && [ "$FALLBACK_ROOT_HISTORY" = "true" ]; then
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          history_url="https://${owner}.github.io/${repo}/history"
+        fi
+
+        if [ "$history_restored" -eq 0 ] && [ -n "$history_url" ]; then
+          history_url="${history_url%/}"
+          mkdir -p "$results_dir/history"
+
+          restored=0
+          for file in categories-trend.json duration-trend.json history-trend.json history.json retry-trend.json; do
+            if curl --fail --silent --show-error --location "$history_url/$file" --output "$results_dir/history/$file"; then
+              restored=$((restored + 1))
+            else
+              rm -f "$results_dir/history/$file"
+            fi
+          done
+
+          if [ "$restored" -gt 0 ]; then
+            history_restored=1
+            echo "Restored $restored Allure history file(s) from $history_url."
+          fi
+        fi
+
+        if [ "$history_restored" -eq 0 ]; then
+          echo "No previous Allure history found for $REPORT_SLUG; publishing a fresh report."
+        fi
+
+    - name: Generate Allure report
+      shell: bash
+      env:
+        PAGES_DIR: ${{ inputs.pages_dir }}
+        REPORT_SLUG: ${{ inputs.report_slug }}
+      run: |
+        set -euo pipefail
+
+        rm -rf "$PAGES_DIR/$REPORT_SLUG"
+        npx allure generate .allure-artifact/allure-results --clean -o "$PAGES_DIR/$REPORT_SLUG"
+        touch "$PAGES_DIR/.nojekyll"
+
+    - name: Update Pages index
+      shell: bash
+      env:
+        PAGES_DIR: ${{ inputs.pages_dir }}
+      run: |
+        set -euo pipefail
+
+        node <<'NODE'
+        const fs = require('node:fs');
+        const path = require('node:path');
+
+        const pagesDir = process.env.PAGES_DIR;
+        const reports = fs
+          .readdirSync(pagesDir, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .filter((entry) => fs.existsSync(path.join(pagesDir, entry.name, 'index.html')))
+          .map((entry) => entry.name)
+          .sort((left, right) => left.localeCompare(right));
+
+        const links = reports
+          .map((report) => `        <li><a href="./${encodeURIComponent(report)}/">${report}</a></li>`)
+          .join('\n');
+
+        fs.writeFileSync(
+          path.join(pagesDir, 'index.html'),
+          `<!doctype html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Musticker Allure Reports</title>
+          <style>
+            body {
+              color: #1f2937;
+              font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              margin: 0;
+              padding: 48px;
+            }
+
+            main {
+              max-width: 760px;
+            }
+
+            h1 {
+              font-size: 32px;
+              margin: 0 0 24px;
+            }
+
+            ul {
+              line-height: 1.9;
+              padding-left: 24px;
+            }
+
+            a {
+              color: #0f766e;
+            }
+          </style>
+        </head>
+        <body>
+          <main>
+            <h1>Musticker Allure Reports</h1>
+            <ul>
+        ${links || '        <li>No reports published yet.</li>'}
+            </ul>
+          </main>
+        </body>
+        </html>
+        `
+        );
+        NODE
+
+    - name: Commit Pages content
+      shell: bash
+      env:
+        PAGES_BRANCH: ${{ inputs.pages_branch }}
+        PAGES_DIR: ${{ inputs.pages_dir }}
+        REPORT_NAME: ${{ inputs.report_name }}
+      run: |
+        set -euo pipefail
+
+        git -C "$PAGES_DIR" config user.name "github-actions[bot]"
+        git -C "$PAGES_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git -C "$PAGES_DIR" add -A
+
+        if git -C "$PAGES_DIR" diff --cached --quiet; then
+          echo "Pages content is already up to date."
+          exit 0
+        fi
+
+        git -C "$PAGES_DIR" commit -m "chore(ci): publish $REPORT_NAME Allure report [skip ci]"
+
+        for attempt in 1 2 3; do
+          if git -C "$PAGES_DIR" push origin "$PAGES_BRANCH"; then
+            exit 0
+          fi
+
+          if [ "$attempt" -eq 3 ]; then
+            echo "Failed to push $PAGES_BRANCH after $attempt attempts." >&2
+            exit 1
+          fi
+
+          git -C "$PAGES_DIR" pull --rebase origin "$PAGES_BRANCH"
+        done
+
+    - name: Configure GitHub Pages
+      uses: actions/configure-pages@v5
+
+    - name: Upload Pages artifact
+      uses: actions/upload-pages-artifact@v4
+      with:
+        include-hidden-files: true
+        path: ${{ inputs.pages_dir }}
+
+    - name: Deploy to GitHub Pages
+      id: deploy_pages
+      uses: actions/deploy-pages@v4
+
+    - name: Resolve report URL
+      id: report_url
+      shell: bash
+      env:
+        DEPLOYED_PAGE_URL: ${{ steps.deploy_pages.outputs.page_url }}
+        REPORT_SLUG: ${{ inputs.report_slug }}
+      run: |
+        set -euo pipefail
+
+        page_url="${DEPLOYED_PAGE_URL%/}/${REPORT_SLUG}/"
+        echo "page_url=$page_url" >> "$GITHUB_OUTPUT"
+
+    - name: Add Allure report link to summary
+      shell: bash
+      env:
+        PAGE_URL: ${{ steps.report_url.outputs.page_url }}
+        REPORT_NAME: ${{ inputs.report_name }}
+      run: |
+        {
+          echo "### $REPORT_NAME Allure report"
+          echo ""
+          echo "[Open the Allure report]($PAGE_URL)"
+        } >> "$GITHUB_STEP_SUMMARY"

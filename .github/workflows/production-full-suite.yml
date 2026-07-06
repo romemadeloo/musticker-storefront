@@ -80,6 +80,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: static-quality
     timeout-minutes: 90
+    outputs:
+      allure_results_found: ${{ steps.test_artifacts.outputs.allure_results_found }}
 
     steps:
       - name: Checkout
@@ -139,8 +141,39 @@ jobs:
           esac
 
       - name: Collect Playwright and Allure artifacts
+        id: test_artifacts
         if: ${{ always() }}
         uses: ./.github/actions/playwright-artifacts
         with:
           artifact_name: production-${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}-${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}-${{ github.run_attempt }}
           retention_days: 14
+
+  allure-report:
+    name: Publish Allure report with history
+    needs: production-tests
+    if: ${{ always() && needs['production-tests'].outputs.allure_results_found == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: allure-pages
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.publish_allure.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Publish Allure report
+        id: publish_allure
+        uses: ./.github/actions/publish-allure-report
+        with:
+          artifact_name: production-${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}-${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}-${{ github.run_attempt }}
+          report_name: Production ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }} on ${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}
+          report_slug: production-${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}-${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}

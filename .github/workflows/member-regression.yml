@@ -1,33 +1,32 @@
-name: Buyer smoke
+name: Member regression
 
 on:
-  push:
-    branches:
-      - develop
-      - main
+  schedule:
+    # 03:00 Asia/Manila every day.
+    - cron: '0 19 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: buyer-smoke-${{ github.ref }}
-  cancel-in-progress: true
+  group: member-regression
+  cancel-in-progress: false
 
 env:
   ALLURE_RESULTS_DIR: allure-results
-  BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
+  BASE_URL: ${{ vars.DEV_BASE_URL || 'https://dev.musticker.com/kr' }}
+  BYPASS_ARTWORK_UPLOAD: 'false'
   E2E_BROWSER_PROJECT: chromium-desktop
-  RUN_PAYMENT_E2E: 'false'
   RUN_ORDER_ALL_PRODUCTS_E2E: 'false'
+  RUN_PAYMENT_E2E: 'true'
   SKIP_SEEDED_AUTH_SETUP: 'true'
-  TEST_USER_EMAIL: ${{ secrets.PRODUCTION_TEST_USER_EMAIL }}
-  TEST_USER_PASSWORD: ${{ secrets.PRODUCTION_TEST_USER_PASSWORD }}
 
 jobs:
-  buyer-flow:
-    name: Important buyer flow tests
+  member-regression:
+    name: Run member regression
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     outputs:
       allure_results_found: ${{ steps.test_artifacts.outputs.allure_results_found }}
 
@@ -47,21 +46,21 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run buyer smoke coverage
-        run: npx playwright test --grep "@smoke|@search|@product|@cart" --grep-invert "@slow|@payment|@validation|@error-handling|@api|@setup|@destructive"
+      - name: Run member purchase regression
+        run: npm run test:e2e:member-regression
 
       - name: Collect Playwright and Allure artifacts
         id: test_artifacts
         if: ${{ always() }}
         uses: ./.github/actions/playwright-artifacts
         with:
-          artifact_name: buyer-smoke-playwright-results
-          retention_days: 7
+          artifact_name: member-regression-results
+          retention_days: 14
 
   allure-report:
     name: Publish Allure report with history
-    needs: buyer-flow
-    if: ${{ always() && needs['buyer-flow'].outputs.allure_results_found == 'true' }}
+    needs: member-regression
+    if: ${{ always() && needs['member-regression'].outputs.allure_results_found == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -84,6 +83,6 @@ jobs:
         id: publish_allure
         uses: ./.github/actions/publish-allure-report
         with:
-          artifact_name: buyer-smoke-playwright-results
-          report_name: Buyer smoke
-          report_slug: buyer-smoke
+          artifact_name: member-regression-results
+          report_name: Member regression
+          report_slug: member-regression

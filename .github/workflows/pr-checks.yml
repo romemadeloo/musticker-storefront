@@ -28,6 +28,8 @@ jobs:
     name: Lint, type check, and smoke
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      allure_results_found: ${{ steps.test_artifacts.outputs.allure_results_found }}
 
     steps:
       - name: Checkout
@@ -55,8 +57,39 @@ jobs:
         run: npx playwright test --grep "@smoke" --grep-invert "@payment|@slow|@api|@setup|@destructive"
 
       - name: Collect Playwright and Allure artifacts
+        id: test_artifacts
         if: ${{ always() }}
         uses: ./.github/actions/playwright-artifacts
         with:
           artifact_name: pr-checks-playwright-results
           retention_days: 7
+
+  allure-report:
+    name: Publish Allure report with history
+    needs: lint-typecheck-smoke
+    if: ${{ always() && needs['lint-typecheck-smoke'].outputs.allure_results_found == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: allure-pages
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.publish_allure.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Publish Allure report
+        id: publish_allure
+        uses: ./.github/actions/publish-allure-report
+        with:
+          artifact_name: pr-checks-playwright-results
+          report_name: PR checks
+          report_slug: pr-checks
