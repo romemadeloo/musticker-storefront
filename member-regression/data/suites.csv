@@ -1,0 +1,2 @@
+"DESCRIPTION","DURATION IN MS","NAME","PARENT SUITE","START TIME","STATUS","STOP TIME","SUB SUITE","SUITE","TEST CLASS","TEST METHOD"
+"","48917","new member can register, log in, buy one product from each category, and confirm Toss bank transfer","chromium-desktop","2026-07-09","failed","2026-07-09","new member purchase regression","regression/member-purchase-regression.spec.ts","",""
