@@ -116,7 +116,7 @@ GitHub Actions workflows:
 - `manual-playwright.yml`: manual QA dispatch with suite and browser selection, defaulting to production mode.
 - `production-full-suite.yml`: production mode workflow for `https://www.musticker.com/kr`; runs static checks, production availability smoke, and the production-safe full suite on pushes to `main` or `production-mode-test-suite`, daily schedule, and manual dispatch.
 
-Each Playwright workflow uploads raw artifacts. Runs on `main` also publish an Allure report with history to GitHub Pages, matching the protected `github-pages` deployment environment.
+Each Playwright workflow uploads raw artifacts. Runs on the repository default branch also publish an Allure report with history to GitHub Pages, matching the protected `github-pages` deployment environment.
 
 Production mode safety:
 
