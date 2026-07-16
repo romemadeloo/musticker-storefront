@@ -139,7 +139,7 @@ Call log:
               - list [ref=e116]:
                 - listitem [ref=e117]: 5만원 이상 무료배송
                 - listitem [ref=e118]: 3시 이전 시안 확정 시 당일배송
-                - listitem [ref=e119]: "도착 예정일: 07.20 (월) · CJ 대한통운"
+                - listitem [ref=e119]: "도착 예정일: 07.21 (화) · CJ 대한통운"
                 - listitem [ref=e120]: 시안 승인 후 평균 1~3일 내 배송됩니다. (주말·공휴일 제외)
         - generic [ref=e122]:
           - article [ref=e123]:
