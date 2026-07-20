@@ -1,1 +1,1 @@
-[{"uid":"e945bb526357c230","name":"new member can register, log in, buy one product from each category, and confirm Toss bank transfer","time":{"start":1784491507518,"stop":1784491508528,"duration":1010},"status":"failed","severity":"normal"}]
+[{"uid":"a2e9db6403557b40","name":"new member can register, log in, buy one product from each category, and confirm Toss bank transfer","time":{"start":1784579209299,"stop":1784579509586,"duration":300287},"status":"broken","severity":"normal"}]
