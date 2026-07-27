@@ -6,6 +6,7 @@ import type { CartLineItem } from '../fixtures/types.js';
 
 const changeSizeButtonName = /\uc0ac\uc774\uc988 (?:\ubcc0\uacbd|\uc218\uc815)|Change size|Edit size/i;
 const sizeEditDialogTitle = /\uc0ac\uc774\uc988 \uc218\uc815|\uc5c5\ub370\uc774\ud2b8|Update/i;
+const cartLineMetadataPattern = /Size:|Quantity:|\uc0ac\uc774\uc988:|\uc218\ub7c9:/i;
 
 type SelectResult = {
   changed: boolean;
@@ -44,6 +45,27 @@ export class CartPage {
     return items;
   }
 
+  async captureAllItems(): Promise<CartLineItem[]> {
+    const items: CartLineItem[] = [];
+
+    await expect.poll(() => this.rows().count(), { timeout: 10_000 }).toBeGreaterThan(0);
+
+    const rows = this.rows();
+    const rowCount = await rows.count();
+
+    for (let index = 0; index < rowCount; index += 1) {
+      const row = rows.nth(index);
+      const text = await row.innerText();
+
+      items.push({
+        productName: parseProductName(text),
+        ...parseCartRow(text, await this.rowQuantity(row))
+      });
+    }
+
+    return items;
+  }
+
   async captureTotal(): Promise<string> {
     const summary = this.page.getByTestId('cart-page-summary');
     await expect(summary).toBeVisible();
@@ -52,6 +74,8 @@ export class CartPage {
 
   async editFirstItemSizeAndQuantity(sizeMm: number, quantity: number): Promise<void> {
     const totalBefore = await this.captureTotal();
+    await expect.poll(() => this.rows().count(), { timeout: 10_000 }).toBeGreaterThan(0);
+
     const rows = this.rows();
     const rowCount = await rows.count();
 
@@ -132,7 +156,7 @@ export class CartPage {
   }
 
   private rows(): Locator {
-    return this.page.getByTestId('cart-page-row').or(this.main.getByRole('article'));
+    return this.page.getByTestId('cart-page-row').or(this.main.getByRole('article').filter({ hasText: cartLineMetadataPattern }));
   }
 
   private async rowQuantity(row: Locator): Promise<number | undefined> {
@@ -287,8 +311,38 @@ function parseCartRow(text: string, selectedQuantity: number | undefined): Omit<
   };
 }
 
+function parseProductName(text: string): string {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => normalizeSelectText(line))
+    .filter(Boolean);
+  const metadataIndex = lines.findIndex((line) => /^(Size|Quantity|\uc0ac\uc774\uc988|\uc218\ub7c9)\s*:/i.test(line));
+  const nameLines = metadataIndex > 0 ? lines.slice(0, metadataIndex) : lines;
+
+  const productName = nameLines.find(isProductNameLine);
+  if (productName) {
+    return productName;
+  }
+
+  return lines.find(isProductNameLine) ?? lines[0] ?? 'Unknown product';
+}
+
 function extractWonAmount(value: string): string | undefined {
   return [...value.matchAll(/[\d,]+\uc6d0/g)].at(-1)?.[0];
+}
+
+function isProductNameLine(line: string): boolean {
+  return Boolean(line && !extractWonAmount(line) && !isActionLine(line) && !isOptionLine(line));
+}
+
+function isActionLine(line: string): boolean {
+  return /^(Edit|Remove|Change|Checkout|\uc0c1\ud488|\uc0ad\uc81c|\ubcc0\uacbd|\uc218\uc815|\uc8fc\ubb38)/i.test(line);
+}
+
+function isOptionLine(line: string): boolean {
+  return /^(Color|\uc0c9\uc0c1|\uceec\ub7ec|Font|\ud3f0\ud2b8|Text|\ubb38\uad6c|Size|\uc0ac\uc774\uc988|Quantity|\uc218\ub7c9)\s*:/i.test(
+    line
+  );
 }
 
 function extractLeadingNumber(value: string): string {

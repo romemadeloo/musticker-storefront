@@ -10,6 +10,8 @@ const customOptionLabel = /\uCEE4\uC2A4\uD140|\uC9C1\uC811|Custom|Direct/i;
 const sizeLabelPattern = /\d+\s*(?:x|×)\s*\d+|Small|Medium|Large|\uC18C\uD615|\uC911\uD615|\uB300\uD615/i;
 const storefrontTitlePattern = /(?=.*머스티커)(?=.*스티커)/;
 const wonAmountPattern = /[\d,]+\uC6D0/u;
+const quantityUnitPricePattern = String.raw`(?:\s*[^\d\s,]+)?\s+[\d,]+\uC6D0`;
+const quantityPricePattern = new RegExp(String.raw`^\d[\d,]*${quantityUnitPricePattern}`, 'u');
 
 type SelectedSize = {
   widthMm?: number;
@@ -377,7 +379,7 @@ export class ProductPage {
   private async quantityButtonWithAnyPrice(quantity: number): Promise<Locator> {
     const quantityText = quantity.toLocaleString('en-US');
     const button = this.optionsPanel
-      .getByRole('button', { name: new RegExp(`^${escapeRegExp(quantityText)}(?:\\s*개)?\\s+[\\d,]+원`) })
+      .getByRole('button', { name: new RegExp(`^${escapeRegExp(quantityText)}${quantityUnitPricePattern}`, 'u') })
       .first();
 
     await expect(button).toBeVisible({ timeout: 15_000 });
@@ -411,7 +413,7 @@ export class ProductPage {
   }
 
   private quantityButtonsWithAnyPrice(): Locator {
-    return this.optionsPanel.getByRole('button', { name: /^\d[\d,]*(?:\s*개)?\s+[\d,]+\uC6D0/u });
+    return this.optionsPanel.getByRole('button', { name: quantityPricePattern });
   }
 }
 

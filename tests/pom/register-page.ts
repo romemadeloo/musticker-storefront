@@ -121,10 +121,12 @@ export class RegisterPage {
     await this.clickFirstVisibleButton(/저장|완료|계속|시작|다음|Save|Complete|Continue|Start|Finish/i, false);
     await setupResponsePromise;
     await this.page.waitForLoadState('domcontentloaded').catch(() => undefined);
+    await this.waitForBlockingOverlaysToSettle();
   }
 
   async completeTourGuideIfPresent(): Promise<void> {
     for (let attempt = 0; attempt < 6; attempt += 1) {
+      await this.waitForBlockingOverlaysToSettle();
       const clicked = await this.clickFirstVisibleButton(
         /건너뛰기|닫기|완료|시작하기|Skip|Close|Done|Finish|Got it/i,
         false
@@ -345,8 +347,14 @@ export class RegisterPage {
     for (let index = 0; index < count; index += 1) {
       const button = buttons.nth(index);
       if ((await button.isVisible().catch(() => false)) && (await button.isEnabled().catch(() => false))) {
-        await button.click();
-        return true;
+        const clicked = await button
+          .click({ timeout: 3_000 })
+          .then(() => true)
+          .catch(async () => button.click({ force: true, timeout: 1_000 }).then(() => true).catch(() => false));
+
+        if (clicked) {
+          return true;
+        }
       }
     }
 
@@ -355,6 +363,12 @@ export class RegisterPage {
     }
 
     return false;
+  }
+
+  private async waitForBlockingOverlaysToSettle(): Promise<void> {
+    await expect(this.page.getByTestId('auth-profile-complete-onboarding-overlay'))
+      .toBeHidden({ timeout: 10_000 })
+      .catch(() => undefined);
   }
 }
 

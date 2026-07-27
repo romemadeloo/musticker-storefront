@@ -65,6 +65,16 @@ export class PaymentGatewayPage {
     return this.knownOrder?.paymentFrom;
   }
 
+  async gotoPaymentRedirectIfAvailable(): Promise<void> {
+    const redirectUrl = this.knownOrder?.redirectUrl;
+
+    if (!redirectUrl || redirectUrl === 'about:blank') {
+      return;
+    }
+
+    await this.page.goto(redirectUrl, { waitUntil: 'domcontentloaded' }).catch(() => undefined);
+  }
+
   payappFeedbackData(): { payUrl: string; mulNo: string; var1Data: string } {
     const payUrl = this.knownOrder?.redirectUrl ?? this.page.url();
     const mulNo = this.knownOrder?.mulNo;
@@ -175,18 +185,31 @@ export class PaymentGatewayPage {
   }
 
   private async gotoConfirmationUrl(url: string): Promise<Page> {
-    try {
-      await this.page.goto(url, { waitUntil: 'domcontentloaded' });
-      return this.page;
-    } catch (error) {
-      if (!isNavigationAbort(error)) {
-        throw error;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        await this.page.goto(url, { waitUntil: 'domcontentloaded' });
+
+        if (!(await this.isCheckoutFormStillRendered())) {
+          return this.page;
+        }
+      } catch (error) {
+        if (!isNavigationAbort(error)) {
+          throw error;
+        }
       }
+
+      await retryDelay(2_000);
     }
 
     const page = await this.page.context().newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     return page;
+  }
+
+  private async isCheckoutFormStillRendered(): Promise<boolean> {
+    const bodyText = await this.page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
+
+    return /(?:\uBC30\uC1A1 \uC815\uBCF4|Shipping Information)/i.test(bodyText) && /(?:\uACB0\uC81C \uC218\uB2E8|Payment Method)/i.test(bodyText);
   }
 }
 
@@ -202,4 +225,8 @@ function extractConfirmationOrderId(value: string): string | undefined {
 
 function isNavigationAbort(error: unknown): boolean {
   return error instanceof Error && /ERR_ABORTED|frame was detached|Target page, context or browser has been closed/i.test(error.message);
+}
+
+async function retryDelay(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }

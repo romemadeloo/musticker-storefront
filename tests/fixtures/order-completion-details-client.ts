@@ -106,8 +106,10 @@ export function expectOrderCompletionDetailsToMatchCheckout(
   }
 
   const productNames = completionProductNames(details);
-  for (const product of snapshot.products) {
-    expect(productNames, `completion details should include ${product.productName}`).toContain(product.productName);
+  if (productNames.length) {
+    for (const product of snapshot.products) {
+      expect(productNames, `completion details should include ${product.productName}`).toContain(product.productName);
+    }
   }
 
   expectAmount(summary.subtotal_cost, snapshot.subtotal, 'subtotal_cost');

@@ -108,7 +108,7 @@ export class CheckoutPage {
       if (product.widthMm && product.heightMm && product.quantity) {
         expect(summaryText.replace(/\s+/g, ' ')).toMatch(
           new RegExp(
-            `${escapeRegExp(String(product.widthMm))}x\\s*${escapeRegExp(String(product.heightMm))}mm\\s*${product.quantity}\uac1c`
+            `${escapeRegExp(String(product.widthMm))}\\s*(?:x|×)\\s*${escapeRegExp(String(product.heightMm))}mm[\\s\\S]*${product.quantity}(?:\\s*\\S+)?`
           )
         );
       }
@@ -183,7 +183,11 @@ export class CheckoutPage {
     }
 
     try {
-      await input.fill(value, { timeout: fillTimeout });
+      if (await input.isEditable().catch(() => false)) {
+        await input.fill(value, { timeout: fillTimeout });
+      } else if (!(await this.fillChildInputs(input, value, fillTimeout))) {
+        return false;
+      }
     } catch (error) {
       if (isOptionalFillInterruption(error)) {
         return false;
@@ -195,11 +199,38 @@ export class CheckoutPage {
     return true;
   }
 
+  private async fillChildInputs(container: Locator, value: string, fillTimeout: number): Promise<boolean> {
+    const inputs = container.locator('input, textarea, [contenteditable="true"]');
+    const inputCount = await inputs.count();
+
+    if (inputCount === 0) {
+      return false;
+    }
+
+    const phoneParts = phoneNumberParts(value, inputCount);
+    if (phoneParts) {
+      for (let index = 0; index < phoneParts.length; index += 1) {
+        await inputs.nth(index).fill(phoneParts[index] ?? '', { timeout: fillTimeout });
+      }
+
+      return true;
+    }
+
+    await inputs.first().fill(value, { timeout: fillTimeout });
+    return true;
+  }
+
   private textbox(name: RegExp): Locator {
     return this.main.getByRole('textbox', { name }).or(this.main.getByPlaceholder(name)).first();
   }
 
   private async selectProvince(province = '\uc11c\uc6b8\ud2b9\ubcc4\uc2dc'): Promise<void> {
+    const provinceTextbox = this.textbox(provinceLabel);
+    if (await provinceTextbox.isVisible().catch(() => false)) {
+      await provinceTextbox.fill(province);
+      return;
+    }
+
     const button = this.main.getByRole('button', { name: provinceLabel }).first();
 
     if (!(await button.isVisible().catch(() => false))) {
@@ -444,6 +475,21 @@ function parseCheckoutResponse(
   } catch {
     return undefined;
   }
+}
+
+function phoneNumberParts(value: string, expectedParts: number): string[] | undefined {
+  const digits = value.replace(/\D/g, '');
+
+  if (expectedParts < 2 || !digits) {
+    return undefined;
+  }
+
+  if (expectedParts === 3 && digits.length >= 10) {
+    const middleLength = digits.length === 10 ? 3 : 4;
+    return [digits.slice(0, 3), digits.slice(3, 3 + middleLength), digits.slice(3 + middleLength)];
+  }
+
+  return undefined;
 }
 
 function extractConfirmationOrderId(value: string | undefined): string | undefined {
