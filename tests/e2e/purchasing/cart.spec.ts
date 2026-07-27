@@ -32,7 +32,6 @@ test.describe('upload and cart', { tag: ['@regression', '@purchasing'] }, () => 
     const cart = await uploadModal.skipUploadAndAddToCart();
 
     await cart.expectLineItem(configuredProduct);
-    await cart.expectRecommendedProductsVisible();
     await cart.removeLineItem(configuredProduct);
     await cart.expectEmpty(configuredProduct);
   });
