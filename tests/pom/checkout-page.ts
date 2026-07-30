@@ -70,7 +70,10 @@ export class CheckoutPage {
   }
 
   async selectPaymentMethod(method: string): Promise<void> {
-    const button = this.main.getByRole('button', { name: new RegExp(method, 'i') }).first();
+    const methodPattern = /credit\s*card/i.test(method)
+      ? /Credit Card|\uc2e0\uc6a9\uce74\ub4dc/i
+      : new RegExp(method, 'i');
+    const button = this.main.getByRole('button', { name: methodPattern }).first();
 
     await expect(button).toBeVisible();
     await button.scrollIntoViewIfNeeded();
@@ -79,6 +82,81 @@ export class CheckoutPage {
 
   async selectBankTransfer(): Promise<void> {
     await this.selectPaymentMethod('Bank Transfer|무통장|가상계좌|계좌이체');
+  }
+
+  async expectRequiredFieldsRejectEmptyInput(): Promise<void> {
+    await this.ensureEditableShippingForm();
+
+    const requiredFields = [
+      this.textbox(/\uc774\uba54\uc77c|Email/i),
+      this.textbox(fullNameLabel),
+      this.textbox(/\uc2dc\/\uad70\/\uad6c|City|District/i),
+      this.textbox(/\ub3c4\ub85c\uba85|\uc8fc\uc18c \ub77c\uc778 1|Address line 1|Address/i),
+      this.textbox(/\uc6b0\ud3b8\ubc88\ud638|Postal|ZIP/i),
+      this.textbox(/\uc5f0\ub77d\ucc98|\ud734\ub300\ud3f0|\uc804\ud654\ubc88\ud638|Phone/i)
+    ];
+    const visibleFields: Locator[] = [];
+
+    for (const field of requiredFields) {
+      if (await field.isVisible().catch(() => false)) {
+        visibleFields.push(field);
+      }
+    }
+
+    expect(visibleFields.length, 'Checkout should expose visible required contact or shipping fields.').toBeGreaterThan(0);
+
+    for (const field of visibleFields) {
+      if (await field.isEditable().catch(() => false)) {
+        await field.fill('');
+        await field.blur({ timeout: 2_000 }).catch(() => undefined);
+      }
+    }
+
+    await this.submitButton().click();
+    await expect(this.page).toHaveURL(/\/kr\/checkout\/?$/);
+
+    const email = this.textbox(/\uc774\uba54\uc77c|Email/i);
+    if (await email.isVisible().catch(() => false)) {
+      await email.fill('invalid-email');
+      await email.blur({ timeout: 2_000 }).catch(() => undefined);
+      await this.submitButton().click();
+      await expect(this.page).toHaveURL(/\/kr\/checkout\/?$/);
+    }
+  }
+
+  async expectInvalidFormatsRejectSubmission(profile: CheckoutProfile): Promise<void> {
+    const invalidValues: Array<{ field: Locator; invalid: string; valid: string }> = [
+      {
+        field: this.textbox(/\uc774\uba54\uc77c|Email/i),
+        invalid: 'invalid-email',
+        valid: profile.email
+      },
+      {
+        field: this.textbox(/\uc6b0\ud3b8\ubc88\ud638|Postal|ZIP/i),
+        invalid: 'x',
+        valid: profile.postalCode
+      },
+      {
+        field: this.textbox(/\uc5f0\ub77d\ucc98|\ud734\ub300\ud3f0|\uc804\ud654\ubc88\ud638|Phone/i),
+        invalid: '1',
+        valid: profile.phone
+      }
+    ];
+
+    for (const candidate of invalidValues) {
+      if (!(await candidate.field.isVisible().catch(() => false)) || !(await candidate.field.isEditable().catch(() => false))) {
+        continue;
+      }
+
+      await candidate.field.fill(candidate.invalid);
+      await this.submitButton().click();
+      await expect(this.page).toHaveURL(/\/kr\/checkout\/?$/);
+      await candidate.field.fill(candidate.valid);
+    }
+  }
+
+  async expectOrderSubmissionEnabled(): Promise<void> {
+    await expect.poll(() => this.submitButtonState(), { timeout: 5_000 }).toBe('enabled');
   }
 
   async applyPointsAndCouponsIfAvailable(): Promise<string> {
@@ -143,11 +221,7 @@ export class CheckoutPage {
       )
       .catch(() => null);
 
-    const submitButton = this
-      .summary()
-      .locator('button.checkout-summary-submit')
-      .or(this.summary().getByRole('button', { name: /\uacb0\uc81c \uc644\ub8cc|\uacb0\uc81c\ud558\uae30|\uc8fc\ubb38\ud558\uae30|Place order|Order|Pay/i }))
-      .first();
+    const submitButton = this.submitButton();
 
     await expect(submitButton).toBeVisible();
     await submitButton.click();
@@ -162,6 +236,30 @@ export class CheckoutPage {
 
   private summary(): Locator {
     return this.page.getByRole('complementary').filter({ hasText: /\uc8fc\ubb38 \uc694\uc57d|Order Summary/ });
+  }
+
+  private submitButton(): Locator {
+    return this
+      .summary()
+      .locator('button.checkout-summary-submit')
+      .or(
+        this.summary().getByRole('button', {
+          name: /\uacb0\uc81c \uc644\ub8cc|\uacb0\uc81c\ud558\uae30|\uc8fc\ubb38\ud558\uae30|Place order|Order|Pay/i
+        })
+      )
+      .first();
+  }
+
+  private async submitButtonState(): Promise<'missing' | 'disabled' | 'enabled'> {
+    return this.page.evaluate(() => {
+      const button = document.querySelector<HTMLButtonElement>('button.checkout-summary-submit');
+
+      if (!button) {
+        return 'missing';
+      }
+
+      return button.disabled || button.getAttribute('aria-disabled') === 'true' ? 'disabled' : 'enabled';
+    });
   }
 
   private async fillTextboxIfVisible(name: RegExp, value: string): Promise<boolean> {
@@ -222,6 +320,22 @@ export class CheckoutPage {
 
   private textbox(name: RegExp): Locator {
     return this.main.getByRole('textbox', { name }).or(this.main.getByPlaceholder(name)).first();
+  }
+
+  private async ensureEditableShippingForm(): Promise<void> {
+    const fullNameInput = this.textbox(fullNameLabel);
+    if (await fullNameInput.isVisible().catch(() => false)) {
+      return;
+    }
+
+    const differentAddress = this.main
+      .getByRole('radio', { name: /\ub2e4\ub978 \uc8fc\uc18c\ub85c \ubc30\uc1a1|different address/i })
+      .or(this.main.getByText(/\ub2e4\ub978 \uc8fc\uc18c\ub85c \ubc30\uc1a1|different address/i))
+      .first();
+
+    await expect(differentAddress).toBeVisible({ timeout: 5_000 });
+    await differentAddress.click({ force: true });
+    await expect(fullNameInput).toBeVisible({ timeout: 10_000 });
   }
 
   private async selectProvince(province = '\uc11c\uc6b8\ud2b9\ubcc4\uc2dc'): Promise<void> {

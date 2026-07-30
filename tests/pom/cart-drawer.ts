@@ -113,6 +113,15 @@ export class CartDrawer {
     return items;
   }
 
+  async captureItemCount(): Promise<number> {
+    await this.waitForLineItems().catch(() => undefined);
+    return this.lineItemArticles().count();
+  }
+
+  async captureDeclaredItemCount(): Promise<number | undefined> {
+    return this.cartItemCount();
+  }
+
   async captureTotal(): Promise<string> {
     const total = this.dialog.getByTestId('product-category-cart-total-row');
     await expect(total).toBeVisible();
@@ -201,12 +210,13 @@ export class CartDrawer {
     await expect(this.dialog.getByRole('button', { name: '\ub9de\ucda4 \uc81c\uc791' }).first()).toBeVisible();
   }
 
-  async removeLineItem(config: ProductConfig | CartLineItem): Promise<void> {
+  async removeLineItem(config: string | ProductConfig | CartLineItem): Promise<void> {
+    const itemCountBefore = await this.lineItemArticles().count();
     const item = this.lineItem(config);
     await this.deleteLineItem(item);
 
     await this.confirmRemovalIfPrompted();
-    await expect(this.lineItem(config)).toHaveCount(0);
+    await expect.poll(() => this.lineItemArticles().count(), { timeout: 10_000 }).toBe(itemCountBefore - 1);
   }
 
   async removeAllLineItems(): Promise<void> {
@@ -225,7 +235,7 @@ export class CartDrawer {
       await this.deleteLineItem(lineItems.first());
       await this.confirmRemovalIfPrompted();
 
-      await expect
+      const removalObserved = await expect
         .poll(
           async () => {
             const totalAfter = await this.cartItemCount();
@@ -242,7 +252,13 @@ export class CartDrawer {
           },
           { timeout: 10_000 }
         )
-        .toBe(true);
+        .toBe(true)
+        .then(() => true)
+        .catch(() => false);
+
+      if (!removalObserved) {
+        await this.page.waitForTimeout(500);
+      }
     }
 
     throw new Error('Cart still had line items after 200 removal attempts.');

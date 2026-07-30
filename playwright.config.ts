@@ -26,6 +26,7 @@ function reportersWithAllure(reporters: ReporterDescription[]): ReporterDescript
 const desktopProjects = [
   {
     name: 'chromium-desktop',
+    grepInvert: /@mobile/,
     use: {
       ...devices['Desktop Chrome'],
       viewport: { width: 1440, height: 900 }
@@ -33,6 +34,7 @@ const desktopProjects = [
   },
   {
     name: 'firefox-desktop',
+    grepInvert: /@mobile/,
     use: {
       ...devices['Desktop Firefox'],
       viewport: { width: 1440, height: 900 }
@@ -40,6 +42,7 @@ const desktopProjects = [
   },
   {
     name: 'webkit-desktop',
+    grepInvert: /@mobile/,
     use: {
       ...devices['Desktop Safari'],
       viewport: { width: 1440, height: 900 }
@@ -47,18 +50,28 @@ const desktopProjects = [
   }
 ];
 
-function selectedProjects(): typeof desktopProjects {
+const mobileProject = {
+  name: 'chromium-mobile',
+  grep: /@mobile/,
+  use: {
+    ...devices['Pixel 7']
+  }
+};
+
+const allProjects = [...desktopProjects, mobileProject];
+
+function selectedProjects(): typeof allProjects {
   const requestedProject = process.env.E2E_BROWSER_PROJECT ?? 'chromium-desktop';
 
   if (requestedProject === 'all-desktop') {
     return desktopProjects;
   }
 
-  const project = desktopProjects.find((candidate) => candidate.name === requestedProject);
+  const project = allProjects.find((candidate) => candidate.name === requestedProject);
 
   if (!project) {
     throw new Error(
-      `Unsupported E2E_BROWSER_PROJECT "${requestedProject}". Use chromium-desktop, firefox-desktop, webkit-desktop, or all-desktop.`
+      `Unsupported E2E_BROWSER_PROJECT "${requestedProject}". Use chromium-desktop, firefox-desktop, webkit-desktop, chromium-mobile, or all-desktop.`
     );
   }
 

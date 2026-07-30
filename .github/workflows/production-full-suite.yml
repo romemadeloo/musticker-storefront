@@ -27,6 +27,7 @@ on:
           - chromium-desktop
           - firefox-desktop
           - webkit-desktop
+          - chromium-mobile
           - all-desktop
 
 permissions:
@@ -108,6 +109,9 @@ jobs:
               ;;
             webkit-desktop)
               npx playwright install --with-deps webkit
+              ;;
+            chromium-mobile)
+              npx playwright install --with-deps chromium
               ;;
             all-desktop)
               npx playwright install --with-deps chromium firefox webkit

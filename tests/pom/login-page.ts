@@ -90,6 +90,24 @@ export class LoginPage {
     await expect(this.main.getByRole('textbox', { name: '주문번호' })).toBeVisible();
   }
 
+  async expectNonMemberLookupRejected(email: string, orderNumber: string): Promise<void> {
+    await this.switchToNonMember();
+    const textboxes = this.main.getByRole('textbox');
+    const emailInput = this.main.locator('input[type="email"]').first();
+    const orderNumberInput = this.main.getByRole('textbox', { name: /\uc8fc\ubb38\ubc88\ud638|Order number/i });
+
+    if (await emailInput.isVisible().catch(() => false)) {
+      await emailInput.fill(email);
+    } else {
+      await textboxes.first().fill(email);
+    }
+    await orderNumberInput.fill(orderNumber);
+    await this.main.getByRole('button', { name: /\uc8fc\ubb38\uc744 \ud655\uc778\ud558\uc138\uc694|Check order/i }).click();
+
+    await expect(this.page).toHaveURL(/\/kr\/auth\/login/);
+    await expect(orderNumberInput).toBeVisible();
+  }
+
   async goToRegister(): Promise<void> {
     await this.main.getByRole('link', { name: '계정 만들기' }).click();
     await expect(this.page).toHaveURL(/\/kr\/auth\/register\/?$/);

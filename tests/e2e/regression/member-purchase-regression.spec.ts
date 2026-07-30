@@ -96,6 +96,9 @@ test.describe('new member purchase regression', {
       await registerPage.submitRegistration(member);
 
       const otp = await fetchRegistrationOtpWithRetry(request, member.email);
+      if (otp !== '000000') {
+        await registerPage.expectInvalidOtpRejected();
+      }
       await registerPage.submitOtp(otp);
       await registerPage.completeProfileSetup(member, profilePictureFile);
       await registerPage.completeTourGuideIfPresent();
@@ -256,9 +259,20 @@ test.describe('new member purchase regression', {
           orderId,
           totalAmount
         });
+        const duplicateWebhookResult = await postTossPaymentStatusWebhook(request, {
+          orderId,
+          totalAmount
+        });
         testInfo.annotations.push({
           type: 'payment-webhook-bypass',
-          description: JSON.stringify({ orderId, totalAmount, webhookStatus: webhookResult.status, webhookBody: webhookResult.body })
+          description: JSON.stringify({
+            orderId,
+            totalAmount,
+            webhookStatus: webhookResult.status,
+            webhookBody: webhookResult.body,
+            duplicateWebhookStatus: duplicateWebhookResult.status,
+            duplicateWebhookBody: duplicateWebhookResult.body
+          })
         });
 
         confirmationPage = await gateway.gotoOrderConfirmation(confirmationOrderId);

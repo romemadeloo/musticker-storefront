@@ -128,6 +128,21 @@ export class HeaderComponent {
     await expect(this.page).toHaveURL(/\/kr\/auth\/login/);
   }
 
+  async expectMemberMenu(): Promise<void> {
+    await this.openAccountMenu();
+    await expect(this.page.getByTestId('app-header-account-dropdown-member')).toBeVisible();
+    await expect(this.page.getByTestId('app-header-account-logout-button')).toBeVisible();
+  }
+
+  async logout(): Promise<void> {
+    await this.openAccountMenu();
+    await this.page.getByTestId('app-header-account-logout-button').click();
+    await expect(this.page.getByTestId('app-header-account-dropdown-member')).toBeHidden();
+
+    await this.openAccountMenu();
+    await expect(this.page.getByTestId('app-header-account-dropdown-guest')).toBeVisible();
+  }
+
   private accountMenu(): Locator {
     return this.page
       .getByTestId('app-header-account-dropdown-guest')

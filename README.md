@@ -44,6 +44,7 @@ npm.cmd run test:e2e
 npm.cmd run test:e2e:list
 npm.cmd run test:prod:smoke
 npm.cmd run test:prod:full
+npm.cmd run test:prod:mobile
 npm.cmd run test:smoke
 npm.cmd run test:regression
 npm.cmd run test:e2e:journeys
@@ -86,7 +87,7 @@ npx.cmd playwright test --grep-invert @slow
 
 ## Project Notes
 
-- `playwright.config.ts` runs Chromium desktop at `1440x900`.
+- `playwright.config.ts` provides Chromium, Firefox, and WebKit desktop projects at `1440x900`, plus a Pixel 7 mobile Chromium project.
 - Tests are headless by default; set `HEADED=true` for local headed runs.
 - The package is ESM (`"type": "module"`), so local TypeScript imports use `.js` extensions for NodeNext compatibility.
 - Shared runtime settings and environment parsing live in `tests/fixtures/env.ts`.

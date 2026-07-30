@@ -113,8 +113,12 @@ export class CartPage {
       }
 
       const quantityBefore = await this.rowQuantity(row);
-      await quantityButton.click({ force: true });
-      const selectedQuantity = await this.selectOpenListboxValue(String(quantity), quantityBefore?.toString() ?? '');
+      const quantityListbox = await this.openQuantityListbox(row);
+      const selectedQuantity = await this.selectOpenListboxValue(
+        String(quantity),
+        quantityBefore?.toString() ?? '',
+        quantityListbox
+      );
 
       if (selectedSize.value) {
         await expect(row)
@@ -185,8 +189,34 @@ export class CartPage {
     return dialog.locator('button.cart-item-edit-select-trigger, [role="combobox"]');
   }
 
-  private async selectOpenListboxValue(preferredValue: string, previousValue: string): Promise<SelectResult> {
+  private async openQuantityListbox(row: Locator): Promise<Locator> {
     const listbox = this.page.getByRole('listbox').last();
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await this.rowQuantityButton(row).click({ force: true });
+
+      const opened = await listbox
+        .waitFor({ state: 'visible', timeout: 3_000 })
+        .then(() => true)
+        .catch(() => false);
+
+      if (opened) {
+        return listbox;
+      }
+
+      await this.page.waitForTimeout(300);
+    }
+
+    await expect(listbox).toBeVisible({ timeout: 5_000 });
+    return listbox;
+  }
+
+  private async selectOpenListboxValue(
+    preferredValue: string,
+    previousValue: string,
+    openListbox?: Locator
+  ): Promise<SelectResult> {
+    const listbox = openListbox ?? this.page.getByRole('listbox').last();
     await expect(listbox).toBeVisible({ timeout: 5_000 });
 
     const options = await firstLocatorWithCount([
@@ -301,7 +331,7 @@ export class CartPage {
 
 function parseCartRow(text: string, selectedQuantity: number | undefined): Omit<CartLineItem, 'productName'> {
   const normalized = text.replace(/\s+/g, ' ');
-  const size = normalized.match(/(?:Size:|\uc0ac\uc774\uc988:)\s*(\d+)x(\d+)(?:mm)?/i);
+  const size = normalized.match(/(?:(?:Size:|\uc0ac\uc774\uc988:)\s*)?(\d+)\s*(?:x|\u00d7)\s*(\d+)(?:\s*mm)?/i);
 
   return {
     widthMm: size ? Number(size[1]) : undefined,

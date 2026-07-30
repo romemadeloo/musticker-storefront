@@ -14,6 +14,7 @@
     "test:e2e:list": "playwright test --list",
     "test:prod:smoke": "cross-env BASE_URL=https://www.musticker.com/kr RUN_PAYMENT_E2E=false RUN_ORDER_ALL_PRODUCTS_E2E=false SKIP_SEEDED_AUTH_SETUP=true playwright test --grep @smoke --grep-invert \"@payment|@slow|@api|@setup|@destructive\"",
     "test:prod:full": "cross-env BASE_URL=https://www.musticker.com/kr RUN_PAYMENT_E2E=false RUN_ORDER_ALL_PRODUCTS_E2E=false SKIP_SEEDED_AUTH_SETUP=true playwright test --grep-invert \"@payment|@slow|@api|@setup|@destructive\"",
+    "test:prod:mobile": "cross-env BASE_URL=https://www.musticker.com/kr E2E_BROWSER_PROJECT=chromium-mobile RUN_PAYMENT_E2E=false RUN_ORDER_ALL_PRODUCTS_E2E=false SKIP_SEEDED_AUTH_SETUP=true playwright test",
     "test:smoke": "playwright test --grep @smoke",
     "test:auth": "playwright test --grep @auth",
     "test:purchasing": "playwright test --grep @purchasing",

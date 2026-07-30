@@ -33,4 +33,15 @@ test.describe('search', { tag: ['@regression', '@discovery'] }, () => {
     await searchDialog.closeWithButton();
     await expect(searchDialog.dialog).toBeHidden();
   });
+
+  test('shows an explicit empty state without stale results for an unknown product', { tag: '@search' }, async ({
+    page
+  }) => {
+    const home = new HomePage(page);
+
+    await home.goto();
+    const searchDialog = await home.header.openSearch();
+    await searchDialog.searchFor('musticker-no-result-zzzz');
+    await searchDialog.expectNoResults();
+  });
 });

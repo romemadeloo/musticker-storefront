@@ -35,6 +35,12 @@ export class SearchDialog {
     await expect(this.dieCutStickerResult()).toBeVisible();
   }
 
+  async expectNoResults(): Promise<void> {
+    await expect(this.page.getByTestId('app-header-search-empty-result')).toBeVisible();
+    await expect(this.dialog.getByText(/\uac80\uc0c9 \uacb0\uacfc\uac00 \uc5c6\uc2b5\ub2c8\ub2e4|No results/i)).toBeVisible();
+    await expect(this.searchResults()).toHaveCount(0);
+  }
+
   async chooseDieCutSticker(): Promise<void> {
     await this.dieCutStickerResult().click();
 
@@ -56,5 +62,9 @@ export class SearchDialog {
       .getByTestId('app-header-search-result-stickers:die-cut-sticker-button')
       .or(this.dialog.getByRole('button', { name: /다이컷 스티커|자유형 스티커/ }).first())
       .first();
+  }
+
+  private searchResults(): Locator {
+    return this.dialog.locator('[data-testid^="app-header-search-result-"]');
   }
 }

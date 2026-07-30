@@ -42,6 +42,22 @@ export class DesignUploadModal {
     }
   }
 
+  async replaceDesignFile(filePath: string): Promise<void> {
+    const chooserPromise = this.page.waitForEvent('filechooser');
+    await this.page.getByTestId('product-category-upload-replace-image-button').click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles(filePath);
+    await expect(this.addToCartButton()).toBeEnabled({ timeout: 15_000 });
+  }
+
+  async removeSelectedFile(filePath: string): Promise<void> {
+    const fileName = path.basename(filePath);
+
+    await this.page.getByTestId('product-category-upload-remove-image-button').click();
+    await expect(this.page.getByTestId('product-category-upload-file-state')).toBeHidden();
+    await expect(this.dialog.getByText(fileName)).toHaveCount(0);
+  }
+
   async fillSpecialRequest(request: string): Promise<void> {
     await this.dialog.getByRole('textbox', { name: '여기에 상세 주문 요청 사항을 입력해 주세요' }).fill(request);
   }

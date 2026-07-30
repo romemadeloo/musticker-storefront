@@ -21,11 +21,27 @@ test.describe('auth validation and error handling', { tag: ['@regression', '@aut
     await registerPage.expectClientValidationWithoutSubmittingUser();
   });
 
+  test('registration rejects an invalid email and weak password before OTP', async ({ page }) => {
+    const registerPage = new RegisterPage(page);
+
+    await registerPage.goto();
+    await registerPage.expectLoaded();
+    await registerPage.expectInvalidCredentialsValidation();
+  });
+
   test('non-member order lookup requires email and order number', async ({ page }) => {
     const loginPage = new LoginPage(page);
 
     await loginPage.goto();
     await loginPage.expectLoaded();
     await loginPage.expectNonMemberLookupValidation();
+  });
+
+  test('non-member order lookup does not expose a mismatched order', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+
+    await loginPage.goto();
+    await loginPage.expectLoaded();
+    await loginPage.expectNonMemberLookupRejected('nonmember-e2e@example.com', 'AO-000000000000-none');
   });
 });

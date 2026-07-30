@@ -50,6 +50,30 @@ export class RegisterPage {
     await expect(this.page).toHaveURL(/\/kr\/auth\/register\/?$/);
   }
 
+  async expectInvalidCredentialsValidation(): Promise<void> {
+    const fullName = this.page.getByTestId('auth-register-full-name-input-control');
+    const firstName = this.page.getByTestId('auth-register-first-name-input-control');
+    const lastName = this.page.getByTestId('auth-register-last-name-input-control');
+    const email = this.page.getByTestId('auth-register-email-input-control');
+    const password = this.page.getByTestId('auth-register-password-input-control');
+
+    if (await fullName.isVisible().catch(() => false)) {
+      await fullName.fill('Musticker E2E');
+    } else {
+      await firstName.fill('Musticker');
+      await lastName.fill('E2E');
+    }
+
+    await email.fill('invalid-email');
+    await password.fill('123');
+    await this.page.getByTestId('auth-register-agree-terms-control').check({ force: true });
+    await this.page.getByTestId('auth-register-submit').click();
+
+    await expect(this.page).toHaveURL(/\/kr\/auth\/register\/?$/);
+    await expect(this.page.getByTestId('auth-register-verification-submit')).toHaveCount(0);
+    expect(await email.evaluate((element) => !(element as HTMLInputElement).checkValidity())).toBe(true);
+  }
+
   async submitRegistration(profile: RegistrationProfile): Promise<void> {
     const fullNameInput = this.page.getByTestId('auth-register-full-name-input-control');
     const firstName = this.page.getByTestId('auth-register-first-name-input-control');
@@ -110,6 +134,28 @@ export class RegisterPage {
     await this.page.getByTestId('auth-register-verification-submit').click();
     await verificationResponsePromise;
     await this.page.waitForLoadState('domcontentloaded').catch(() => undefined);
+  }
+
+  async expectInvalidOtpRejected(otp = '000000'): Promise<void> {
+    const codeInputs = this.page.locator('[data-testid^="auth-register-verification-code-"]');
+    await expect(codeInputs.first()).toBeVisible({ timeout: 15_000 });
+
+    for (let index = 0; index < otp.length; index += 1) {
+      await codeInputs.nth(index).fill(otp[index] ?? '0');
+    }
+
+    const verificationResponsePromise = this.page
+      .waitForResponse(
+        (response) =>
+          response.request().method() !== 'GET' &&
+          /auth\/register\/verification|auth\/register|verify/i.test(response.url()),
+        { timeout: 15_000 }
+      )
+      .catch(() => null);
+
+    await this.page.getByTestId('auth-register-verification-submit').click();
+    await verificationResponsePromise;
+    await expect(this.page.getByTestId('auth-register-verification-submit')).toBeVisible();
   }
 
   async completeProfileSetup(profile: RegistrationProfile, profilePicturePath: string): Promise<void> {

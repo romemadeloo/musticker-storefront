@@ -24,6 +24,7 @@ on:
           - chromium-desktop
           - firefox-desktop
           - webkit-desktop
+          - chromium-mobile
           - all-desktop
       custom_grep:
         description: 'Required only when suite is custom-grep. Example: @cart|@payment'
@@ -88,6 +89,9 @@ jobs:
               ;;
             webkit-desktop)
               npx playwright install --with-deps webkit
+              ;;
+            chromium-mobile)
+              npx playwright install --with-deps chromium
               ;;
             all-desktop)
               npx playwright install --with-deps chromium firefox webkit

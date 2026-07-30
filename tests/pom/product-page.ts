@@ -6,7 +6,7 @@ import type { CartLineItem, ProductConfig, RegressionProductCandidate } from '..
 import { CartDrawer } from './cart-drawer.js';
 import { DesignUploadModal } from './design-upload-modal.js';
 
-const customOptionLabel = /\uCEE4\uC2A4\uD140|\uC9C1\uC811|Custom|Direct/i;
+const customOptionLabel = /\uCEE4\uC2A4\uD140|\uC9C1\uC811|Custom|Direct|원하는 크기 입력|원하는 수량 입력/i;
 const sizeLabelPattern = /\d+\s*(?:x|×)\s*\d+|Small|Medium|Large|\uC18C\uD615|\uC911\uD615|\uB300\uD615/i;
 const storefrontTitlePattern = /(?=.*머스티커)(?=.*스티커)/;
 const wonAmountPattern = /[\d,]+\uC6D0/u;
