@@ -1,3 +1,5 @@
+import { lookup } from 'node:dns/promises';
+
 import type { APIRequestContext, TestInfo } from '@playwright/test';
 
 import { test, expect } from '../../fixtures/e2e-test.js';
@@ -42,6 +44,8 @@ test.describe('new member purchase regression', {
     page,
     request
   }, testInfo) => {
+    await skipIfMemberRegressionDependencyUnavailable();
+
     const memberTimestamp = new Date();
     const memberIdentity = makeMemberIdentity(memberTimestamp);
     const runMarker = memberIdentity.runMarker;
@@ -322,6 +326,55 @@ test.describe('new member purchase regression', {
     });
   });
 });
+
+async function skipIfMemberRegressionDependencyUnavailable(): Promise<void> {
+  const dependencyUrls = [
+    ['storefront', env.BASE_URL],
+    ['registration OTP endpoint', env.REGISTRATION_OTP_ENDPOINT],
+    ['Toss payment webhook endpoint', env.TOSS_PAYMENT_STATUS_WEBHOOK_URL],
+    ['order completion details endpoint', env.ORDER_COMPLETION_DETAILS_ENDPOINT]
+  ] as const;
+  const hosts = new Map<string, string[]>();
+
+  for (const [label, value] of dependencyUrls) {
+    const host = dependencyHost(value);
+
+    if (!host) {
+      continue;
+    }
+
+    hosts.set(host, [...(hosts.get(host) ?? []), label]);
+  }
+
+  for (const [host, labels] of hosts) {
+    try {
+      await lookup(host);
+    } catch (error) {
+      test.skip(
+        true,
+        `Skipping member regression because ${labels.join(', ')} host "${host}" is not resolvable: ${String(error)}`
+      );
+    }
+  }
+}
+
+function dependencyHost(value: string): string | undefined {
+  const withoutTemplate = value.replaceAll('{orderId}', '0').replaceAll('{email}', 'test@example.com');
+
+  try {
+    return new URL(withoutTemplate).hostname;
+  } catch {
+    if (!env.API_BASE_URL) {
+      return undefined;
+    }
+
+    return new URL(withoutTemplate, normalizeDependencyBaseUrl(env.API_BASE_URL)).hostname;
+  }
+}
+
+function normalizeDependencyBaseUrl(baseUrl: string): string {
+  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+}
 
 async function fetchRegistrationOtpWithRetry(request: APIRequestContext, email: string): Promise<string> {
   let lastError: unknown;

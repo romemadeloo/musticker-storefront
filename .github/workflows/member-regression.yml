@@ -15,7 +15,7 @@ concurrency:
 
 env:
   ALLURE_RESULTS_DIR: allure-results
-  BASE_URL: ${{ vars.DEV_BASE_URL || 'https://dev.musticker.com/kr' }}
+  BASE_URL: ${{ vars.DEV_BASE_URL || vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
   BYPASS_ARTWORK_UPLOAD: 'false'
   E2E_BROWSER_PROJECT: chromium-desktop
   RUN_ORDER_ALL_PRODUCTS_E2E: 'false'
