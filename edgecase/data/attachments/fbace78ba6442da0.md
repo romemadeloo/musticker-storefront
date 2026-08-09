@@ -147,7 +147,7 @@ expect(received).toEqual(expected) // deep equality
                 - text: 사진 후기 225개,
                 - text: 만족도는 이미 증명됐어요
               - generic [ref=e117]:
-                - button "이전 리뷰로 이동" [disabled] [ref=e118]:
+                - button "이전 리뷰로 이동" [ref=e118] [cursor=pointer]:
                   - img [ref=e119]
                   - generic [ref=e121]: 이전 리뷰로 이동
                 - button "다음 리뷰로 이동" [ref=e122] [cursor=pointer]:
