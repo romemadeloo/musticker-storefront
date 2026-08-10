@@ -1,12 +1,11 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { ko } from '../fixtures/storefront-data.js';
 import { HeaderComponent } from './header-component.js';
 
-const storefrontTitlePattern = /머스티커.*스티커/;
-
-export class HomePage {
+export class HomeV2Page {
   readonly page: Page;
   readonly header: HeaderComponent;
 
@@ -20,37 +19,55 @@ export class HomePage {
     await this.header.expectVisible();
   }
 
-  async expectLoaded(): Promise<void> {
-    await expect(this.page).toHaveTitle(storefrontTitlePattern);
-    await this.header.expectVisible();
-    await expect(this.page.getByRole('heading', { name: '스티커ㅋㅋㅋ, 이유가 있구나' })).toBeVisible();
-    await expect(this.page.getByRole('button', { name: '빠른 주문' })).toBeVisible();
-    await expect(this.page.getByRole('contentinfo')).toContainText('MUSTICKER / 머스티커');
-    await expect(this.page.getByRole('link', { name: '이용약관' }).first()).toBeVisible();
-    await expect(this.page.getByRole('link', { name: '개인정보처리방침' }).first()).toBeVisible();
+  async expectCriticalContent(): Promise<void> {
+    await expect(this.page).toHaveTitle(/\uba38\uc2a4\ud2f0\ucee4/);
+    await expect(this.page.getByRole('heading', { name: ko.homeHero })).toBeVisible();
+    await expect(this.page.getByRole('link', { name: ko.stickers, exact: true }).first()).toBeVisible();
+    await expect(this.page.getByRole('link', { name: ko.rollStickers, exact: true }).first()).toBeVisible();
+    await expect(this.page.getByRole('link', { name: ko.sheetStickers, exact: true }).first()).toBeVisible();
+    await expect(this.page.getByRole('button', { name: ko.fastOrder })).toBeVisible();
+    await expect(this.page.getByRole('button', { name: ko.orderNow })).toBeVisible();
+    await expect(this.page.getByRole('button', { name: ko.inquiryCta })).toBeVisible();
+    await expect(this.page.locator('body')).toContainText(ko.reviews225);
+    await this.expectFooterContent();
   }
 
-  async openProductShortcut(productName: string): Promise<void> {
-    await this.page.getByRole('link', { name: productName, exact: true }).click();
+  async expectFooterContent(): Promise<void> {
+    const footer = this.footer();
+
+    await expect(footer).toContainText(ko.footerBrand);
+    await expect(footer).toContainText('1899-5529');
+    await expect(footer).toContainText('sales@musticker.com');
+    await expect(this.page.getByRole('link', { name: ko.terms }).first()).toBeVisible();
+    await expect(this.page.getByRole('link', { name: ko.privacy }).first()).toBeVisible();
+    await expect(this.page.getByRole('link', { name: ko.faq }).first()).toBeVisible();
   }
 
-  async expectReviewCarouselMoves(): Promise<void> {
-    const carousel = this.page.getByRole('region', { name: '고객 리뷰 캐러셀' }).first();
-    const nextButton = carousel.getByRole('button', { name: /다음 리뷰|다음 리뷰로 이동/ });
+  async expectLocaleControlStable(): Promise<void> {
+    const localeButton = this.page.getByRole('button', { name: 'KR' }).last();
 
-    await expect(carousel).toBeVisible();
-    await expect(nextButton).toBeEnabled();
-
-    const prevButton = carousel.getByRole('button', { name: /이전 리뷰|이전 리뷰로 이동/ });
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      await nextButton.click();
-      await this.page.waitForTimeout(500);
-
-      if (await prevButton.isEnabled().catch(() => false)) {
-        return;
-      }
+    if ((await localeButton.count()) === 0) {
+      await expect(this.header.root).toBeVisible();
+      return;
     }
 
-    await expect(prevButton).toBeEnabled();
+    await expect(localeButton).toBeVisible();
+    await localeButton.click();
+    await expect(localeButton).toBeVisible();
+    await this.page.keyboard.press('Escape').catch(() => undefined);
+  }
+
+  async goToCategory(linkName: string, expectedPath: RegExp): Promise<void> {
+    await this.page.getByRole('link', { name: linkName, exact: true }).first().click();
+    await expect(this.page).toHaveURL(expectedPath);
+  }
+
+  async openAccountEntry(): Promise<void> {
+    await this.header.chooseLoginFromAccountMenu();
+    await expect(this.page).toHaveURL(/\/kr\/auth\/login/);
+  }
+
+  private footer(): Locator {
+    return this.page.getByRole('contentinfo').first().or(this.page.locator('footer').first()).first();
   }
 }

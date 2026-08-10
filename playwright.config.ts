@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import 'dotenv/config';
 import type { ReporterDescription } from '@playwright/test';
 
-import { AUTH_STORAGE_STATE, env } from './tests/fixtures/env.js';
+import { env } from './tests/fixtures/env.js';
 
 const ciReporters: ReporterDescription[] = [
   ['list'],
@@ -80,7 +80,6 @@ function selectedProjects(): typeof allProjects {
 
 export default defineConfig({
   testDir: './tests/e2e',
-  globalSetup: './tests/global-setup.ts',
   timeout: 60_000,
   expect: {
     timeout: 10_000
@@ -100,8 +99,5 @@ export default defineConfig({
     video: 'retain-on-failure'
   },
   projects: selectedProjects(),
-  metadata: {
-    authStorageState: AUTH_STORAGE_STATE
-  },
   outputDir: 'test-results'
 });
