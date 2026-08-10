@@ -1,0 +1,1 @@
+{"id":"e4ba4388f61eb9bc16b9b663993bb847","fullName":"edgecases/storefront-edgecases.spec.ts:190:3","name":"search handles very long queries without server errors","status":"passed","testResultsByEnv":{"default":"d9e2722efea90306e174ac791569f0b5"}}

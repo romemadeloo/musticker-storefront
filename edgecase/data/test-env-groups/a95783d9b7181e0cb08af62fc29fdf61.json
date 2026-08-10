@@ -1,0 +1,1 @@
+{"id":"a95783d9b7181e0cb08af62fc29fdf61","fullName":"edgecases/storefront-edgecases.spec.ts:104:3","name":"direct checkout access with an empty cart cannot submit an order","status":"passed","testResultsByEnv":{"default":"bdba4dbc1edb8b607a02698b0cb94f74"}}

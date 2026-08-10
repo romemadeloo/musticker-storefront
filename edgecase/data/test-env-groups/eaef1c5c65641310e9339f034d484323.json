@@ -1,0 +1,1 @@
+{"id":"eaef1c5c65641310e9339f034d484323","fullName":"edgecases/storefront-edgecases.spec.ts:116:3","name":"checkout double submit is blocked from creating duplicate order requests","status":"skipped","testResultsByEnv":{"default":"e02049541df8000c8048c376304c8311"}}
