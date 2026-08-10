@@ -1,1 +1,0 @@
-{"id":"2bfdbbd1cb0a2c3ed040211d3ef8d894","fullName":"edgecases/storefront-edgecases.spec.ts:172:3","name":"search handles whitespace and symbols without stale results","status":"passed","testResultsByEnv":{"default":"ea28f315aca2fc4b4bca897fe66aa17d"}}

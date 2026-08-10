@@ -1,1 +1,0 @@
-{"id":"9288491df918a9d5a1f7b33dd3e5e5e5","fullName":"edgecases/storefront-edgecases.spec.ts:68:3","name":"repeated add-to-cart clicks after upload create at most one cart line","status":"passed","testResultsByEnv":{"default":"2adf015343740f0224fbafe0349c57bc"}}

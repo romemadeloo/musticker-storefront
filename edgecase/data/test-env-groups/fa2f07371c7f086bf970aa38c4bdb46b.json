@@ -1,1 +1,0 @@
-{"id":"fa2f07371c7f086bf970aa38c4bdb46b","fullName":"edgecases/storefront-edgecases.spec.ts:19:3","name":"custom product inputs reject zero and negative size or quantity","status":"failed","testResultsByEnv":{"default":"5ff81d4f486935128632fcacaa3615d9"}}
