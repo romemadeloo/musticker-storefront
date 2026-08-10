@@ -6,7 +6,7 @@ export const ko = {
   fastOrder: '\ube60\ub978 \uc8fc\ubb38',
   orderNow: '\ubc14\ub85c \uc8fc\ubb38\ud558\uae30',
   inquiryCta: '\uc81c\uc791 \ubb38\uc758\ud558\uae30',
-  reviews225: /\uc0ac\uc9c4 \ud6c4\uae30\s*225\uac1c|\d+\uac1c \uc0ac\uc9c4 \ud6c4\uae30/,
+  reviews225: /\uc0ac\uc9c4 \ud6c4\uae30\s*\d+\uac1c|\d+\uac1c \uc0ac\uc9c4 \ud6c4\uae30/,
   footerBrand: 'MUSTICKER / \uba38\uc2a4\ud2f0\ucee4',
   terms: '\uc774\uc6a9\uc57d\uad00',
   privacy: '\uac1c\uc778\uc815\ubcf4\ucc98\ub9ac\ubc29\uce68',
@@ -90,4 +90,3 @@ export const v2Products = {
     quantity: 50
   }
 } as const;
-
