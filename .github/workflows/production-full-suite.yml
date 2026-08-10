@@ -39,13 +39,8 @@ concurrency:
 env:
   ALLURE_RESULTS_DIR: allure-results
   BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
-  BYPASS_ARTWORK_UPLOAD: 'false'
   E2E_BROWSER_PROJECT: ${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}
-  RUN_ORDER_ALL_PRODUCTS_E2E: 'false'
   RUN_PAYMENT_E2E: 'false'
-  SKIP_SEEDED_AUTH_SETUP: 'true'
-  TEST_USER_EMAIL: ${{ secrets.PRODUCTION_TEST_USER_EMAIL }}
-  TEST_USER_PASSWORD: ${{ secrets.PRODUCTION_TEST_USER_PASSWORD }}
 
 jobs:
   static-quality:
@@ -128,14 +123,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          production_excludes='@payment|@slow|@api|@setup|@destructive'
-
           case "$SUITE" in
             smoke)
-              npx playwright test --grep '@smoke' --grep-invert "$production_excludes"
+              npm run test:prod:smoke
               ;;
             production-safe-full)
-              npx playwright test --grep-invert "$production_excludes"
+              npm run test:prod:full
               ;;
             *)
               echo "Unsupported production suite: $SUITE" >&2

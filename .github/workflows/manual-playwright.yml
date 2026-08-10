@@ -10,10 +10,11 @@ on:
         type: choice
         options:
           - smoke
-          - buyer-flow
           - regression
-          - order-all-products
-          - admin
+          - purchasing
+          - validation
+          - visual
+          - destructive
           - custom-grep
       browser_project:
         description: Browser project to run.
@@ -32,15 +33,10 @@ on:
         default: ''
         type: string
       run_payment_e2e:
-        description: Enable payment and long purchase regression gates.
+        description: Enable destructive checkout gates.
         required: true
         default: false
         type: boolean
-      order_all_products_payload:
-        description: Optional JSON payload for order-all-products. Prefer secrets for credentials.
-        required: false
-        default: ''
-        type: string
 
 permissions:
   contents: read
@@ -48,13 +44,8 @@ permissions:
 env:
   ALLURE_RESULTS_DIR: allure-results
   BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
-  BYPASS_ARTWORK_UPLOAD: ${{ vars.BYPASS_ARTWORK_UPLOAD || 'false' }}
   E2E_BROWSER_PROJECT: ${{ inputs.browser_project }}
-  ORDER_ALL_PRODUCTS_PAYLOAD: ${{ inputs.order_all_products_payload }}
   RUN_PAYMENT_E2E: ${{ inputs.run_payment_e2e }}
-  RUN_ORDER_ALL_PRODUCTS_E2E: ${{ inputs.suite == 'order-all-products' && 'true' || 'false' }}
-  TEST_USER_EMAIL: ${{ secrets.PRODUCTION_TEST_USER_EMAIL }}
-  TEST_USER_PASSWORD: ${{ secrets.PRODUCTION_TEST_USER_PASSWORD }}
 
 jobs:
   playwright:
@@ -112,31 +103,33 @@ jobs:
 
           pass_with_no_tests=()
           grep_invert=()
-          production_excludes='@payment|@slow|@api|@setup|@destructive'
+          production_excludes='@payment|@slow|@destructive|@visual'
 
           case "$SUITE" in
             smoke)
               grep='@smoke'
               grep_invert=(--grep-invert "$production_excludes")
               ;;
-            buyer-flow)
-              grep='@smoke|@search|@product|@cart'
-              grep_invert=(--grep-invert '@slow|@payment|@validation|@error-handling|@api|@setup|@destructive')
-              ;;
             regression)
-              grep='@regression|@checkout|@coupon|@points|@admin'
+              grep='@regression'
               grep_invert=(--grep-invert "$production_excludes")
               ;;
-            order-all-products)
+            purchasing)
+              grep='@purchasing'
+              grep_invert=(--grep-invert '@payment|@slow|@destructive')
+              ;;
+            validation)
+              grep='@validation'
+              ;;
+            visual)
+              grep='@visual'
+              ;;
+            destructive)
               if [ "${{ inputs.run_payment_e2e }}" != "true" ]; then
-                echo "run_payment_e2e must be true for order-all-products." >&2
+                echo "run_payment_e2e must be true for destructive." >&2
                 exit 1
               fi
-              grep='@order-all-products'
-              ;;
-            admin)
-              grep='@admin'
-              pass_with_no_tests=(--pass-with-no-tests)
+              grep='@destructive'
               ;;
             custom-grep)
               if [ -z "$CUSTOM_GREP" ]; then
