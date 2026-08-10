@@ -18,6 +18,8 @@ env:
   BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
   E2E_BROWSER_PROJECT: chromium-desktop
   RUN_PAYMENT_E2E: 'false'
+  AUTH_TEST_EMAIL: ${{ secrets.AUTH_TEST_EMAIL }}
+  AUTH_TEST_PASSWORD: ${{ secrets.AUTH_TEST_PASSWORD }}
 
 jobs:
   regression:

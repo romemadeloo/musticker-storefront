@@ -17,6 +17,7 @@ on:
         options:
           - production-safe-full
           - smoke
+          - auth
       browser_project:
         description: Browser project to run.
         required: true
@@ -41,6 +42,8 @@ env:
   BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
   E2E_BROWSER_PROJECT: ${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}
   RUN_PAYMENT_E2E: 'false'
+  AUTH_TEST_EMAIL: ${{ secrets.AUTH_TEST_EMAIL }}
+  AUTH_TEST_PASSWORD: ${{ secrets.AUTH_TEST_PASSWORD }}
 
 jobs:
   static-quality:
@@ -126,6 +129,9 @@ jobs:
           case "$SUITE" in
             smoke)
               npm run test:prod:smoke
+              ;;
+            auth)
+              npm run test:prod:auth
               ;;
             production-safe-full)
               npm run test:prod:full
