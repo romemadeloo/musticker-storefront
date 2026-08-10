@@ -10,6 +10,7 @@ on:
         type: choice
         options:
           - smoke
+          - auth
           - regression
           - purchasing
           - validation
@@ -46,6 +47,8 @@ env:
   BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
   E2E_BROWSER_PROJECT: ${{ inputs.browser_project }}
   RUN_PAYMENT_E2E: ${{ inputs.run_payment_e2e }}
+  AUTH_TEST_EMAIL: ${{ secrets.AUTH_TEST_EMAIL }}
+  AUTH_TEST_PASSWORD: ${{ secrets.AUTH_TEST_PASSWORD }}
 
 jobs:
   playwright:
@@ -109,6 +112,10 @@ jobs:
             smoke)
               grep='@smoke'
               grep_invert=(--grep-invert "$production_excludes")
+              ;;
+            auth)
+              grep='@auth'
+              grep_invert=(--grep-invert '@payment|@slow|@destructive|@visual')
               ;;
             regression)
               grep='@regression'

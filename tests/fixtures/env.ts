@@ -1,5 +1,7 @@
 export const env = {
-  BASE_URL: process.env.BASE_URL ?? 'https://www.musticker.com/kr'
+  BASE_URL: process.env.BASE_URL ?? 'https://www.musticker.com/kr',
+  AUTH_TEST_EMAIL: process.env.AUTH_TEST_EMAIL,
+  AUTH_TEST_PASSWORD: process.env.AUTH_TEST_PASSWORD
 };
 
 export function appPath(relativePath = ''): string {
@@ -9,4 +11,3 @@ export function appPath(relativePath = ''): string {
 
   return cleanPath ? `${basePath}/${cleanPath}` : basePath;
 }
-

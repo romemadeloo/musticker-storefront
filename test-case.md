@@ -1,4 +1,4 @@
-# Musticker Storefront Test Cases v2
+# Musticker Storefront Test Cases
 
 Generated: 2026-08-10
 
@@ -31,11 +31,13 @@ Scanned pages:
 - Use `BASE_URL=https://www.musticker.com/kr` for production-safe runs.
 - Tag tests for selective execution: `@smoke`, `@regression`, `@production`, `@mobile`, `@auth`, `@purchasing`, `@validation`, `@destructive`, `@slow`.
 - Do not create orders, submit payments, or mutate durable production data unless the test is explicitly tagged `@destructive` and guarded by environment variables.
+- Keep credentialed authentication checks optional and skip them unless `AUTH_TEST_EMAIL` and `AUTH_TEST_PASSWORD` are provided.
 
 ## Recommended Test Data
 
 - Public anonymous user for discovery, navigation, FAQ, inquiry validation, search, product configuration, and cart UI checks.
 - Seeded member only for `@auth` and account/cart persistence tests.
+- Credentialed auth tests should use a non-admin seeded member with no saved payment method and no sensitive production data.
 - Disposable dev member only for full registration, checkout, upload, and payment regression.
 - Runtime-generated PNG/PDF/ZIP files for upload validation.
 
@@ -68,6 +70,16 @@ Scanned pages:
 | MS-V2-023 | Accessibility | `@regression @production` | Main interactive controls have accessible names and keyboard focus behavior | P1 |
 | MS-V2-024 | Visual | `@visual @production` | Home, category, product, FAQ, and inquiry drawer visual snapshots stay stable | P2 |
 | MS-V2-025 | Checkout | `@e2e @destructive @slow` | Dev-only anonymous/member product-to-checkout flow with upload and order placement | P0 |
+| MS-V2-026 | Auth | `@smoke @production @auth` | Login entry opens from account navigation and renders the authentication screen | P0 |
+| MS-V2-027 | Auth | `@smoke @production @auth` | Login form exposes usable email, password, submit, register, and recovery controls | P0 |
+| MS-V2-028 | Auth | `@validation @production @auth` | Login form blocks blank required fields with user-facing validation | P0 |
+| MS-V2-029 | Auth | `@validation @production @auth` | Login form rejects malformed email input without starting an auth session | P1 |
+| MS-V2-030 | Auth | `@validation @production @auth` | Invalid credentials show a safe failure message and keep the user anonymous | P0 |
+| MS-V2-031 | Auth | `@regression @production @auth` | Password field remains masked or the visibility toggle works without exposing credentials in the URL | P1 |
+| MS-V2-032 | Auth | `@regression @production @auth` | Forgot-password entry opens recovery flow and validates blank/invalid email safely | P1 |
+| MS-V2-033 | Auth | `@regression @production @auth` | Register entry is reachable from login without creating a production account | P1 |
+| MS-V2-034 | Auth | `@smoke @production @auth @credentialed` | Valid seeded member credentials log in and reveal member-only account state | P0 |
+| MS-V2-035 | Auth | `@regression @production @auth @credentialed` | Authenticated session persists across reload/navigation and logout clears the session | P0 |
 
 ## Detailed Test Cases
 
@@ -496,21 +508,194 @@ Expected result: Full purchase journey succeeds in non-production test environme
 
 Automation notes: Tag `@destructive @slow @payment`; guard with `RUN_PAYMENT_E2E=true`.
 
+### MS-V2-026 - Login Entry From Account Navigation
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Navigate to `/`.
+2. Click the account/member icon or link in the header.
+3. Assert the page routes to login or an authentication modal opens.
+4. Assert the auth surface has a clear login heading or form region.
+5. Assert no console/page error is raised during the transition.
+
+Expected result: Anonymous users can reach authentication from the storefront header.
+
+Automation notes: Use `HeaderComponent` and a new `LoginPage` POM. Prefer role/name selectors and URL regex checks over implementation-specific selectors.
+
+### MS-V2-027 - Login Form Controls
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Navigate directly to the discovered login route or open it from the account entry.
+2. Assert the email or username field is visible and editable.
+3. Assert the password field is visible and has password masking.
+4. Assert the login submit button is visible.
+5. Assert register/signup and forgot-password recovery entries are visible when offered by the UI.
+6. Assert social login buttons are visible if they are part of the public login page.
+
+Expected result: The login page exposes the expected controls with accessible names.
+
+Automation notes: Do not click social login providers in production automation. Only verify the entry points are present.
+
+### MS-V2-028 - Blank Login Validation
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Open the login page.
+2. Submit the form with both fields blank.
+3. Assert required-field validation appears or focus moves to the first invalid field.
+4. Assert the user remains on the login/auth route.
+
+Expected result: Blank login attempts are blocked before authentication is attempted.
+
+Automation notes: Use Playwright web-first assertions for validation text, `aria-invalid`, or focused invalid controls.
+
+### MS-V2-029 - Malformed Email Login Validation
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Open the login page.
+2. Fill the email field with `not-an-email`.
+3. Fill the password field with any non-secret dummy value.
+4. Submit the form.
+5. Assert email-format validation appears.
+6. Assert no authenticated member UI appears.
+
+Expected result: Malformed email input is rejected and does not create a session.
+
+Automation notes: Avoid asserting exact validation copy unless the copy is stable. Prefer regex or invalid-control state.
+
+### MS-V2-030 - Invalid Credentials Handling
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Open the login page.
+2. Fill the email field with a reserved invalid address such as `invalid-login-e2e@example.com`.
+3. Fill the password field with a reserved invalid password.
+4. Submit the form.
+5. Assert a generic login failure message is visible.
+6. Assert the URL, cookies, local storage, and header still reflect an anonymous user.
+
+Expected result: Invalid credentials fail safely without exposing whether the email exists.
+
+Automation notes: Keep retry count low for this test to avoid account lockout behavior. Never use a real customer email for negative testing.
+
+### MS-V2-031 - Password Masking And Visibility
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Open the login page.
+2. Fill the password field with a dummy value.
+3. Assert the password input is masked by default.
+4. If a visibility toggle exists, click it and assert the input switches visibility.
+5. Click the toggle again and assert the input returns to masked mode.
+6. Assert the password value is not written into the URL.
+
+Expected result: Password entry behaves securely and predictably.
+
+Automation notes: Implement conditional assertions only around optional visibility controls; the baseline password masking check should always run. Current production observation on 2026-08-10: the visibility toggle is rendered but does not change the password input from masked to visible, so the automated test is tracked as `fixme` until the product behavior is corrected.
+
+### MS-V2-032 - Forgot Password Flow
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Open the login page.
+2. Click the forgot-password/recovery entry.
+3. Assert the recovery route or modal is shown.
+4. Submit the recovery form blank.
+5. Assert required-field validation appears.
+6. Fill a malformed email and assert format validation appears.
+
+Expected result: Password recovery is reachable and validates inputs without sending a real recovery request.
+
+Automation notes: Do not submit a valid email address in production unless a disposable inbox and cleanup policy are provided.
+
+### MS-V2-033 - Register Entry From Login
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Open the login page.
+2. Click the register/signup entry.
+3. Assert the registration route or modal is shown.
+4. Assert core registration fields or social registration options are visible.
+5. Navigate back to login.
+6. Assert the login form is restored.
+
+Expected result: Users can discover registration from login without accidentally creating an account.
+
+Automation notes: Keep production automation read-only. Full registration belongs in dev/staging with disposable test data.
+
+### MS-V2-034 - Valid Seeded Member Login
+
+Preconditions: `AUTH_TEST_EMAIL` and `AUTH_TEST_PASSWORD` are configured for a non-admin seeded member.
+
+Steps:
+
+1. Open the login page.
+2. Fill the configured email and password.
+3. Submit the form.
+4. Assert login succeeds by checking member-only header/account state.
+5. Assert anonymous login/register prompts are no longer primary account actions.
+6. Save authenticated storage state only for downstream credentialed tests in the same CI run.
+
+Expected result: Seeded member credentials authenticate successfully and expose member UI.
+
+Automation notes: Skip this test when credentials are absent. Never print credential values in logs, screenshots, traces, or assertion messages.
+
+Production observation on 2026-08-10: valid member login succeeds with `POST /sys/kr/auth/login` 200, followed by `GET /sys/kr/user/me` 200 and the `로그인에 성공했습니다.` toast. The login page should wait for Nuxt hydration and bootstrap API responses before filling credentials.
+
+### MS-V2-035 - Session Persistence And Logout
+
+Preconditions: Authenticated seeded member session from `MS-V2-034`.
+
+Steps:
+
+1. Log in with `AUTH_TEST_EMAIL` and `AUTH_TEST_PASSWORD`.
+2. Reload the page.
+3. Navigate to home and a product page.
+4. Assert member account state persists.
+5. Open the account menu and click logout.
+6. Assert the header returns to anonymous account state.
+7. Attempt to open a member-only account page, if available.
+8. Assert the user is redirected to login or shown an auth gate.
+
+Expected result: Login persists during normal browsing and logout fully clears the authenticated session.
+
+Automation notes: Keep this isolated in a fresh browser context and clear storage after the test.
+
 ## Suggested Spec Organization
 
 - `tests/e2e/smoke/storefront-smoke.spec.ts`
-- `tests/e2e/discovery/category-discovery-v2.spec.ts`
-- `tests/e2e/purchasing/product-config-v2.spec.ts`
-- `tests/e2e/validation/inquiry-validation-v2.spec.ts`
-- `tests/e2e/discovery/faq-v2.spec.ts`
-- `tests/e2e/smoke/mobile-critical-v2.spec.ts`
-- `tests/e2e/regression/accessibility-v2.spec.ts`
-- `tests/e2e/regression/visual-v2.spec.ts`
+- `tests/e2e/auth/login.spec.ts`
+- `tests/e2e/discovery/category-discovery.spec.ts`
+- `tests/e2e/purchasing/product-config.spec.ts`
+- `tests/e2e/validation/inquiry-validation.spec.ts`
+- `tests/e2e/discovery/faq.spec.ts`
+- `tests/e2e/smoke/mobile-critical.spec.ts`
+- `tests/e2e/regression/accessibility.spec.ts`
+- `tests/e2e/regression/visual.spec.ts`
 
 ## Suggested POM Updates
 
 - `HomePage`: hero, category links, review carousel, inquiry CTA, footer assertions.
 - `HeaderComponent`: search, cart, account, locale, product navigation.
+- `LoginPage`: open, fill credentials, submit, assert validation, assert anonymous/authenticated state, open recovery, open registration.
 - `ProductPage`: select size, custom size, select quantity, custom quantity, material selection, price summary, next step.
 - `InquiryForm`: open, choose inquiry type, fill fields, attach files, assert validation, cancel.
 - `FaqPage`: search, select topic, expand question, assert answer.
@@ -521,6 +706,14 @@ Automation notes: Tag `@destructive @slow @payment`; guard with `RUN_PAYMENT_E2E
 npm.cmd run test:prod:smoke
 npm.cmd run test:prod:full
 npm.cmd run test:prod:mobile
+```
+
+## Credentialed Auth Command Examples
+
+```powershell
+$Env:AUTH_TEST_EMAIL = "seeded-member@example.com"
+$Env:AUTH_TEST_PASSWORD = "replace-with-secret"
+npx.cmd playwright test tests/e2e/auth/login.spec.ts --grep "@credentialed" --project chromium-desktop
 ```
 
 ## Dev/Destructive Command Examples

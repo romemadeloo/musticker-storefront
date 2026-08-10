@@ -15,6 +15,7 @@
     "test:smoke": "playwright test --grep @smoke --grep-invert \"@visual\"",
     "test:purchasing": "playwright test --grep @purchasing --grep-invert \"@payment|@slow|@destructive\"",
     "test:validation": "playwright test --grep @validation",
+    "test:auth": "playwright test --grep @auth",
     "test:regression": "playwright test --grep @regression --grep-invert \"@visual\"",
     "test:visual": "cross-env RUN_VISUAL_E2E=true playwright test --grep @visual",
     "test:destructive": "cross-env RUN_PAYMENT_E2E=true playwright test --grep @destructive",
