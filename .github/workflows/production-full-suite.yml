@@ -3,8 +3,7 @@ name: Production full suite
 on:
   push:
     branches:
-      - main
-      - production-mode-test-suite
+      - production
   schedule:
     # 04:00 Asia/Manila every day.
     - cron: '0 20 * * *'
@@ -155,7 +154,7 @@ jobs:
   allure-report:
     name: Publish Allure report with history
     needs: production-tests
-    if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs['production-tests'].outputs.allure_results_found == 'true' }}
+    if: ${{ always() && github.ref == 'refs/heads/production' && needs['production-tests'].outputs.allure_results_found == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -178,6 +177,7 @@ jobs:
         id: publish_allure
         uses: ./.github/actions/publish-allure-report
         with:
+          allure_service_access_token: ${{ secrets.ALLURE_SERVICE_ACCESS_TOKEN }}
           artifact_name: production-${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}-${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}-${{ github.run_attempt }}
           report_name: Production ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }} on ${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}
           report_slug: production-${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}-${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}

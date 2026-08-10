@@ -165,7 +165,7 @@ jobs:
   allure-report:
     name: Publish Allure report with history
     needs: playwright
-    if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.playwright.outputs.allure_results_found == 'true' }}
+    if: ${{ always() && github.ref == 'refs/heads/production' && needs.playwright.outputs.allure_results_found == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -188,6 +188,7 @@ jobs:
         id: publish_allure
         uses: ./.github/actions/publish-allure-report
         with:
+          allure_service_access_token: ${{ secrets.ALLURE_SERVICE_ACCESS_TOKEN }}
           artifact_name: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
           report_name: Manual Playwright ${{ inputs.suite }} on ${{ inputs.browser_project }}
           report_slug: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}

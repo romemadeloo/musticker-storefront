@@ -26,6 +26,9 @@
     "test:api": "playwright test --grep @api",
     "test:setup": "playwright test --grep @setup",
     "test:ci": "playwright test --grep-invert @slow",
+    "allure:storage:up": "docker compose --env-file ops/allure-report-storage/.env -f ops/allure-report-storage/compose.yaml up --build -d",
+    "allure:storage:logs": "docker compose --env-file ops/allure-report-storage/.env -f ops/allure-report-storage/compose.yaml logs -f",
+    "allure:storage:down": "docker compose --env-file ops/allure-report-storage/.env -f ops/allure-report-storage/compose.yaml down",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
@@ -33,7 +36,7 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.56.0",
     "@types/node": "^24.0.0",
-    "allure-commandline": "^2.42.0",
+    "allure": "^3.14.3",
     "allure-playwright": "^3.9.0",
     "cross-env": "^7.0.3",
     "dotenv": "^17.0.0",

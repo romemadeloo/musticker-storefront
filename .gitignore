@@ -6,3 +6,7 @@ playwright-report/
 allure-results/
 allure-report/
 .playwright-mcp/
+.markdown-file
+.skills
+.tmp-allure-report-storage/
+ops/allure-report-storage/.env

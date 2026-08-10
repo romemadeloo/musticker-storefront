@@ -4,7 +4,7 @@ on:
   pull_request:
     branches:
       - develop
-      - main
+      - production
 
 permissions:
   contents: read
@@ -67,7 +67,7 @@ jobs:
   allure-report:
     name: Publish Allure report with history
     needs: lint-typecheck-smoke
-    if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs['lint-typecheck-smoke'].outputs.allure_results_found == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ always() && github.base_ref == 'production' && needs['lint-typecheck-smoke'].outputs.allure_results_found == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -90,6 +90,7 @@ jobs:
         id: publish_allure
         uses: ./.github/actions/publish-allure-report
         with:
+          allure_service_access_token: ${{ secrets.ALLURE_SERVICE_ACCESS_TOKEN }}
           artifact_name: pr-checks-playwright-results
           report_name: PR checks
           report_slug: pr-checks

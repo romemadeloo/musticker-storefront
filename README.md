@@ -66,6 +66,28 @@ npm.cmd run typecheck
 npm.cmd run lint
 ```
 
+Allure report generation:
+
+```powershell
+$Env:ALLURE_RESULTS_DIR = "allure-results"
+npm.cmd run test:smoke
+npx.cmd allure generate allure-results
+npx.cmd allure open allure-report
+```
+
+The repo uses Allure Report 3 through the `allure` npm package and `allure-playwright` for result files. CI can publish to Allure Report Storage when `ALLURE_SERVICE_ACCESS_TOKEN` is configured as a GitHub Actions secret. The publish action sets `ALLURE_PUBLISH=true`, so Storage publishing happens only during the report publishing job; ordinary artifact generation still creates a local `allure-report`. Until Storage is enabled, CI keeps Allure 3 history in a JSONL file on the Pages branch.
+
+Allure Report Storage Docker setup lives in `ops/allure-report-storage`. Copy `.env.example` to `.env`, set long random `ACCESS_TOKEN` and `SECRET` values, then start it:
+
+```powershell
+npm.cmd run allure:storage:up
+Invoke-RestMethod http://localhost:3000/api/ping
+```
+
+For CI publishing, expose the service on a public HTTPS URL, mint the `ars1...` report token from that public URL, and save it as the GitHub Actions secret `ALLURE_SERVICE_ACCESS_TOKEN`.
+
+You can also deploy Storage from GitHub Actions using the manual `Deploy Allure Report Storage` workflow. Add the SSH and Storage secrets documented in `ops/allure-report-storage/README.md`, run the workflow with your public Storage URL, and it will deploy Docker Compose plus save `ALLURE_SERVICE_ACCESS_TOKEN` for the report workflows.
+
 Direct Playwright tag examples:
 
 ```powershell
@@ -111,13 +133,13 @@ Payment tests are skipped unless `RUN_PAYMENT_E2E=true`, seeded user credentials
 GitHub Actions workflows:
 
 - `pr-checks.yml`: lint, typecheck, and smoke coverage for pull requests.
-- `smoke.yml`: fast buyer smoke checks on pushes to `develop` and `main`.
+- `smoke.yml`: fast buyer smoke checks on pushes to `develop` and `production`.
 - `member-regression.yml`: daily/manual dev member purchase regression with payment flow enabled.
 - `nightly-regression.yml`: production-safe scheduled/manual regression against `https://www.musticker.com/kr`.
 - `manual-playwright.yml`: manual QA dispatch with suite and browser selection, defaulting to production mode.
-- `production-full-suite.yml`: production mode workflow for `https://www.musticker.com/kr`; runs static checks, production availability smoke, and the production-safe full suite on pushes to `main` or `production-mode-test-suite`, daily schedule, and manual dispatch.
+- `production-full-suite.yml`: production mode workflow for `https://www.musticker.com/kr`; runs static checks, production availability smoke, and the production-safe full suite on pushes to `production`, daily schedule, and manual dispatch.
 
-Each Playwright workflow uploads raw artifacts. Runs on the repository default branch also publish an Allure report with history to GitHub Pages, matching the protected `github-pages` deployment environment.
+Each Playwright workflow uploads raw artifacts. Runs on the repository default branch also publish an Allure report with history to GitHub Pages, matching the protected `github-pages` deployment environment. When the `ALLURE_SERVICE_ACCESS_TOKEN` secret is present, the same publish job also publishes the Allure 3 report to Allure Report Storage.
 
 Production mode safety:
 

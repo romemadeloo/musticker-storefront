@@ -20,7 +20,7 @@ function reportersWithAllure(reporters: ReporterDescription[]): ReporterDescript
     return reporters;
   }
 
-  return [...reporters, ['allure-playwright', { outputFolder: process.env.ALLURE_RESULTS_DIR }]];
+  return [...reporters, ['allure-playwright', { resultsDir: process.env.ALLURE_RESULTS_DIR }]];
 }
 
 const desktopProjects = [

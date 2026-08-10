@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - develop
-      - main
+      - production
 
 permissions:
   contents: read
@@ -61,7 +61,7 @@ jobs:
   allure-report:
     name: Publish Allure report with history
     needs: buyer-flow
-    if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs['buyer-flow'].outputs.allure_results_found == 'true' }}
+    if: ${{ always() && github.ref == 'refs/heads/production' && needs['buyer-flow'].outputs.allure_results_found == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -84,6 +84,7 @@ jobs:
         id: publish_allure
         uses: ./.github/actions/publish-allure-report
         with:
+          allure_service_access_token: ${{ secrets.ALLURE_SERVICE_ACCESS_TOKEN }}
           artifact_name: buyer-smoke-playwright-results
           report_name: Buyer smoke
           report_slug: buyer-smoke
