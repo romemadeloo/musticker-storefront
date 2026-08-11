@@ -15,15 +15,20 @@ concurrency:
 
 env:
   ALLURE_RESULTS_DIR: allure-results
-  BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
+  BASE_URL: >-
+    ${{ (github.ref == 'refs/heads/develop' && (vars.DEV_BASE_URL || 'https://dev-3.musticker.com/kr'))
+    || (vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr') }}
+  API_BASE_URL: >-
+    ${{ (github.ref == 'refs/heads/develop' && (vars.DEV_API_BASE_URL || 'https://dev-3-api.musticker.com/index.php'))
+    || (vars.PRODUCTION_API_BASE_URL || 'https://api.musticker.com/index.php') }}
   E2E_BROWSER_PROJECT: chromium-desktop
   RUN_PAYMENT_E2E: 'false'
-  AUTH_TEST_EMAIL: ${{ secrets.AUTH_TEST_EMAIL }}
-  AUTH_TEST_PASSWORD: ${{ secrets.AUTH_TEST_PASSWORD }}
+  AUTH_TEST_EMAIL: ${{ github.ref == 'refs/heads/develop' && secrets.DEV_AUTH_TEST_EMAIL || secrets.AUTH_TEST_EMAIL }}
+  AUTH_TEST_PASSWORD: ${{ github.ref == 'refs/heads/develop' && secrets.DEV_AUTH_TEST_PASSWORD || secrets.AUTH_TEST_PASSWORD }}
 
 jobs:
   smoke:
-    name: Production smoke tests
+    name: Storefront smoke tests
     runs-on: ubuntu-latest
     timeout-minutes: 35
     outputs:
@@ -46,7 +51,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run storefront smoke coverage
-        run: npm run test:prod:smoke
+        run: npx playwright test --grep @smoke --grep-invert "@payment|@slow|@destructive|@visual"
 
       - name: Collect Playwright and Allure artifacts
         id: test_artifacts

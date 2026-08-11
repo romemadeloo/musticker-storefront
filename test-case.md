@@ -28,8 +28,9 @@ Scanned pages:
 - Use Page Object Model classes under `tests/pom` for page actions and reusable assertions.
 - Keep tests isolated and parallel-safe. Do not depend on test order.
 - Use Playwright web-first assertions and avoid `page.waitForTimeout()`.
+- Use Playwright `request` for direct API contract checks. Keep production API tests read-only unless explicitly tagged `@destructive`.
 - Use `BASE_URL=https://www.musticker.com/kr` for production-safe runs.
-- Tag tests for selective execution: `@smoke`, `@regression`, `@production`, `@mobile`, `@auth`, `@purchasing`, `@validation`, `@destructive`, `@slow`.
+- Tag tests for selective execution: `@smoke`, `@regression`, `@production`, `@mobile`, `@auth`, `@api`, `@purchasing`, `@validation`, `@destructive`, `@slow`.
 - Do not create orders, submit payments, or mutate durable production data unless the test is explicitly tagged `@destructive` and guarded by environment variables.
 - Keep credentialed authentication checks optional and skip them unless `AUTH_TEST_EMAIL` and `AUTH_TEST_PASSWORD` are provided.
 
@@ -80,6 +81,15 @@ Scanned pages:
 | MS-V2-033 | Auth | `@regression @production @auth` | Register entry is reachable from login without creating a production account | P1 |
 | MS-V2-034 | Auth | `@smoke @production @auth @credentialed` | Valid seeded member credentials log in and reveal member-only account state | P0 |
 | MS-V2-035 | Auth | `@regression @production @auth @credentialed` | Authenticated session persists across reload/navigation and logout clears the session | P0 |
+| MS-V2-036 | API | `@smoke @production @api` | Navigation categories API returns public category data used by the storefront | P0 |
+| MS-V2-037 | API | `@smoke @production @api` | Inquiry types API returns selectable inquiry metadata without requiring login | P1 |
+| MS-V2-038 | API | `@smoke @production @api` | Anonymous user session API rejects unauthenticated users safely | P0 |
+| MS-V2-039 | About | `@smoke @production` | About page loads hero, sub-nav anchors, stats, and CTAs | P2 |
+| MS-V2-040 | Catalog | `@regression @production` | Every sitemap product detail page not already covered loads with a heading and options panel | P1 |
+| MS-V2-041 | Checkout | `@regression @production` | Checkout page (reached via cart) renders shipping fields, payment method options, and order summary without submitting | P1 |
+| MS-V2-042 | Checkout | `@validation @production` | Checkout blocks payment submission when required shipping/contact fields are blank | P1 |
+| MS-V2-043 | Errors | `@regression @production` | Unknown route redirects safely to the homepage instead of showing a broken page | P2 |
+| MS-V2-044 | Auth | `@regression @production` | Re-verification of MS-V2-031 password visibility toggle against current production behavior | P1 |
 
 ## Detailed Test Cases
 
@@ -679,9 +689,146 @@ Expected result: Login persists during normal browsing and logout fully clears t
 
 Automation notes: Keep this isolated in a fresh browser context and clear storage after the test.
 
+### MS-V2-036 - Public Navigation Categories API
+
+Preconditions: Anonymous API request context.
+
+Steps:
+
+1. Send `GET /index.php/sys/kr/navigation/categories` against `API_BASE_URL`.
+2. Assert the response is 2xx.
+3. Assert the response content type is JSON.
+4. Assert the payload is not empty.
+5. Assert the payload includes known storefront category slugs such as `stickers`, `roll-stickers`, or `sheet-stickers`.
+
+Expected result: Public navigation category metadata is available for storefront bootstrap.
+
+Automation notes: Use Playwright `request`. Do not require browser UI setup for this test.
+
+### MS-V2-037 - Public Inquiry Types API
+
+Preconditions: Anonymous API request context.
+
+Steps:
+
+1. Send `GET /index.php/sys/kr/inquiry/types` against `API_BASE_URL`.
+2. Assert the response is 2xx.
+3. Assert the response content type is JSON.
+4. Assert the payload is not empty.
+
+Expected result: Inquiry type metadata is available without login so the inquiry form can render its selectable options.
+
+Automation notes: Keep assertions schema-light unless the API team publishes a stable response contract.
+
+### MS-V2-038 - Anonymous User Session API Boundary
+
+Preconditions: Anonymous API request context.
+
+Steps:
+
+1. Send `GET /index.php/sys/kr/user/me` against `API_BASE_URL` without credentials.
+2. Assert the response status is `401`.
+3. Assert the response body does not expose stack traces, SQL details, or raw exception text.
+
+Expected result: The session endpoint rejects anonymous callers cleanly without leaking implementation details.
+
+Automation notes: This is a production-safe negative API check. Authenticated `200` coverage belongs with credentialed auth tests.
+
+### MS-V2-039 - About Page Content
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Navigate to `/about`.
+2. Assert the hero heading containing `우리가 만드는 것은` is visible.
+3. Assert stats `10년+` and `수십만 건` are visible.
+4. Assert sub-nav buttons `왜 만들었나`, `우리의 철학`, `왜 빠른가`, and `우리가 가는 길` are visible.
+5. Assert CTA buttons `우리의 이야기 보기` and `바로 주문하기` are visible.
+6. Assert footer brand and terms/privacy links are visible.
+
+Expected result: The About page renders its full public content without client error.
+
+Automation notes: Use `AboutV2Page` POM. Discovered via sitemap.xml on 2026-08-11; previously untested.
+
+### MS-V2-040 - Full Catalog Crawl
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. For each product path listed in `sitemap.xml` that is not already deep-tested by `v2Products` (23 pages across sticker/roll/sheet shape variants, hologram, lettering, and sheet products), navigate directly to the page.
+2. Assert the URL did not silently redirect elsewhere (guards against the same silent-redirect behavior observed for unknown routes in MS-V2-043).
+3. Assert a level-1 heading is visible.
+4. Assert the product options panel is visible.
+
+Expected result: Every catalog product page renders independently, not only when reached through its category listing link.
+
+Automation notes: One parameterized test per path via `ProductV2Page.expectCatalogEntryRenders()`, tagged `@regression`. This is render-only coverage (heading + options panel), not full size/quantity configuration — that remains covered by the 3 representative products in `product-config.spec.ts`.
+
+### MS-V2-041 - Checkout Page Renders
+
+Preconditions: Anonymous session with one item added to cart.
+
+Steps:
+
+1. Configure the representative die-cut sticker product (size + quantity) and click `장바구니 담기` in the next-step dialog. Production observation on 2026-08-11: adding to cart does **not** require a design file upload first — the dialog explicitly says the file can be uploaded later from the cart or post-checkout dashboard.
+2. Navigate to `/checkout`.
+3. Assert contact email, name, and postal code fields are visible.
+4. Assert Kakao Pay and credit card payment method options are visible.
+5. Assert the order summary shows a coupon-discount line.
+6. Assert the `결제하기` (pay) button is visible. Do not click it.
+
+Expected result: The checkout page renders its full shipping/payment form for a real (non-empty) cart, entirely without submitting.
+
+Automation notes: Confirmed live that navigating directly to `/checkout` with an **empty** cart redirects to `/cart` (see MS-V2-004), so this test must add an item to cart first via the new `ProductV2Page.addToCart()` helper.
+
+### MS-V2-042 - Checkout Blank Submission Blocked
+
+Preconditions: Anonymous session with one item added to cart (same setup as MS-V2-041).
+
+Steps:
+
+1. Reach the checkout page with a populated cart and all shipping/contact fields left blank.
+2. Click `결제하기`.
+3. Assert the page stays on `/checkout` (no navigation to a payment gateway or confirmation page).
+4. Assert a validation/error indicator becomes visible.
+
+Expected result: Checkout cannot proceed to payment when required fields are blank.
+
+Automation notes: This replaces an originally-planned "invalid coupon code" test. Production observation on 2026-08-11: no manual coupon-code input exists on the anonymous checkout page (only a static "쿠폰 할인" summary line), so that scenario isn't testable as scoped. Confirmed via network capture that clicking pay while blank fires no order/payment API call — only page-load bootstrap calls (`coupon/applicable`, `shipping/shipping-methods-local`, `address/validate`).
+
+### MS-V2-043 - Unknown Route Handling
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Navigate to a nonsense path under the current locale (e.g. `/this-page-does-not-exist-e2e-check`).
+2. Assert the response status is not a server error.
+3. Assert the homepage hero heading is visible.
+
+Expected result: Unknown routes fail safely.
+
+Automation notes: Production observation on 2026-08-11: there is **no dedicated 404 page** — the app silently redirects unknown `/kr/*` routes to the bare-domain homepage with a `200` status. The test asserts that verified redirect-to-home behavior, not a 404 page.
+
+### MS-V2-044 - Password Visibility Toggle Re-Verification
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Re-run MS-V2-031 against current production.
+2. Confirm the password input's `type` attribute transitions password → text → password across two toggle clicks.
+
+Expected result: The visibility toggle behaves correctly.
+
+Automation notes: Production observation on 2026-08-11: masked → visible → masked all confirmed via a live browser check. The bug noted in the MS-V2-031 automation notes on 2026-08-10 (toggle rendered but did not unmask) is no longer reproducible, so the `test.fixme` on MS-V2-031 has been removed rather than kept.
+
 ## Suggested Spec Organization
 
 - `tests/e2e/smoke/storefront-smoke.spec.ts`
+- `tests/e2e/api/public-api.spec.ts`
 - `tests/e2e/auth/login.spec.ts`
 - `tests/e2e/discovery/category-discovery.spec.ts`
 - `tests/e2e/purchasing/product-config.spec.ts`
@@ -690,20 +837,27 @@ Automation notes: Keep this isolated in a fresh browser context and clear storag
 - `tests/e2e/smoke/mobile-critical.spec.ts`
 - `tests/e2e/regression/accessibility.spec.ts`
 - `tests/e2e/regression/visual.spec.ts`
+- `tests/e2e/discovery/about.spec.ts`
+- `tests/e2e/discovery/catalog-crawl.spec.ts`
+- `tests/e2e/purchasing/checkout-page.spec.ts`
+- `tests/e2e/regression/error-pages.spec.ts`
 
 ## Suggested POM Updates
 
 - `HomePage`: hero, category links, review carousel, inquiry CTA, footer assertions.
 - `HeaderComponent`: search, cart, account, locale, product navigation.
 - `LoginPage`: open, fill credentials, submit, assert validation, assert anonymous/authenticated state, open recovery, open registration.
-- `ProductPage`: select size, custom size, select quantity, custom quantity, material selection, price summary, next step.
+- `ProductPage`: select size, custom size, select quantity, custom quantity, material selection, price summary, next step, add to cart, catalog-entry render check.
 - `InquiryForm`: open, choose inquiry type, fill fields, attach files, assert validation, cancel.
 - `FaqPage`: search, select topic, expand question, assert answer.
+- `AboutPage`: hero/stats assertions, sub-nav visibility, CTA visibility, footer assertions.
+- `CheckoutPage`: open, assert form renders, assert blank-submission is blocked.
 
 ## Production-Safe Command Examples
 
 ```powershell
 npm.cmd run test:prod:smoke
+npm.cmd run test:api
 npm.cmd run test:prod:full
 npm.cmd run test:prod:mobile
 ```

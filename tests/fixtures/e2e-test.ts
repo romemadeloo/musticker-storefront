@@ -8,10 +8,22 @@ type GuardOptions = {
   allowTransientCartCreateFailures: boolean;
   allowTransientApiCorsFailures: boolean;
   allowTransientProductPageFailures: boolean;
+  allowGuestCheckoutBootstrap401: boolean;
 };
 
 function isExpectedGuestUserMe401(status: number, url: string): boolean {
   return status === 401 && url.includes('/sys/kr/user/me');
+}
+
+// The checkout page eagerly bootstraps account-linked data (saved addresses, points balance,
+// coupon eligibility) even for anonymous shoppers with a guest cart; those calls correctly 401
+// for a guest and are not indicative of a bug.
+function isExpectedGuestCheckoutBootstrap401(status: number, url: string): boolean {
+  return status === 401 && /\/sys\/kr\/(?:user-address|user-point\/points|coupon\/applicable|address\/validate)(?:\?|$)/i.test(url);
+}
+
+function isGuestCheckoutBootstrapUnauthorizedWarning(text: string): boolean {
+  return text === 'Unauthorized action!';
 }
 
 function isExpectedAuthFailure(status: number, url: string): boolean {
@@ -74,6 +86,10 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
     return true;
   }
 
+  if (options.allowGuestCheckoutBootstrap401 && isGuestCheckoutBootstrapUnauthorizedWarning(text)) {
+    return true;
+  }
+
   if (options.allowGuestUserMe401 && /401/.test(text)) {
     return true;
   }
@@ -106,6 +122,7 @@ export const test = base.extend<GuardOptions>({
   allowTransientCartCreateFailures: [false, { option: true }],
   allowTransientApiCorsFailures: [false, { option: true }],
   allowTransientProductPageFailures: [false, { option: true }],
+  allowGuestCheckoutBootstrap401: [false, { option: true }],
 
   page: async (
     {
@@ -116,7 +133,8 @@ export const test = base.extend<GuardOptions>({
       allowKnownNuxtPayloadFailures,
       allowTransientCartCreateFailures,
       allowTransientApiCorsFailures,
-      allowTransientProductPageFailures
+      allowTransientProductPageFailures,
+      allowGuestCheckoutBootstrap401
     },
     use
   ) => {
@@ -127,7 +145,8 @@ export const test = base.extend<GuardOptions>({
       allowKnownNuxtPayloadFailures,
       allowTransientCartCreateFailures,
       allowTransientApiCorsFailures,
-      allowTransientProductPageFailures
+      allowTransientProductPageFailures,
+      allowGuestCheckoutBootstrap401
     };
     const consoleFailures: string[] = [];
     const responseFailures: string[] = [];
@@ -225,6 +244,10 @@ export const test = base.extend<GuardOptions>({
 
       if (allowTransientProductPageFailures && isTransientProductPageServerFailure(status, url)) {
         pendingTransientProductPageFailures += 1;
+        return;
+      }
+
+      if (allowGuestCheckoutBootstrap401 && isExpectedGuestCheckoutBootstrap401(status, url)) {
         return;
       }
 

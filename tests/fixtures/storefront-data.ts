@@ -31,7 +31,26 @@ export const ko = {
   fileSelect: '\ud30c\uc77c \uc120\ud0dd',
   cancel: '\ucde8\uc18c',
   kakaoInquiry: '\uce74\uce74\uc624\ucc44\ub110\ub85c \ubb38\uc758\ud558\uae30',
-  naverInquiry: '\ub124\uc774\ubc84 \ud1a1\ud1a1 \uc73c\ub85c \ubb38\uc758\ud558\uae30'
+  naverInquiry: '\ub124\uc774\ubc84 \ud1a1\ud1a1 \uc73c\ub85c \ubb38\uc758\ud558\uae30',
+  addToCart: '\uc7a5\ubc14\uad6c\ub2c8 \ub2f4\uae30',
+  secureCheckout: '\uc548\uc804 \uacb0\uc81c',
+  payNow: '\uacb0\uc81c\ud558\uae30',
+  checkoutEmailPlaceholder: '\uc774\uba54\uc77c \uc8fc\uc18c\ub97c \uc785\ub825\ud574 \uc8fc\uc138\uc694.',
+  checkoutNamePlaceholder: '\uc131\ud568\uc744 \uc785\ub825\ud558\uc138\uc694',
+  checkoutPostalCodePlaceholder: '\uc6b0\ud3b8\ubc88\ud638\ub97c \uc785\ub825\ud558\uc138\uc694'
+} as const;
+
+export const aboutPage = {
+  heroHeading: '\uc6b0\ub9ac\uac00 \ub9cc\ub4dc\ub294 \uac83\uc740',
+  subNav: [
+    '\uc65c \ub9cc\ub4e4\uc5c8\ub098',
+    '\uc6b0\ub9ac\uc758 \ucca0\ud559',
+    '\uc65c \ube60\ub978\uac00',
+    '\uc6b0\ub9ac\uac00 \uac00\ub294 \uae38'
+  ],
+  viewStoryCta: '\uc6b0\ub9ac\uc758 \uc774\uc57c\uae30 \ubcf4\uae30',
+  statYears: '10\ub144+',
+  statOrders: '\uc218\uc2ed\ub9cc \uac74'
 } as const;
 
 export const categoryLinks = {
@@ -90,3 +109,31 @@ export const v2Products = {
     quantity: 50
   }
 } as const;
+
+// Product detail pages from sitemap.xml not already deep-tested via v2Products.
+// Crawled for render-only smoke coverage (heading + options panel visible), not full configuration.
+export const catalogPaths = [
+  './stickers/sticker-sheet',
+  './stickers/hologram-sticker',
+  './stickers/vinyl-lettering',
+  './stickers/circle-sticker',
+  './stickers/rectangle-sticker',
+  './stickers/square-sticker',
+  './stickers/oval-sticker',
+  './stickers/rounded-sticker',
+  './stickers/kiss-cut-sticker',
+  './stickers/clear-sticker',
+  './stickers/transfer-sticker',
+  './roll-stickers/clear-roll',
+  './roll-stickers/circle-roll',
+  './roll-stickers/square-roll',
+  './roll-stickers/rectangle-roll',
+  './roll-stickers/rounded-roll',
+  './roll-stickers/oval-roll',
+  './roll-stickers/paper-roll',
+  './sheet-stickers/circle-sheet',
+  './sheet-stickers/oval-sheet',
+  './sheet-stickers/square-sheet',
+  './sheet-stickers/rectangle-sheet',
+  './sheet-stickers/rounded-sheet'
+] as const;

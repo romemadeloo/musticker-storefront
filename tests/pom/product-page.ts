@@ -24,6 +24,21 @@ export class ProductV2Page {
     await expect(this.optionsPanel).toBeVisible();
   }
 
+  async expectCatalogEntryRenders(path: string): Promise<void> {
+    await this.page.goto(appPath(path));
+    await expect(this.page).toHaveURL(new RegExp(`${escapeRegExp(path.replace(/^\.\//, ''))}/?$`));
+    await expect(this.page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+    await expect(this.optionsPanel).toBeVisible();
+  }
+
+  async addToCart(): Promise<void> {
+    await this.nextStepButton().click();
+
+    const addToCartButton = this.page.getByRole('dialog').getByRole('button', { name: ko.addToCart });
+    await expect(addToCartButton).toBeVisible();
+    await addToCartButton.click();
+  }
+
   async selectSize(sizeName: string): Promise<void> {
     await this.optionsPanel.getByRole('button', { name: new RegExp(escapeRegExp(sizeName)) }).first().click();
   }
