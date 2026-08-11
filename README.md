@@ -18,9 +18,9 @@ npm.cmd run test:e2e:list
 npm.cmd run test:prod:smoke
 npm.cmd run test:prod:full
 npm.cmd run test:prod:mobile
-npm.cmd run test:dev:smoke
-npm.cmd run test:dev:full
-npm.cmd run test:dev:mobile
+npm.cmd run test:env:smoke
+npm.cmd run test:env:full
+npm.cmd run test:env:mobile
 npm.cmd run test:smoke
 npm.cmd run test:regression
 npm.cmd run test:purchasing
@@ -34,17 +34,35 @@ npm.cmd run lint
 
 ## Environments
 
+musticker runs one production server and 5 development/staging servers, each with its own git branch of the same name. Branch names match the keys in `tests/fixtures/environments.ts` exactly.
+
 | Environment | Branch | Storefront (`BASE_URL`) | API (`API_BASE_URL`) |
 | --- | --- | --- | --- |
 | Production | `production` | `https://www.musticker.com/kr` | `https://api.musticker.com/index.php` |
-| Development/staging | `develop` | `https://dev-3.musticker.com/kr` | `https://dev-3-api.musticker.com/index.php` |
+| Static/QA | `development-static` | `https://dev-static-1.musticker.com/kr` | `https://dev-static-1-api.musticker.com/index.php` |
+| Dev 1 | `development-1` | `https://dev.musticker.com/kr` | `https://dev-api.musticker.com/index.php` |
+| Dev 2 | `development-2` | `https://dev-2.musticker.com/kr` | `https://dev-2-api.musticker.com/index.php` |
+| Dev 3 | `development-3` | `https://dev-3.musticker.com/kr` | `https://dev-3-api.musticker.com/index.php` |
+| Dev 4 | `development-4` | `https://dev-4.musticker.com/kr` | `https://dev-4-api.musticker.com/index.php` |
 
-`smoke.yml` picks the environment automatically based on which branch triggered the push (`develop` → dev-3, `production` → production). Locally, use `npm run test:dev:*` for the dev-3 environment and `npm run test:prod:*` for production.
+`smoke.yml` and `pr-checks.yml` pick the environment automatically from the branch name (`E2E_ENVIRONMENT: ${{ github.ref_name }}`) — no per-branch conditionals needed. `manual-playwright.yml` exposes the same 6 as a workflow-dispatch dropdown.
+
+Locally, either:
+
+```powershell
+$Env:E2E_ENVIRONMENT = "development-2"
+npm.cmd run test:env:smoke
+```
+
+or set `BASE_URL`/`API_BASE_URL` directly (these always take precedence over `E2E_ENVIRONMENT`). `npm run test:prod:*` remains a production-only shortcut.
+
+> `development-1`'s frontend host (`dev.musticker.com`) did not resolve during setup on 2026-08-11, while its API host (`dev-api.musticker.com`) responded correctly. Confirm that hostname before relying on `development-1` storefront (non-API) tests.
 
 ## Environment Variables
 
-- `BASE_URL`: storefront URL. Defaults to `https://www.musticker.com/kr`.
-- `API_BASE_URL`: API origin/path for direct API checks. Defaults from `BASE_URL` to `https://api.musticker.com/index.php` or `https://dev-api.musticker.com/index.php`. Set explicitly for the dev-3 environment since its API host (`dev-3-api.musticker.com`) doesn't match that default `dev.`-prefix heuristic.
+- `E2E_ENVIRONMENT`: selects a named environment from `tests/fixtures/environments.ts` (see table above). Ignored for any URL that `BASE_URL`/`API_BASE_URL` already sets explicitly.
+- `BASE_URL`: storefront URL override. Defaults to `https://www.musticker.com/kr` if neither this nor `E2E_ENVIRONMENT` is set.
+- `API_BASE_URL`: API origin/path override for direct API checks. Falls back to `E2E_ENVIRONMENT`'s API URL, then to a `BASE_URL`-derived guess (only correct for hostnames starting with `dev.`).
 - `E2E_BROWSER_PROJECT`: `chromium-desktop`, `firefox-desktop`, `webkit-desktop`, `chromium-mobile`, or `all-desktop`.
 - `RUN_VISUAL_E2E=true`: enables visual snapshot tests after baselines are approved.
 - `RUN_PAYMENT_E2E=true`: enables the guarded destructive checkout placeholder.

@@ -3,6 +3,18 @@ name: Manual Playwright
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: Storefront/API environment to run against.
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - development-static
+          - development-1
+          - development-2
+          - development-3
+          - development-4
       suite:
         description: Playwright suite to run.
         required: true
@@ -44,15 +56,17 @@ permissions:
 
 env:
   ALLURE_RESULTS_DIR: allure-results
-  BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
+  E2E_ENVIRONMENT: ${{ inputs.environment }}
   E2E_BROWSER_PROJECT: ${{ inputs.browser_project }}
   RUN_PAYMENT_E2E: ${{ inputs.run_payment_e2e }}
-  AUTH_TEST_EMAIL: ${{ secrets.AUTH_TEST_EMAIL }}
-  AUTH_TEST_PASSWORD: ${{ secrets.AUTH_TEST_PASSWORD }}
+  # Only wired for production: each development-* environment has its own user database, so a
+  # shared seeded account would risk real login failures rather than a clean skip elsewhere.
+  AUTH_TEST_EMAIL: ${{ inputs.environment == 'production' && secrets.AUTH_TEST_EMAIL || '' }}
+  AUTH_TEST_PASSWORD: ${{ inputs.environment == 'production' && secrets.AUTH_TEST_PASSWORD || '' }}
 
 jobs:
   playwright:
-    name: ${{ inputs.suite }} on ${{ inputs.browser_project }}
+    name: ${{ inputs.suite }} on ${{ inputs.environment }} (${{ inputs.browser_project }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
     outputs:
@@ -159,7 +173,7 @@ jobs:
         if: ${{ always() }}
         uses: ./.github/actions/playwright-artifacts
         with:
-          artifact_name: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
+          artifact_name: manual-playwright-${{ inputs.environment }}-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
           retention_days: 14
 
   allure-report:
@@ -189,6 +203,6 @@ jobs:
         uses: ./.github/actions/publish-allure-report
         with:
           allure_service_access_token: ${{ secrets.ALLURE_SERVICE_ACCESS_TOKEN }}
-          artifact_name: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
-          report_name: Manual Playwright ${{ inputs.suite }} on ${{ inputs.browser_project }}
-          report_slug: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}
+          artifact_name: manual-playwright-${{ inputs.environment }}-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
+          report_name: Manual Playwright ${{ inputs.suite }} on ${{ inputs.environment }} (${{ inputs.browser_project }})
+          report_slug: manual-playwright-${{ inputs.environment }}-${{ inputs.suite }}-${{ inputs.browser_project }}

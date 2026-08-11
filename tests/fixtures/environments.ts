@@ -1,0 +1,37 @@
+// Named storefront/API pairs for musticker's production and development/staging servers.
+// Branch names match these keys 1:1 (see .github/workflows/smoke.yml), so CI can select an
+// environment with E2E_ENVIRONMENT=${{ github.ref_name }} instead of per-branch conditionals.
+export const environments = {
+  production: {
+    baseUrl: 'https://www.musticker.com/kr',
+    apiBaseUrl: 'https://api.musticker.com/index.php'
+  },
+  'development-static': {
+    baseUrl: 'https://dev-static-1.musticker.com/kr',
+    apiBaseUrl: 'https://dev-static-1-api.musticker.com/index.php'
+  },
+  'development-1': {
+    // Production observation on 2026-08-11: dev.musticker.com did not resolve (DNS), while
+    // dev-api.musticker.com responded correctly. Confirm this hostname before relying on it.
+    baseUrl: 'https://dev.musticker.com/kr',
+    apiBaseUrl: 'https://dev-api.musticker.com/index.php'
+  },
+  'development-2': {
+    baseUrl: 'https://dev-2.musticker.com/kr',
+    apiBaseUrl: 'https://dev-2-api.musticker.com/index.php'
+  },
+  'development-3': {
+    baseUrl: 'https://dev-3.musticker.com/kr',
+    apiBaseUrl: 'https://dev-3-api.musticker.com/index.php'
+  },
+  'development-4': {
+    baseUrl: 'https://dev-4.musticker.com/kr',
+    apiBaseUrl: 'https://dev-4-api.musticker.com/index.php'
+  }
+} as const;
+
+export type EnvironmentName = keyof typeof environments;
+
+export function isEnvironmentName(value: string): value is EnvironmentName {
+  return value in environments;
+}

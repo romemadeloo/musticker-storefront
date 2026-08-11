@@ -3,8 +3,12 @@ name: Storefront smoke
 on:
   push:
     branches:
-      - develop
       - production
+      - development-static
+      - development-1
+      - development-2
+      - development-3
+      - development-4
 
 permissions:
   contents: read
@@ -15,16 +19,18 @@ concurrency:
 
 env:
   ALLURE_RESULTS_DIR: allure-results
-  BASE_URL: >-
-    ${{ (github.ref == 'refs/heads/develop' && (vars.DEV_BASE_URL || 'https://dev-3.musticker.com/kr'))
-    || (vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr') }}
-  API_BASE_URL: >-
-    ${{ (github.ref == 'refs/heads/develop' && (vars.DEV_API_BASE_URL || 'https://dev-3-api.musticker.com/index.php'))
-    || (vars.PRODUCTION_API_BASE_URL || 'https://api.musticker.com/index.php') }}
+  # Branch names match the keys in tests/fixtures/environments.ts exactly, so this alone
+  # selects the right storefront/API URLs for whichever branch triggered the push.
+  E2E_ENVIRONMENT: ${{ github.ref_name }}
   E2E_BROWSER_PROJECT: chromium-desktop
   RUN_PAYMENT_E2E: 'false'
-  AUTH_TEST_EMAIL: ${{ github.ref == 'refs/heads/develop' && secrets.DEV_AUTH_TEST_EMAIL || secrets.AUTH_TEST_EMAIL }}
-  AUTH_TEST_PASSWORD: ${{ github.ref == 'refs/heads/develop' && secrets.DEV_AUTH_TEST_PASSWORD || secrets.AUTH_TEST_PASSWORD }}
+  # Only wired for production for now: each development-* branch points at a separate server
+  # with its own user database, so reusing one shared seeded account across all of them would
+  # risk real (not skipped) login failures rather than the intended "skip if unset" behavior.
+  # Set <BRANCH>_AUTH_TEST_EMAIL/PASSWORD secrets and extend this if per-environment credentialed
+  # coverage is needed later.
+  AUTH_TEST_EMAIL: ${{ github.ref_name == 'production' && secrets.AUTH_TEST_EMAIL || '' }}
+  AUTH_TEST_PASSWORD: ${{ github.ref_name == 'production' && secrets.AUTH_TEST_PASSWORD || '' }}
 
 jobs:
   smoke:

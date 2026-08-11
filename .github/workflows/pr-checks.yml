@@ -3,8 +3,12 @@ name: PR checks
 on:
   pull_request:
     branches:
-      - develop
       - production
+      - development-static
+      - development-1
+      - development-2
+      - development-3
+      - development-4
 
 permissions:
   contents: read
