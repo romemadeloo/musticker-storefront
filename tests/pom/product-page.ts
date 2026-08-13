@@ -56,8 +56,92 @@ export class ProductV2Page {
     await this.optionsPanel.getByRole('button', { name: quantityLabel }).first().click();
   }
 
+  async selectCustomIndividualSize(widthMm: number, heightMm: number): Promise<void> {
+    const widthInput = this.optionsPanel.getByPlaceholder('가로');
+
+    await this.optionsPanel.getByRole('button', { name: ko.customSize }).first().click();
+    const appeared = await widthInput
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (!appeared) {
+      // Occasionally the custom-size row does not mount on the first click on development
+      // environments (observed alongside a Vue hydration-mismatch warning); one retry clears it.
+      await this.optionsPanel.getByRole('button', { name: ko.customSize }).first().click();
+      await widthInput.waitFor({ state: 'visible', timeout: 10_000 });
+    }
+
+    await widthInput.fill(String(widthMm));
+    await this.optionsPanel.getByPlaceholder('세로').fill(String(heightMm));
+    await this.optionsPanel.getByPlaceholder('세로').blur();
+  }
+
   async expectVisiblePrice(): Promise<void> {
     await expect(this.optionsPanel.getByText(wonAmountPattern).last()).toBeVisible();
+  }
+
+  async expectStickerYieldSummary(perSheet: number, totalStickers: number): Promise<void> {
+    await expect(this.optionsPanel.getByText(new RegExp(`${perSheet}\\s*시트당 스티커 수량`))).toBeVisible();
+    await expect(
+      this.optionsPanel.getByText(new RegExp(`합계:\\s*${totalStickers.toLocaleString('en-US')}\\s*스티커`))
+    ).toBeVisible();
+  }
+
+  async expectBulkDiscountVisible(): Promise<void> {
+    await expect(this.optionsPanel.getByText(/^-\d+%$/).first()).toBeVisible();
+  }
+
+  async expectNoBulkDiscountVisible(): Promise<void> {
+    await expect(this.optionsPanel.getByText(/^-\d+%$/)).toHaveCount(0);
+  }
+
+  async expectPerUnitPriceIsWholeWon(): Promise<void> {
+    const perUnit = this.optionsPanel.getByText(/1매당\s*[\d.,]+원/).first();
+    await expect(perUnit).toBeVisible();
+
+    const text = await perUnit.innerText();
+    const amount = text.match(/1매당\s*([\d.,]+)원/)?.[1] ?? '';
+    expect(amount, `Expected a whole-won per-unit price, got "${text}"`).not.toMatch(/\./);
+  }
+
+  async expectSizeGuideImagesLocalized(): Promise<void> {
+    const images = this.page.locator('.mini-feature-image');
+    const count = await images.count();
+    expect(count, 'Expected size-guide illustration images to be present').toBeGreaterThan(0);
+
+    for (let index = 0; index < count; index += 1) {
+      const alt = (await images.nth(index).getAttribute('alt')) ?? '';
+      expect(alt, `Size guide image ${index} alt text is a raw, untranslated i18n key: "${alt}"`).not.toMatch(
+        /^product\.sizes\./
+      );
+      expect(
+        alt,
+        `Size guide image ${index} alt text looks like an unrelated sheet/paper size label: "${alt}"`
+      ).not.toMatch(/^A\d+\s|^\d+\s*x\s*\d+$/i);
+    }
+  }
+
+  async expectDesignUploadModal(): Promise<void> {
+    const dialog = this.page.getByRole('dialog');
+    await expect(dialog.getByTestId('product-category-upload-dropzone')).toContainText(
+      '.eps, .ai, .psd, .pdf, .tif, .png'
+    );
+    await expect(dialog.getByTestId('product-category-upload-select-files-button')).toBeVisible();
+  }
+
+  async fillDesignOrderNote(note: string): Promise<void> {
+    await this.page.getByTestId('product-category-upload-special-instructions').locator('textarea').fill(note);
+  }
+
+  async uploadDesignFile(filePath: string): Promise<void> {
+    await this.page.getByRole('dialog').locator('input[type="file"]').setInputFiles(filePath);
+  }
+
+  async expectDesignFileAccepted(fileName: string): Promise<void> {
+    await expect(this.page.getByRole('dialog').getByTestId('product-category-upload-dropzone')).toContainText(
+      fileName
+    );
   }
 
   async expectNextStepEnabled(): Promise<void> {

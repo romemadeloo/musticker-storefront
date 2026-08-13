@@ -37,7 +37,12 @@ export const ko = {
   payNow: '\uacb0\uc81c\ud558\uae30',
   checkoutEmailPlaceholder: '\uc774\uba54\uc77c \uc8fc\uc18c\ub97c \uc785\ub825\ud574 \uc8fc\uc138\uc694.',
   checkoutNamePlaceholder: '\uc131\ud568\uc744 \uc785\ub825\ud558\uc138\uc694',
-  checkoutPostalCodePlaceholder: '\uc6b0\ud3b8\ubc88\ud638\ub97c \uc785\ub825\ud558\uc138\uc694'
+  checkoutPostalCodePlaceholder: '\uc6b0\ud3b8\ubc88\ud638\ub97c \uc785\ub825\ud558\uc138\uc694',
+  hologram: '\ud640\ub85c\uadf8\ub7a8',
+  pvcMatte: 'PVC \ub9e4\ud2b8',
+  sizeChangeAction: '\uc0ac\uc774\uc988 \ubcc0\uacbd',
+  addImageLink: '\uc774\ubbf8\uc9c0 \ucd94\uac00',
+  changeImageLink: '\uc774\ubbf8\uc9c0 \ubcc0\uacbd'
 } as const;
 
 export const aboutPage = {
@@ -136,4 +141,30 @@ export const catalogPaths = [
   './sheet-stickers/square-sheet',
   './sheet-stickers/rectangle-sheet',
   './sheet-stickers/rounded-sheet'
+] as const;
+
+// Per-shape individual-sticker sheet configurators (material + individual size + sheet quantity,
+// distinct from the die-cut sheet's A5-template flow above). categoryLinks.sheetStickers[0] is the
+// freeform/die-cut variant already covered by v2Products.dieCutSheet, so it is skipped here.
+export const sheetStickerConfiguratorProducts = [
+  {
+    path: './sheet-stickers/circle-sheet',
+    heading: categoryLinks.sheetStickers[1]
+  },
+  {
+    path: './sheet-stickers/oval-sheet',
+    heading: categoryLinks.sheetStickers[2]
+  },
+  {
+    path: './sheet-stickers/square-sheet',
+    heading: categoryLinks.sheetStickers[3]
+  },
+  {
+    path: './sheet-stickers/rectangle-sheet',
+    heading: categoryLinks.sheetStickers[4]
+  },
+  {
+    path: './sheet-stickers/rounded-sheet',
+    heading: categoryLinks.sheetStickers[5]
+  }
 ] as const;

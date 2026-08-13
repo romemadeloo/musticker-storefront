@@ -205,6 +205,32 @@ export class CartDrawer {
     throw new Error('No cart preview item exposed both size and quantity edit controls.');
   }
 
+  async editFirstItemMaterial(materialName: string): Promise<void> {
+    const totalBefore = await this.captureTotal();
+    const editButtons = await this.editButtons();
+    await editButtons.first().click();
+
+    const editDialog = await this.editDialog();
+    await editDialog.getByRole('button', { name: materialName }).click();
+
+    const updateResponsePromise = this.waitForCartItemUpdateResponse();
+    const updateButton = await firstVisibleLocator([
+      {
+        name: 'cart edit update button role',
+        locator: editDialog.getByRole('button', { name: /업데이트|Update/i })
+      },
+      {
+        name: 'cart edit submit button',
+        locator: editDialog.locator('button[type="submit"]')
+      }
+    ]);
+
+    await updateButton.click();
+    await this.expectCartItemUpdateSucceeded(await updateResponsePromise);
+    await expect(editDialog).toBeHidden({ timeout: 10_000 });
+    await expect.poll(() => this.captureTotal(), { timeout: 15_000 }).not.toBe(totalBefore);
+  }
+
   async expectRecommendedProductsVisible(): Promise<void> {
     await expect(this.dialog.getByRole('heading', { name: '\ucd94\ucc9c \uc0c1\ud488' })).toBeVisible();
     await expect(this.dialog.getByRole('button', { name: '\ub9de\ucda4 \uc81c\uc791' }).first()).toBeVisible();
