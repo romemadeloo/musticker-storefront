@@ -14,15 +14,16 @@ import { ProductV2Page } from '../../pom/product-page.js';
 // freeform/die-cut sheet variant.
 //
 // Verified live against development-3 (dev-3.musticker.com) on 2026-08-12 while authoring this
-// suite. Two tests below (MS-V2-058, MS-V2-059) intentionally assert behavior that FAILS today
-// on dev-3 and document real defects found during that verification:
+// suite. The test below (MS-V2-058) intentionally asserts behavior that FAILS today on dev-3 and
+// documents a real defect found during that verification:
 //   - MS-V2-058: size-guide illustration <img alt> text is either a raw untranslated i18n key
 //     (circle/oval/rectangle-sheet, e.g. "product.sizes.small40x40.label") or an unrelated
 //     paper-size label (square/rounded-sheet, e.g. "A6 105x148", "72x170") instead of meaningful,
 //     localized alt text.
-//   - MS-V2-059: the per-unit price readout ("1매당 X원") can render a fractional-won amount
-//     (e.g. "8.582원") for a custom 20x20mm size at the 1,000-sheet tier, which is not a valid
-//     KRW denomination.
+//
+// A fractional-won per-unit price readout (e.g. "8.582원" for a custom 20x20mm size at the
+// 1,000-sheet tier) was previously flagged here as a defect (MS-V2-059) but confirmed with Korean
+// staff on 2026-08-13 to be expected/acceptable pricing behavior, not a bug -- removed.
 const designFilePath = fileURLToPath(new URL('../../fixtures/files/sample-design.png', import.meta.url));
 
 test.describe('storefront v2 sheet sticker configurator (circle/oval/square/rectangle/rounded)', {
@@ -175,8 +176,8 @@ test.describe('storefront v2 sheet sticker configurator (circle/oval/square/rect
   });
 
   for (const data of sheetStickerConfiguratorProducts) {
-    // Known failing today on development-3 -- see the suite-level comment above for the two
-    // distinct defect shapes this test documents (untranslated i18n key vs. mismatched content).
+    // Known failing today on development-3 -- see the suite-level comment above for the defect
+    // this test documents (untranslated i18n key vs. mismatched content).
     test(`MS-V2-058 ${data.heading} size-guide illustrations have meaningful, localized alt text`, async ({ page }) => {
       const product = new ProductV2Page(page);
       await product.goto(data.path, data.heading);
@@ -184,18 +185,4 @@ test.describe('storefront v2 sheet sticker configurator (circle/oval/square/rect
       await product.expectSizeGuideImagesLocalized();
     });
   }
-
-  // Known failing today on development-3 -- per-unit price renders "8.582원" (a fractional won
-  // amount) for a 20x20mm custom size at the 1,000-sheet tier; KRW has no sub-won denomination.
-  test('MS-V2-059 circle sheet sticker: per-unit price is always a whole-won amount, even for custom sizes at bulk tiers', async ({ page }) => {
-    const product = new ProductV2Page(page);
-    const data = sheetStickerConfiguratorProducts[0];
-    await product.goto(data.path, data.heading);
-
-    await product.selectCustomIndividualSize(20, 20);
-    await product.selectQuantity(1000);
-
-    await product.expectStickerYieldSummary(40, 40_000);
-    await product.expectPerUnitPriceIsWholeWon();
-  });
 });

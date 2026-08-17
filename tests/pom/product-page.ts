@@ -47,6 +47,14 @@ export class ProductV2Page {
     await this.optionsPanel.getByRole('button', { name: materialName }).click();
   }
 
+  // vinyl-lettering and transfer-sticker expose color choices as `.color-swatch` buttons whose
+  // accessible name (aria-label) is the English color name (e.g. "Black"); the Korean label used
+  // elsewhere in this suite only exists in a child `.color-swatch-tooltip` span, so this can't use
+  // the getByRole name-matching that selectMaterial relies on.
+  async selectSwatchColor(koreanColorLabel: string): Promise<void> {
+    await this.optionsPanel.locator('.color-swatch').filter({ hasText: koreanColorLabel }).first().click();
+  }
+
   async selectSheetSize(sizeName: string): Promise<void> {
     await this.optionsPanel.getByRole('button', { name: new RegExp(`^${escapeRegExp(sizeName)}`) }).first().click();
   }
@@ -77,15 +85,16 @@ export class ProductV2Page {
     await this.optionsPanel.getByPlaceholder('세로').blur();
   }
 
-  async expectVisiblePrice(): Promise<void> {
-    await expect(this.optionsPanel.getByText(wonAmountPattern).last()).toBeVisible();
+  // vinyl-lettering's design surface is a contenteditable canvas, not an input/textarea, and
+  // pricing stays at 0원 with the next-step button disabled until text is entered.
+  async fillVinylLetteringText(text: string): Promise<void> {
+    const canvas = this.page.getByTestId('product-category-vinyl-designer-textarea');
+    await canvas.click();
+    await this.page.keyboard.type(text);
   }
 
-  async expectStickerYieldSummary(perSheet: number, totalStickers: number): Promise<void> {
-    await expect(this.optionsPanel.getByText(new RegExp(`${perSheet}\\s*시트당 스티커 수량`))).toBeVisible();
-    await expect(
-      this.optionsPanel.getByText(new RegExp(`합계:\\s*${totalStickers.toLocaleString('en-US')}\\s*스티커`))
-    ).toBeVisible();
+  async expectVisiblePrice(): Promise<void> {
+    await expect(this.optionsPanel.getByText(wonAmountPattern).last()).toBeVisible();
   }
 
   async expectBulkDiscountVisible(): Promise<void> {
@@ -94,15 +103,6 @@ export class ProductV2Page {
 
   async expectNoBulkDiscountVisible(): Promise<void> {
     await expect(this.optionsPanel.getByText(/^-\d+%$/)).toHaveCount(0);
-  }
-
-  async expectPerUnitPriceIsWholeWon(): Promise<void> {
-    const perUnit = this.optionsPanel.getByText(/1매당\s*[\d.,]+원/).first();
-    await expect(perUnit).toBeVisible();
-
-    const text = await perUnit.innerText();
-    const amount = text.match(/1매당\s*([\d.,]+)원/)?.[1] ?? '';
-    expect(amount, `Expected a whole-won per-unit price, got "${text}"`).not.toMatch(/\./);
   }
 
   async expectSizeGuideImagesLocalized(): Promise<void> {
