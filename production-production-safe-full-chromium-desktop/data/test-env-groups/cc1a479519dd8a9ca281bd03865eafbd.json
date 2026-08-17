@@ -1,1 +1,1 @@
-{"id":"cc1a479519dd8a9ca281bd03865eafbd","fullName":"purchasing/sticker-catalog-configurator.spec.ts:24:5","name":"MS-V2-060 투명 스티커 supports size and quantity selection through to cart","status":"failed","testResultsByEnv":{"default":"e92659b60483ec1917f00ba826e912d6"}}
+{"id":"cc1a479519dd8a9ca281bd03865eafbd","fullName":"purchasing/sticker-catalog-configurator.spec.ts:24:5","name":"MS-V2-060 투명 스티커 supports size and quantity selection through to cart","status":"failed","testResultsByEnv":{"default":"2e9e884923a88b10dd9ea91eae5aa4e7"}}
