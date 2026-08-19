@@ -1,1 +1,1 @@
-{"id":"8b64b190c99ee1220c2ffe23524631d7","fullName":"purchasing/sticker-catalog-configurator.spec.ts:67:3","name":"MS-V2-063 circle roll sticker: custom individual size recalculates the price","status":"failed","testResultsByEnv":{"default":"b5a8b9328f58a710644594dc0c43fd71"}}
+{"id":"8b64b190c99ee1220c2ffe23524631d7","fullName":"purchasing/sticker-catalog-configurator.spec.ts:67:3","name":"MS-V2-063 circle roll sticker: custom individual size recalculates the price","status":"passed","testResultsByEnv":{"default":"efd5400df5e06104fcfc160961005823"}}
