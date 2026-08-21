@@ -1,1 +1,1 @@
-{"id":"5046c4bc232ea3e7c5c458b788c7f008","fullName":"purchasing/sticker-catalog-configurator.spec.ts:41:5","name":"MS-V2-061 원형 롤 스티커 supports size and quantity selection through to cart","status":"passed","testResultsByEnv":{"default":"fae0dcee4c214f232d89d5b350e76f9a"}}
+{"id":"5046c4bc232ea3e7c5c458b788c7f008","fullName":"purchasing/sticker-catalog-configurator.spec.ts:41:5","name":"MS-V2-061 원형 롤 스티커 supports size and quantity selection through to cart","status":"failed","testResultsByEnv":{"default":"3267cdf8c3cecd31772f972226f4c928"}}
