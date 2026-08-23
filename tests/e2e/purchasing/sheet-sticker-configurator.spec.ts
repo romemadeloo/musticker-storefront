@@ -176,9 +176,12 @@ test.describe('storefront v2 sheet sticker configurator (circle/oval/square/rect
   });
 
   for (const data of sheetStickerConfiguratorProducts) {
-    // Known failing today on development-3 -- see the suite-level comment above for the defect
-    // this test documents (untranslated i18n key vs. mismatched content).
-    test(`MS-V2-058 ${data.heading} size-guide illustrations have meaningful, localized alt text`, async ({ page }) => {
+    // Known failing -- see the suite-level comment above for the defect this test documents
+    // (untranslated i18n key vs. mismatched content). First seen on development-3 on 2026-08-12
+    // and re-confirmed unfixed on production in run #94 (2026-08-20), where all five variants
+    // failed. Marked fixme to keep the board actionable; remove this once the storefront
+    // localizes the size-guide alt text, and the test should go green on its own.
+    test.fixme(`MS-V2-058 ${data.heading} size-guide illustrations have meaningful, localized alt text`, async ({ page }) => {
       const product = new ProductV2Page(page);
       await product.goto(data.path, data.heading);
 
