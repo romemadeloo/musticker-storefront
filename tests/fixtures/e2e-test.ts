@@ -1,5 +1,12 @@
 import { test as base, expect } from '@playwright/test';
 
+// Matches api.musticker.com plus every numbered/static dev API host from environments.ts
+// (dev-api, dev-2-api, dev-3-api, dev-4-api, dev-static-1-api, ...).
+const DEV_API_HOST = '(?:dev(?:-static)?(?:-\\d+)?-)?api\\.musticker\\.com';
+// Matches musticker.com plus every numbered/static dev storefront origin (dev., dev-2., dev-3.,
+// dev-4., dev-static-1., ...) in addition to www.
+const DEV_STOREFRONT_HOST = '(?:www|dev(?:-static)?(?:-\\d+)?)\\.musticker\\.com';
+
 type GuardOptions = {
   allowGuestUserMe401: boolean;
   allowKnownPriceWarnings: boolean;
@@ -40,38 +47,41 @@ function isKnownNuxtPayloadFailure(status: number, url: string): boolean {
 
 function isSupersededPricingRequest(text: string): boolean {
   return (
-    /Pricing request failed! FetchError: \[GET\] "https:\/\/(?:dev-)?api\.musticker\.com\/.*\/pricing\/quotation\/[^"]+": <no response> Canceled due to newer request\./.test(
-      text
-    ) || text === 'Pricing request failed! AbortError: The user aborted a request.'
+    new RegExp(
+      `Pricing request failed! FetchError: \\[GET\\] "https://${DEV_API_HOST}/.*/pricing/quotation/[^"]+": <no response> Canceled due to newer request\\.`
+    ).test(text) || text === 'Pricing request failed! AbortError: The user aborted a request.'
   );
 }
 
 function isCartCreateCorsFailure(text: string): boolean {
-  return /Access to fetch at 'https:\/\/(?:dev-)?api\.musticker\.com\/.*\/cart\/create' .*CORS policy/i.test(text);
+  return new RegExp(`Access to fetch at 'https://${DEV_API_HOST}/.*/cart/create' .*CORS policy`, 'i').test(text);
 }
 
 function isCartCreateFetchFailure(text: string): boolean {
-  return /FetchError: \[POST\] "https:\/\/(?:dev-)?api\.musticker\.com\/.*\/cart\/create": <no response> Failed to fetch/i.test(
-    text
-  );
+  return new RegExp(
+    `FetchError: \\[POST\\] "https://${DEV_API_HOST}/.*/cart/create": <no response> Failed to fetch`,
+    'i'
+  ).test(text);
 }
 
 function isTransientApiCorsFailure(text: string): boolean {
-  return /Access to fetch at 'https:\/\/(?:dev-)?api\.musticker\.com\/.*' from origin 'https:\/\/dev\.musticker\.com' has been blocked by CORS policy/i.test(
-    text
-  );
+  return new RegExp(
+    `Access to fetch at 'https://${DEV_API_HOST}/.*' from origin 'https://${DEV_STOREFRONT_HOST}' has been blocked by CORS policy`,
+    'i'
+  ).test(text);
 }
 
 function isTransientApiFetchFailure(text: string): boolean {
-  return /FetchError: \[(?:GET|POST|PUT|PATCH|DELETE)\] "https:\/\/(?:dev-)?api\.musticker\.com\/.*": <no response> Failed to fetch/i.test(
-    text
-  );
+  return new RegExp(
+    `FetchError: \\[(?:GET|POST|PUT|PATCH|DELETE)\\] "https://${DEV_API_HOST}/.*": <no response> Failed to fetch`,
+    'i'
+  ).test(text);
 }
 
 function isTransientProductPageServerFailure(status: number, url: string): boolean {
   return (
     [502, 503].includes(status) &&
-    /^https:\/\/www\.musticker\.com\/kr\/(?:stickers|roll-stickers|sheet-stickers)\/[^/?#]+/i.test(url)
+    new RegExp(`^https://${DEV_STOREFRONT_HOST}/kr/(?:stickers|roll-stickers|sheet-stickers)/[^/?#]+`, 'i').test(url)
   );
 }
 

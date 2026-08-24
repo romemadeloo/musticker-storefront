@@ -37,7 +37,30 @@ export const ko = {
   payNow: '\uacb0\uc81c\ud558\uae30',
   checkoutEmailPlaceholder: '\uc774\uba54\uc77c \uc8fc\uc18c\ub97c \uc785\ub825\ud574 \uc8fc\uc138\uc694.',
   checkoutNamePlaceholder: '\uc131\ud568\uc744 \uc785\ub825\ud558\uc138\uc694',
-  checkoutPostalCodePlaceholder: '\uc6b0\ud3b8\ubc88\ud638\ub97c \uc785\ub825\ud558\uc138\uc694'
+  checkoutPostalCodePlaceholder: '\uc6b0\ud3b8\ubc88\ud638\ub97c \uc785\ub825\ud558\uc138\uc694',
+  hologram: '\ud640\ub85c\uadf8\ub7a8',
+  pvcMatte: 'PVC \ub9e4\ud2b8',
+  sizeChangeAction: '\uc0ac\uc774\uc988 \ubcc0\uacbd',
+  addImageLink: '\uc774\ubbf8\uc9c0 \ucd94\uac00',
+  changeImageLink: '\uc774\ubbf8\uc9c0 \ubcc0\uacbd',
+  black: '\uac80\uc815',
+  fullColor: '\ud480 \uceec\ub7ec',
+  kakaoPay: '\uce74\uce74\uc624\ud398\uc774',
+  otpConfirm: '\ud655\uc778',
+  orderCompletedHeading: '\uc8fc\ubb38\uc774 \uc644\ub8cc\ub418\uc5c8\uc2b5\ub2c8\ub2e4!'
+} as const;
+
+// Verified working guest checkout profile for full-payment tests (see checkout-destructive.spec.ts).
+// Hardcoded rather than sourced from the CHECKOUT_* vars in .env.example: those were never wired up
+// by anything, and this data only needs to pass client-side validation, not represent a real person.
+export const guestCheckoutProfile = {
+  fullName: '\ud14c\uc2a4\ud2b8 \uc0ac\uc6a9\uc790',
+  postalCode: '06168',
+  phone: ['010', '1234', '5678'] as const,
+  province: '\uc11c\uc6b8\ud2b9\ubcc4\uc2dc',
+  city: '\uac15\ub0a8\uad6c',
+  streetAddress: '\ud14c\ud5e4\ub780\ub85c 152',
+  detailAddress: '101\ud638'
 } as const;
 
 export const aboutPage = {
@@ -110,8 +133,11 @@ export const v2Products = {
   }
 } as const;
 
-// Product detail pages from sitemap.xml not already deep-tested via v2Products.
-// Crawled for render-only smoke coverage (heading + options panel visible), not full configuration.
+// Product detail pages from sitemap.xml not already deep-tested via v2Products. Also crawled here
+// for render-only smoke coverage (heading + options panel visible) even where a deeper config+cart
+// flow exists elsewhere (dieCutShapeStickers, dieCutRollStickers, stickerSheetProduct,
+// vinylLetteringProduct, transferStickerProduct, sheetStickerConfiguratorProducts) -- the two
+// layers aren't mutually exclusive.
 export const catalogPaths = [
   './stickers/sticker-sheet',
   './stickers/hologram-sticker',
@@ -136,4 +162,89 @@ export const catalogPaths = [
   './sheet-stickers/square-sheet',
   './sheet-stickers/rectangle-sheet',
   './sheet-stickers/rounded-sheet'
+] as const;
+
+// Plain size+quantity die-cut shape variants under ./stickers/, distinct from
+// v2Products.dieCutSticker (./stickers/die-cut-sticker) only by heading/size-label/price. Verified
+// live against development-3 on 2026-08-13: none of these expose a material selector.
+export const dieCutShapeStickers = [
+  { path: './stickers/hologram-sticker', heading: '홀로그램 스티커', size: ko.medium75, quantity: 100 },
+  { path: './stickers/circle-sticker', heading: '원형 스티커', size: '중형 60x60', quantity: 100 },
+  { path: './stickers/rectangle-sticker', heading: '직사각형 스티커', size: '중형 75x50', quantity: 100 },
+  { path: './stickers/square-sticker', heading: '정사각형 스티커', size: ko.medium75, quantity: 100 },
+  { path: './stickers/oval-sticker', heading: '타원형 스티커', size: '중형 75x50', quantity: 100 },
+  { path: './stickers/rounded-sticker', heading: '둥근 사각 스티커', size: ko.medium75, quantity: 100 },
+  { path: './stickers/kiss-cut-sticker', heading: '키스컷 스티커', size: ko.medium75, quantity: 100 },
+  { path: './stickers/clear-sticker', heading: '투명 스티커', size: ko.medium75, quantity: 100 }
+] as const;
+
+// Plain size+quantity die-cut roll variants under ./roll-stickers/, same shape as
+// v2Products.dieCutRoll (./roll-stickers/die-cut-roll). Verified live against development-3 on
+// 2026-08-13: none expose a material selector or sheet-size controls.
+export const dieCutRollStickers = [
+  { path: './roll-stickers/clear-roll', heading: '투명 롤 스티커', size: ko.medium75, quantity: 100 },
+  { path: './roll-stickers/circle-roll', heading: '원형 롤 스티커', size: '중형 60x60', quantity: 100 },
+  { path: './roll-stickers/square-roll', heading: '정사각형 롤 스티커', size: ko.medium75, quantity: 100 },
+  { path: './roll-stickers/rectangle-roll', heading: '직사각형 롤 스티커', size: '중형 75x50', quantity: 100 },
+  { path: './roll-stickers/rounded-roll', heading: '둥근 사각 롤 스티커', size: ko.medium75, quantity: 100 },
+  { path: './roll-stickers/oval-roll', heading: '타원형 롤 스티커', size: '중형 75x50', quantity: 100 },
+  { path: './roll-stickers/paper-roll', heading: '아트지 롤 스티커', size: ko.medium75, quantity: 100 }
+] as const;
+
+// Sheet-template flow (material + sheet size + quantity) like v2Products.dieCutSheet, but a
+// distinct product under ./stickers/. Verified live against development-3 on 2026-08-13.
+export const stickerSheetProduct = {
+  path: './stickers/sticker-sheet',
+  heading: '커스텀 시트 스티커',
+  material: ko.pvcMatte,
+  sheetSize: 'A5',
+  quantity: 10
+} as const;
+
+// Live-text lettering flow: a color swatch (accessible name is the English color name, e.g.
+// aria-label="Black", with the Korean label only in a child tooltip span) plus a contenteditable
+// text canvas, no design-file upload. Verified live against development-3 on 2026-08-13.
+export const vinylLetteringProduct = {
+  path: './stickers/vinyl-lettering',
+  heading: '레터링 스티커',
+  colorLabel: ko.black,
+  text: 'MUSTICKER QA',
+  quantity: 1
+} as const;
+
+// Despite the "레터링" name this behaves like a plain die-cut shape page (color swatch + size +
+// quantity + design-file upload), not a live-text tool. Verified live against development-3 on
+// 2026-08-13.
+export const transferStickerProduct = {
+  path: './stickers/transfer-sticker',
+  heading: '풀 컬러 레터링 스티커',
+  colorLabel: ko.fullColor,
+  size: ko.medium75,
+  quantity: 1
+} as const;
+
+// Per-shape individual-sticker sheet configurators (material + individual size + sheet quantity,
+// distinct from the die-cut sheet's A5-template flow above). categoryLinks.sheetStickers[0] is the
+// freeform/die-cut variant already covered by v2Products.dieCutSheet, so it is skipped here.
+export const sheetStickerConfiguratorProducts = [
+  {
+    path: './sheet-stickers/circle-sheet',
+    heading: categoryLinks.sheetStickers[1]
+  },
+  {
+    path: './sheet-stickers/oval-sheet',
+    heading: categoryLinks.sheetStickers[2]
+  },
+  {
+    path: './sheet-stickers/square-sheet',
+    heading: categoryLinks.sheetStickers[3]
+  },
+  {
+    path: './sheet-stickers/rectangle-sheet',
+    heading: categoryLinks.sheetStickers[4]
+  },
+  {
+    path: './sheet-stickers/rounded-sheet',
+    heading: categoryLinks.sheetStickers[5]
+  }
 ] as const;

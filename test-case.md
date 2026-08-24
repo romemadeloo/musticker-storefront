@@ -17,6 +17,11 @@ Scanned pages:
 - `https://www.musticker.com/kr/stickers/die-cut-sticker`
 - `https://www.musticker.com/kr/roll-stickers/die-cut-roll`
 - `https://www.musticker.com/kr/sheet-stickers/die-cut-sheet`
+- `https://www.musticker.com/kr/sheet-stickers/circle-sheet`
+- `https://www.musticker.com/kr/sheet-stickers/oval-sheet`
+- `https://www.musticker.com/kr/sheet-stickers/square-sheet`
+- `https://www.musticker.com/kr/sheet-stickers/rectangle-sheet`
+- `https://www.musticker.com/kr/sheet-stickers/rounded-sheet`
 - `https://www.musticker.com/kr/faq`
 - `https://www.musticker.com/kr/terms-of-use`
 - `https://www.musticker.com/kr/privacy-policy`
@@ -90,6 +95,16 @@ Scanned pages:
 | MS-V2-042 | Checkout | `@validation @production` | Checkout blocks payment submission when required shipping/contact fields are blank | P1 |
 | MS-V2-043 | Errors | `@regression @production` | Unknown route redirects safely to the homepage instead of showing a broken page | P2 |
 | MS-V2-044 | Auth | `@regression @production` | Re-verification of MS-V2-031 password visibility toggle against current production behavior | P1 |
+| MS-V2-050 | Product | `@regression @production @purchasing` | Circle/oval/square/rectangle/rounded sheet sticker configurators support material, individual size, and sheet-quantity selection through to cart (parameterized x5) | P0 |
+| MS-V2-051 | Product | `@regression @production @purchasing` | Circle sheet sticker custom individual size (가로x세로) input recalculates the whole sheet-quantity price ladder live | P1 |
+| MS-V2-052 | Product | `@regression @production @purchasing` | Circle sheet sticker bulk quantity tiers surface a discount badge that smaller tiers do not | P2 |
+| MS-V2-053 | Product | `@regression @production @purchasing` | Circle sheet sticker design-upload modal accepts an order note and a design file before adding to cart | P1 |
+| MS-V2-054 | Cart | `@regression @production @purchasing` | Cart preview drawer "상품 수정" dialog updates material and recalculates the line price | P1 |
+| MS-V2-055 | Cart | `@regression @production @purchasing` | Cart preview drawer "장바구니 보기" hands off to the full cart page with the item intact | P2 |
+| MS-V2-056 | Cart | `@regression @production @purchasing` | Full cart page "사이즈 변경" dialog exposes material + individual size only (no quantity) and updates price | P1 |
+| MS-V2-057 | Cart | `@regression @production @purchasing` | Full cart page row-level quantity select updates price without a separate confirm step | P1 |
+| MS-V2-058 | Product | `@regression @production` | Sheet sticker size-guide illustrations expose meaningful, localized alt text (parameterized x5) — currently failing on development-3, documents a live defect | P1 |
+| MS-V2-059 | Product | `@regression @production` | Sheet sticker per-unit price is always a whole-won amount, even for custom sizes at bulk tiers — currently failing on development-3, documents a live defect | P2 |
 
 ## Detailed Test Cases
 
@@ -825,6 +840,160 @@ Expected result: The visibility toggle behaves correctly.
 
 Automation notes: Production observation on 2026-08-11: masked → visible → masked all confirmed via a live browser check. The bug noted in the MS-V2-031 automation notes on 2026-08-10 (toggle rendered but did not unmask) is no longer reproducible, so the `test.fixme` on MS-V2-031 has been removed rather than kept.
 
+### MS-V2-050 - Sheet Sticker Configurator (Circle/Oval/Square/Rectangle/Rounded)
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. For each of the five shape variants (`./sheet-stickers/circle-sheet`, `oval-sheet`, `square-sheet`, `rectangle-sheet`, `rounded-sheet`), navigate to the product page and assert its heading (`원형 시트 스티커`, `타원형 시트 스티커`, `정사각형 시트 스티커`, `직사각형 시트 스티커`, `둥근 사각 시트 스티커`).
+2. Select material `홀로그램`.
+3. Select preset individual size `중형`.
+4. Select quantity `20시트`.
+5. Assert the price is visible and `다음 단계` is enabled.
+6. Click `다음 단계` and assert the `디자인 파일 업로드` modal appears with the accepted-format note and a file-select button.
+7. Click `장바구니 담기` without uploading a file.
+8. Assert the cart preview drawer shows a line item for the product with quantity `20시트`.
+
+Expected result: All five shape variants support the material/individual-size/sheet-quantity configurator identically and add to cart without requiring a design file upload.
+
+Automation notes: Verified live against development-3 (`dev-3.musticker.com`) on 2026-08-13. This is the individual-sticker sheet configurator (material + per-sticker size + sheet quantity), distinct from the die-cut sheet's A5-template flow in MS-V2-011; these five paths were previously only render-only smoke tested via MS-V2-040. Implemented as `ProductV2Page` + `CartDrawer` in `tests/e2e/purchasing/sheet-sticker-configurator.spec.ts`.
+
+### MS-V2-051 - Custom Individual Size Recalculates The Price Ladder
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Navigate to `/sheet-stickers/circle-sheet`.
+2. Open `원하는 크기 입력` and fill 가로/세로 (both number inputs, no explicit apply button) with `20` and `20`.
+3. Assert a price is visible and `다음 단계` is enabled.
+
+Expected result: Entering a custom individual size live-recalculates every sheet-quantity tier's price (all default to `0원` until both dimensions are filled).
+
+Automation notes: The custom-size row occasionally did not mount on the first click on development-3, alongside a `Hydration completed but contains mismatches` console warning; the POM helper (`ProductV2Page.selectCustomIndividualSize`) retries the click once before failing, which resolved an observed intermittent 60s timeout on `getByPlaceholder('가로')`.
+
+### MS-V2-052 - Bulk Quantity Discount Badge
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Navigate to `/sheet-stickers/circle-sheet`.
+2. Select quantity `5시트`. Assert no `-NN%` discount badge is visible.
+3. Select quantity `1,000시트`. Assert a `-NN%` discount badge is visible.
+
+Expected result: Bulk tiers surface a discount badge that smaller tiers do not.
+
+Automation notes: Discount percentage/original-price values are dynamic (observed `-62%`/`-84%` on different runs); assert badge presence, not an exact value.
+
+### MS-V2-053 - Design Upload Modal Accepts Note And File
+
+Preconditions: Anonymous session and a local PNG fixture (`tests/fixtures/files/sample-design.png`).
+
+Steps:
+
+1. Navigate to `/sheet-stickers/circle-sheet`, select quantity `10시트`, click `다음 단계`.
+2. Upload the fixture file via the modal's file input and assert the dropzone switches to the accepted-file state (filename shown, `이미지 교체`/`업로드한 디자인 삭제` affordances).
+3. Fill `기타 요청 사항` with an order note.
+4. Click `장바구니 담기` and assert the cart preview drawer shows the line item.
+5. View the full cart page and assert the row shows an image-state link (`이미지 추가` or `이미지 변경`).
+
+Expected result: The upload modal accepts an optional note and file and still adds the item to cart.
+
+Automation notes: Open question, not asserted as a defect: with this minimal 67-byte fixture PNG, the dropzone shows the file as attached client-side, but no upload network request was observed firing, and the cart page still showed `이미지 추가` (not `이미지 변경`) afterward. Could not rule out this being an artifact of the tiny fixture file rather than a real "upload doesn't persist" bug, so the test only asserts that *some* image-state link is present, not which one. Worth re-checking with a realistic image file.
+
+### MS-V2-054 - Cart Preview Drawer Material Edit
+
+Preconditions: Anonymous session with a circle sheet sticker (`PVC 매트`, `5시트`) in the cart.
+
+Steps:
+
+1. Open the cart preview drawer and click the item's `상품 수정` (edit) control.
+2. In the `사이즈 및 수량 수정` dialog, select material `홀로그램` and click `업데이트`.
+3. Assert the dialog closes and the drawer total changes to match the hologram tier price shown on the product page.
+
+Expected result: Editing material from the drawer recalculates the line price.
+
+Automation notes: Added `CartDrawer.editFirstItemMaterial()`. The existing `editFirstItemSizeAndQuantity()` helper assumes a numeric-mm size dropdown (die-cut/roll products); it is not compatible with this configurator's named-preset size dropdown (`소형 40x40mm`, `중형 60x60mm`, ...), so a dedicated material-only helper was added rather than reusing it. Verifying this test also surfaced that the shared harness (`tests/fixtures/e2e-test.ts`) only recognized `dev-api`/`api.musticker.com` in its known-issue allowlist for superseded-pricing-request console warnings, not the numbered `dev-2-api`/`dev-3-api`/`dev-4-api` hosts added when multi-environment testing was wired up — causing a spurious failure on development-3. Generalized the guard regexes (`DEV_API_HOST`, `DEV_STOREFRONT_HOST`) to cover all environments in `environments.ts`; re-ran the full pre-existing suite (product-config, checkout-page, catalog-crawl — 31 tests) against development-3 afterward with no regressions.
+
+### MS-V2-055 - Drawer To Full Cart Page Handoff
+
+Preconditions: Anonymous session with a circle sheet sticker (`PVC 매트`, `5시트`, no file uploaded) in the cart.
+
+Steps:
+
+1. From the cart preview drawer, click `장바구니 보기`.
+2. Assert the URL is `/kr/cart` and the row shows `40x40mm`, `PVC 매트`, `5시트`.
+3. Assert the row shows `이미지 추가` (no file was uploaded).
+
+Expected result: The cart preview drawer and full cart page agree on the item's configuration.
+
+Automation notes: New `CartV2Page` POM (`tests/pom/cart-page.ts`), scoped via `data-testid="cart-page-row"`.
+
+### MS-V2-056 - Full Cart Page Material/Size Edit Dialog
+
+Preconditions: Anonymous session with a circle sheet sticker (`PVC 매트`, `5시트`) in the cart.
+
+Steps:
+
+1. On the full cart page, click the row's `사이즈 변경` link.
+2. Assert the dialog title is `사이즈 변경` and it exposes only `소재` and `개별 사이즈` — no `수량` control.
+3. Select material `홀로그램` and click `업데이트`.
+4. Assert the dialog closes and the row/summary price updates.
+
+Expected result: Unlike the drawer's combined `사이즈 및 수량 수정` dialog, the full cart page's edit dialog is material+size only; quantity is edited exclusively via the row-level select (see MS-V2-057). This is confirmed live behavior, not a defect — the test asserts it explicitly so a future change (e.g. someone re-adding a quantity field to one surface but not the other) is caught either way.
+
+Automation notes: `CartV2Page.changeMaterialViaSizeChangeDialog()`.
+
+### MS-V2-057 - Full Cart Page Row Quantity Select
+
+Preconditions: Anonymous session with a circle sheet sticker (`PVC 매트`, `5시트`) in the cart.
+
+Steps:
+
+1. On the full cart page, click the row's quantity select (`button.cart-qty-select-trigger`, showing `5시트`).
+2. Select `500시트` from the listbox.
+3. Assert the row and order-summary total update to the `500시트` price immediately, without an separate confirm/update step.
+
+Expected result: Row-level quantity changes apply immediately, unlike material/size changes which require the `사이즈 변경` dialog's `업데이트` button.
+
+Automation notes: `CartV2Page.changeQuantityViaRowSelect()`.
+
+### MS-V2-058 - Size Guide Illustration Alt Text (Known Defect)
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. For each of the five shape variants, navigate to the product page.
+2. Read the `alt` attribute of each of the four `.mini-feature-image` size-guide illustrations (소형/중형/대형/초대형 use-case icons).
+3. Assert no `alt` text is a raw untranslated i18n key (`^product\.sizes\.`) and none looks like an unrelated sheet/paper-size label (`^A\d+\s`, `^\d+x\d+$`).
+
+Expected result: Size-guide illustrations have meaningful, localized alt text.
+
+Automation notes: **Currently fails on development-3 for all five shapes** — two distinct defects found while verifying this suite on 2026-08-13:
+
+- `circle-sheet`, `oval-sheet`, `rectangle-sheet`: `alt` renders the raw, untranslated i18n key, e.g. `product.sizes.small40x40.label`.
+- `square-sheet`, `rounded-sheet`: `alt` renders unrelated content — paper/sheet size labels (`A6 105x148`, `A5 148x210`, `A4 210x297`, `72x170`) instead of the actual use-case description, suggesting the wrong translation data source is wired up for these two products specifically.
+
+This test is left asserting correct behavior (not `test.fixme`'d) so it keeps failing loudly until product/eng fixes the underlying i18n/content wiring.
+
+### MS-V2-059 - Per-Unit Price Is Always Whole Won (Known Defect)
+
+Preconditions: Anonymous session.
+
+Steps:
+
+1. Navigate to `/sheet-stickers/circle-sheet`.
+2. Enter custom individual size `20`x`20` and select quantity `1,000시트`.
+3. Assert the sticker-yield summary reads `40 시트당 스티커 수량` / `합계: 40,000 스티커`.
+4. Read the `(1매당 X원)` per-unit price readout and assert `X` has no decimal point.
+
+Expected result: KRW has no sub-won denomination, so the per-unit price should always render as a whole number.
+
+Automation notes: **Currently fails on development-3** — observed `(1매당 8.582원)` and, on a later run, `(1매당 7.463원)` (the fractional value drifts slightly between runs, presumably tied to a live promo/discount calculation, but the fractional-won *format* itself is consistently reproduced). The Figma export for this same screen showed the sticker-yield summary in English (`40 stickers per sheet` / `Total: 40,000 Stickers`); the live development-3 implementation renders it in Korean (`40 시트당 스티커 수량` / `합계: 40,000 스티커`) instead. That divergence is not asserted as a defect here — Korean copy is plausibly correct for a KR storefront — but it is worth confirming with design/product whether the Figma copy or the live copy is the intended source of truth.
+
 ## Suggested Spec Organization
 
 - `tests/e2e/smoke/storefront-smoke.spec.ts`
@@ -841,17 +1010,19 @@ Automation notes: Production observation on 2026-08-11: masked → visible → m
 - `tests/e2e/discovery/catalog-crawl.spec.ts`
 - `tests/e2e/purchasing/checkout-page.spec.ts`
 - `tests/e2e/regression/error-pages.spec.ts`
+- `tests/e2e/purchasing/sheet-sticker-configurator.spec.ts`
 
 ## Suggested POM Updates
 
 - `HomePage`: hero, category links, review carousel, inquiry CTA, footer assertions.
 - `HeaderComponent`: search, cart, account, locale, product navigation.
 - `LoginPage`: open, fill credentials, submit, assert validation, assert anonymous/authenticated state, open recovery, open registration.
-- `ProductPage`: select size, custom size, select quantity, custom quantity, material selection, price summary, next step, add to cart, catalog-entry render check.
+- `ProductPage`: select size, custom size, select quantity, custom quantity, material selection, price summary, next step, add to cart, catalog-entry render check, custom individual sheet size, sticker-yield summary, bulk-discount badge, per-unit-price whole-won check, size-guide alt-text audit, design-upload modal (accept note + file).
 - `InquiryForm`: open, choose inquiry type, fill fields, attach files, assert validation, cancel.
 - `FaqPage`: search, select topic, expand question, assert answer.
 - `AboutPage`: hero/stats assertions, sub-nav visibility, CTA visibility, footer assertions.
 - `CheckoutPage`: open, assert form renders, assert blank-submission is blocked.
+- `CartPage` (full `/kr/cart` page, distinct from the header `CartDrawer` preview): row assertions, change material via the `사이즈 변경` dialog, change quantity via the row-level select, image-attachment link state.
 
 ## Production-Safe Command Examples
 

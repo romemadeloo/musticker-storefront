@@ -47,6 +47,14 @@ export class ProductV2Page {
     await this.optionsPanel.getByRole('button', { name: materialName }).click();
   }
 
+  // vinyl-lettering and transfer-sticker expose color choices as `.color-swatch` buttons whose
+  // accessible name (aria-label) is the English color name (e.g. "Black"); the Korean label used
+  // elsewhere in this suite only exists in a child `.color-swatch-tooltip` span, so this can't use
+  // the getByRole name-matching that selectMaterial relies on.
+  async selectSwatchColor(koreanColorLabel: string): Promise<void> {
+    await this.optionsPanel.locator('.color-swatch').filter({ hasText: koreanColorLabel }).first().click();
+  }
+
   async selectSheetSize(sizeName: string): Promise<void> {
     await this.optionsPanel.getByRole('button', { name: new RegExp(`^${escapeRegExp(sizeName)}`) }).first().click();
   }
@@ -56,8 +64,84 @@ export class ProductV2Page {
     await this.optionsPanel.getByRole('button', { name: quantityLabel }).first().click();
   }
 
+  async selectCustomIndividualSize(widthMm: number, heightMm: number): Promise<void> {
+    const widthInput = this.optionsPanel.getByPlaceholder('가로');
+
+    await this.optionsPanel.getByRole('button', { name: ko.customSize }).first().click();
+    const appeared = await widthInput
+      .waitFor({ state: 'visible', timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (!appeared) {
+      // Occasionally the custom-size row does not mount on the first click on development
+      // environments (observed alongside a Vue hydration-mismatch warning); one retry clears it.
+      await this.optionsPanel.getByRole('button', { name: ko.customSize }).first().click();
+      await widthInput.waitFor({ state: 'visible', timeout: 10_000 });
+    }
+
+    await widthInput.fill(String(widthMm));
+    await this.optionsPanel.getByPlaceholder('세로').fill(String(heightMm));
+    await this.optionsPanel.getByPlaceholder('세로').blur();
+  }
+
+  // vinyl-lettering's design surface is a contenteditable canvas, not an input/textarea, and
+  // pricing stays at 0원 with the next-step button disabled until text is entered.
+  async fillVinylLetteringText(text: string): Promise<void> {
+    const canvas = this.page.getByTestId('product-category-vinyl-designer-textarea');
+    await canvas.click();
+    await this.page.keyboard.type(text);
+  }
+
   async expectVisiblePrice(): Promise<void> {
     await expect(this.optionsPanel.getByText(wonAmountPattern).last()).toBeVisible();
+  }
+
+  async expectBulkDiscountVisible(): Promise<void> {
+    await expect(this.optionsPanel.getByText(/^-\d+%$/).first()).toBeVisible();
+  }
+
+  async expectNoBulkDiscountVisible(): Promise<void> {
+    await expect(this.optionsPanel.getByText(/^-\d+%$/)).toHaveCount(0);
+  }
+
+  async expectSizeGuideImagesLocalized(): Promise<void> {
+    const images = this.page.locator('.mini-feature-image');
+    const count = await images.count();
+    expect(count, 'Expected size-guide illustration images to be present').toBeGreaterThan(0);
+
+    for (let index = 0; index < count; index += 1) {
+      const alt = (await images.nth(index).getAttribute('alt')) ?? '';
+      expect(alt, `Size guide image ${index} alt text is a raw, untranslated i18n key: "${alt}"`).not.toMatch(
+        /^product\.sizes\./
+      );
+      expect(
+        alt,
+        `Size guide image ${index} alt text looks like an unrelated sheet/paper size label: "${alt}"`
+      ).not.toMatch(/^A\d+\s|^\d+\s*x\s*\d+$/i);
+    }
+  }
+
+  async expectDesignUploadModal(): Promise<void> {
+    const dialog = this.page.getByRole('dialog');
+    await expect(dialog.getByTestId('product-category-upload-dropzone')).toContainText(
+      '.eps, .ai, .psd, .pdf, .tif, .png'
+    );
+    await expect(dialog.getByTestId('product-category-upload-select-files-button')).toBeVisible();
+  }
+
+  async fillDesignOrderNote(note: string): Promise<void> {
+    await this.page.getByTestId('product-category-upload-special-instructions').locator('textarea').fill(note);
+  }
+
+  async uploadDesignFile(filePath: string): Promise<void> {
+    await this.page.getByRole('dialog').locator('input[type="file"]').setInputFiles(filePath);
+  }
+
+  async expectDesignFileAccepted(fileName: string): Promise<void> {
+    await expect(this.page.getByRole('dialog').getByTestId('product-category-upload-dropzone')).toContainText(
+      fileName
+    );
   }
 
   async expectNextStepEnabled(): Promise<void> {
