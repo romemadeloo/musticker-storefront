@@ -17,7 +17,7 @@ import {
   requireSchema,
   tableIdentity
 } from '../../fixtures/pricing/pricing-api.js';
-import { pricingTableGroups } from '../../fixtures/pricing/pricing-products.js';
+import { pricingProducts } from '../../fixtures/pricing/pricing-products.js';
 import {
   alternateDimensionsForArea,
   dimensionsForArea,
@@ -34,20 +34,20 @@ import {
 
 test.describe.configure({ mode: 'parallel' });
 
-for (const group of pricingTableGroups()) {
-  test.describe(`pricing interpolation ${group.label}`, { tag: ['@api', '@pricing', '@regression'] }, () => {
-    const table = loadPriceTable(group.csv);
+for (const product of pricingProducts) {
+  test.describe(`pricing interpolation ${product.slug}`, { tag: ['@api', '@pricing', '@regression'] }, () => {
+    const table = loadPriceTable(product.csv);
 
     if (!table) {
-      test(`MS-PRC-INT-${group.label} interpolation follows ${group.csv}`, () => {
-        test.skip(true, `${group.csv} is not committed yet -- export it into tests/fixtures/pricing/`);
-        expect(loadPriceTable(group.csv)).not.toBeNull();
+      test(`MS-PRC-INT-${product.slug} interpolation follows ${product.csv}`, () => {
+        test.skip(true, `${product.csv} is not committed yet -- export it into tests/fixtures/pricing/`);
+        expect(loadPriceTable(product.csv)).not.toBeNull();
       });
 
       return;
     }
 
-    const step = group.normalizedNr;
+    const step = product.normalizedNr;
     const midQuantity = table.quantities[Math.floor(table.quantities.length / 2)];
 
     // Area interpolation, sampled at the low, middle and high end of the grid.
@@ -62,17 +62,17 @@ for (const group of pricingTableGroups()) {
 
       const { width, height } = dimensionsForArea(area);
 
-      test(`MS-PRC-INT-${group.label} area ${area} (${width}x${height}) interpolates between ${lower} and ${upper}`, async ({
+      test(`MS-PRC-INT-${product.slug} area ${area} (${width}x${height}) interpolates between ${lower} and ${upper}`, async ({
         request
       }) => {
-        const body = await fetchQuotation(request, group.probeSlug, {
+        const body = await fetchQuotation(request, product.slug, {
           width,
           height,
           quantity: midQuantity,
           debug: true
         });
 
-        const context = `${group.probeSlug} area ${area} (${width}x${height}) qty ${midQuantity}`;
+        const context = `${product.slug} area ${area} (${width}x${height}) qty ${midQuantity}`;
         const identity = tableIdentity(body);
         const schema = requireSchema(body, context);
 
@@ -114,16 +114,16 @@ for (const group of pricingTableGroups()) {
         continue;
       }
 
-      test(`MS-PRC-INT-${group.label} quantity ${quantity} interpolates between rungs ${lower} and ${upper}`, async ({
+      test(`MS-PRC-INT-${product.slug} quantity ${quantity} interpolates between rungs ${lower} and ${upper}`, async ({
         request
       }) => {
-        const body = await fetchQuotation(request, group.probeSlug, {
+        const body = await fetchQuotation(request, product.slug, {
           ...quantityProbe,
           quantity,
           debug: true
         });
 
-        const context = `${group.probeSlug} area ${quantityProbeArea} qty ${quantity}`;
+        const context = `${product.slug} area ${quantityProbeArea} qty ${quantity}`;
         const identity = tableIdentity(body);
         const schema = requireSchema(body, context);
 
@@ -145,14 +145,14 @@ for (const group of pricingTableGroups()) {
       const primary = dimensionsForArea(shapeArea);
       const alternate = alternateDimensionsForArea(shapeArea)!;
 
-      test(`MS-PRC-INT-${group.label} area ${shapeArea} prices the same as ${primary.width}x${primary.height} and ${alternate.width}x${alternate.height}`, async ({
+      test(`MS-PRC-INT-${product.slug} area ${shapeArea} prices the same as ${primary.width}x${primary.height} and ${alternate.width}x${alternate.height}`, async ({
         request
       }) => {
-        const context = `${group.probeSlug} area ${shapeArea} qty ${midQuantity}`;
+        const context = `${product.slug} area ${shapeArea} qty ${midQuantity}`;
         const quotes: number[] = [];
 
         for (const shape of [primary, alternate]) {
-          const body = await fetchQuotation(request, group.probeSlug, { ...shape, quantity: midQuantity });
+          const body = await fetchQuotation(request, product.slug, { ...shape, quantity: midQuantity });
           quotes.push(quotedPrice(body, midQuantity, `${context} as ${shape.width}x${shape.height}`));
         }
 
@@ -173,13 +173,13 @@ for (const group of pricingTableGroups()) {
     ] as const) {
       const { width, height } = dimensionsForArea(area);
 
-      test(`MS-PRC-INT-${group.label} ${name} grid row ${area} (${width}x${height}) prices from the CSV`, async ({
+      test(`MS-PRC-INT-${product.slug} ${name} grid row ${area} (${width}x${height}) prices from the CSV`, async ({
         request
       }) => {
-        const context = `${group.probeSlug} area ${area} (${width}x${height})`;
+        const context = `${product.slug} area ${area} (${width}x${height})`;
 
         for (const quantity of [table.quantities[0], table.quantities.at(-1)!]) {
-          const body = await fetchQuotation(request, group.probeSlug, { width, height, quantity });
+          const body = await fetchQuotation(request, product.slug, { width, height, quantity });
 
           expect
             .soft(quotedPrice(body, quantity, context), `${context} qty ${quantity}: ${tableIdentity(body)}`)

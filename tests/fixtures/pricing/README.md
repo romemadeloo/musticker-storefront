@@ -1,24 +1,41 @@
 # Price table fixtures
 
-Each CSV here is the admin-entered price table for one pricing table, committed so the suite can
-assert that the pricing API serves exactly what was typed in. The git history of these files is the
-audit trail for every price change.
+Each CSV is the admin-entered price table for one product, committed so the suite can assert that
+the pricing API serves exactly what was typed in. The git history of these files is the audit trail
+for every price change.
+
+`stickers/` holds the products under `/kr/stickers`, one CSV per product slug.
 
 ## Adding a table
 
 1. Export the table as an `area_factor` CSV: first column is the stored `base_area` in mm², one
    further column per quantity rung. Quoted thousands separators (`"1,000"`) are fine.
-2. Save it under the filename the registry already expects — see the `csv` field in
+2. Save it under `stickers/<slug>.csv` and point the product's `csv` field at it in
    [pricing-products.ts](./pricing-products.ts). Nothing else needs editing; the specs generate one
    test per row automatically.
 3. Run it: `npm run test:pricing:static2` (or `test:pricing:prod`).
 
-Until a CSV is committed, its table's tests report as skipped rather than failing, so the eight
-tables can be rolled out one export at a time.
+Until a CSV is committed its product's tests report as skipped rather than failing, so products can
+be rolled out one export at a time. Still missing: `sticker-sheet`, `vinyl-lettering`,
+`transfer-sticker`.
 
 Row counts, quantity ladders and rate precision all differ per table and are read from the CSV — the
-lettering tables use an eight-rung ladder starting at 1, the rest use fourteen rungs starting at 10,
-and `custom-sheet` stores ten decimal places where the others store eight. Nothing is hardcoded.
+lettering products use an eight-rung ladder starting at 1, the rest use fourteen rungs starting at
+10, and `sticker-sheet` stores ten decimal places where the others store eight. Nothing is
+hardcoded.
+
+A CSV only needs the rows its table actually has. `die-cut-sticker` starts at area 625, because
+25x25 mm is the die-cut minimum and the API answers anything smaller with `No base dimension data
+found!`. Conversely a CSV that stops short of its table's top row leaves those rows unverified —
+`kiss-cut-sticker.csv` ends at 90,000 while the pid 23 table continues past 545,382.
+
+## One table, several products
+
+The server does not price one table per product: five shape products (`circle`, `rectangle`,
+`square`, `oval`, `rounded`) all share `pricing_id 25`, and the `pricing_id 5` and `25` tables hold
+identical rates. Products on a shared table must therefore hold matching CSVs;
+`product-table-mapping.spec.ts` asserts both that they return identical stored rows and that their
+CSVs agree with each other.
 
 ## How the arithmetic works
 

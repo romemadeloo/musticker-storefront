@@ -1,8 +1,8 @@
 // Verifies that every cell of every committed price CSV is what the pricing API actually serves.
 //
 // One request per CSV row: `debug=1` returns the whole stored row, so a single call covers all of
-// that row's quantity columns. Shared tables are walked once (see pricingTableGroups); the other
-// products on the same table are covered by product-table-mapping.spec.ts.
+// that row's quantity columns. One CSV per product slug, so each product is checked against its own
+// export even where the server prices several products from one shared table.
 //
 // Imports @playwright/test directly rather than the e2e-test fixture: that fixture's console guard
 // is browser-oriented and defaults allowKnownPriceWarnings to true, neither of which suits an API
@@ -15,19 +15,19 @@ import {
   tableIdentity,
   requireSchema
 } from '../../fixtures/pricing/pricing-api.js';
-import { pricingTableGroups } from '../../fixtures/pricing/pricing-products.js';
+import { pricingProducts } from '../../fixtures/pricing/pricing-products.js';
 import { canonicalNumber, dimensionsForArea, loadPriceTable } from '../../fixtures/pricing/price-table.js';
 
 test.describe.configure({ mode: 'parallel' });
 
-for (const group of pricingTableGroups()) {
-  test.describe(`pricing table ${group.label}`, { tag: ['@api', '@pricing', '@regression'] }, () => {
-    const table = loadPriceTable(group.csv);
+for (const product of pricingProducts) {
+  test.describe(`pricing table ${product.slug}`, { tag: ['@api', '@pricing', '@regression'] }, () => {
+    const table = loadPriceTable(product.csv);
 
     if (!table) {
-      test(`MS-PRC-${group.label} price table matches ${group.csv}`, () => {
-        test.skip(true, `${group.csv} is not committed yet -- export it into tests/fixtures/pricing/`);
-        expect(loadPriceTable(group.csv)).not.toBeNull();
+      test(`MS-PRC-${product.slug} price table matches ${product.csv}`, () => {
+        test.skip(true, `${product.csv} is not committed yet -- export it into tests/fixtures/pricing/`);
+        expect(loadPriceTable(product.csv)).not.toBeNull();
       });
 
       return;
@@ -36,22 +36,22 @@ for (const group of pricingTableGroups()) {
     for (const area of table.areas) {
       const { width, height } = dimensionsForArea(area);
 
-      test(`MS-PRC-${group.label} area ${area} (${width}x${height}) matches ${group.csv}`, async ({ request }, testInfo) => {
-        const body = await fetchQuotation(request, group.probeSlug, {
+      test(`MS-PRC-${product.slug} area ${area} (${width}x${height}) matches ${product.csv}`, async ({ request }, testInfo) => {
+        const body = await fetchQuotation(request, product.slug, {
           width,
           height,
           quantity: table.quantities[0],
           debug: true
         });
 
-        const context = `${group.probeSlug} area ${area} (${width}x${height})`;
+        const context = `${product.slug} area ${area} (${width}x${height})`;
         const identity = tableIdentity(body);
 
-        expect(body.meta.pricing_id, `${context}: ${identity}`).toBe(group.pricingId);
-        expect(body.meta.pricing, `${context}: ${identity}`).toMatch(group.pricingName);
+        expect(body.meta.pricing_id, `${context}: ${identity}`).toBe(product.pricingId);
+        expect(body.meta.pricing, `${context}: ${identity}`).toMatch(product.pricingName);
         // normalized_nr is the rounding step applied to line totals, so a silent change to it
         // repriced every order on this product.
-        expect(body.data.normalized_nr, `${context}: ${identity}`).toBe(group.normalizedNr);
+        expect(body.data.normalized_nr, `${context}: ${identity}`).toBe(product.normalizedNr);
 
         const schema = requireSchema(body, context);
 
@@ -89,10 +89,10 @@ for (const group of pricingTableGroups()) {
         }
 
         if (mismatches.length > 0) {
-          await testInfo.attach(`price-diff-area-${area}.txt`, {
+          await testInfo.attach(`price-diff-${product.slug}-area-${area}.txt`, {
             contentType: 'text/plain',
             body: [
-              `${group.csv} area ${area} probed as ${width}x${height} on ${group.probeSlug}`,
+              `${product.csv} area ${area} probed as ${width}x${height} on ${product.slug}`,
               identity,
               `${mismatches.length} of ${table.quantities.length} rates differ`,
               '',
