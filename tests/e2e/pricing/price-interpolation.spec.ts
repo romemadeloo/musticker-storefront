@@ -53,7 +53,7 @@ for (const product of pricingProducts) {
       test(`MS-PRC-INT-${product.slug} interpolation follows ${product.csv}`, () => {
         test.skip(
           true,
-          `${product.csv} was exported from ${product.csvSource}, and rates differ per table generation -- interpolation is only checked there, not on ${activeEnvironmentLabel}`
+          `${product.csv} is a rate baseline for ${product.csvSources.join(', ')} only, and the generations differ in their rates -- interpolation is not checked on ${activeEnvironmentLabel}`
         );
         expect(product.ratesComparable).toBe(true);
       });

@@ -45,7 +45,7 @@ for (const product of pricingProducts) {
       test(`MS-PRC-${product.slug} price table matches ${product.csv}`, () => {
         test.skip(
           true,
-          `${product.csv} was exported from ${product.csvSource}, and rates differ per table generation -- cells are only compared there, not on ${activeEnvironmentLabel}`
+          `${product.csv} is a rate baseline for ${product.csvSources.join(', ')} only, and the generations differ in their rates -- cells are not compared on ${activeEnvironmentLabel}`
         );
         expect(product.ratesComparable).toBe(true);
       });

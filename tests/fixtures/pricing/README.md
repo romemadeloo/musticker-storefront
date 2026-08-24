@@ -11,8 +11,8 @@ for every price change.
 1. Export the table as an `area_factor` CSV: first column is the stored `base_area` in mm², one
    further column per quantity rung. Quoted thousands separators (`"1,000"`) are fine.
 2. Save it under `stickers/<slug>.csv` and point the product's `csv` field at it in
-   [pricing-products.ts](./pricing-products.ts), and set `csvSource` to the environment you exported
-   it from. Nothing else needs editing; the specs generate one test per row automatically.
+   [pricing-products.ts](./pricing-products.ts), and list the environments it is a valid baseline for
+   in `csvSources`. Nothing else needs editing; the specs generate one test per row automatically.
 3. Run it: `npm run test:pricing:dev1` (or `test:pricing:static2`, `test:pricing:prod`).
 
 Until a CSV is committed its product's tests report as skipped rather than failing, so products can
@@ -21,30 +21,43 @@ be rolled out one export at a time. Still missing: `sticker-sheet`, `vinyl-lette
 
 ## Table ids and rates are per environment
 
-The servers do not all carry the same generation of these tables. Verified live on 2026-08-24:
+The servers do not all carry the same generation of these tables, and **the id numbers collide
+across servers**. Probed live on 2026-08-24:
 
-| | production / development-static-2 | development-1 |
-|---|---|---|
-| die-cut | 5 `Die Cut` | 45 `Die Cut Pricing (8/21/2026)` |
-| kiss-cut | 23 `Kiss Cut` | 47 `Kiss Cut Pricing (8/21/2026)` |
-| the five shapes | 25 `Die Cut / Kiss Cut` | 46 `Die Cut / Kiss Cut Pricing (8/21/2026)` |
-| clear | 30 `Clear - Die Cut / Kiss Cut` | 49 `Clear Die Cut / Kiss Cut Pricing (8/21/2026) v.2` |
-| hologram | 31 `Hologram - Die Cut / Kiss Cut` | 50 `Hologram Die Cut / Kiss Cut Pricing (8/21/2026)` |
+| | production | development-1 | development-static-2 |
+|---|---|---|---|
+| die-cut | 43 `Die Cut Sticker (8/24/2026)` | 45 `Die Cut Pricing (8/21/2026)` | 5 `Die Cut` |
+| kiss-cut | 45 `Kiss Cut Sticker (8/24/2026)` | 47 `Kiss Cut Pricing (8/21/2026)` | 23 `Kiss Cut` |
+| the five shapes | 44 `Die Cut / Kiss Cut Sticker (8/24/2026)` | 46 `Die Cut / Kiss Cut Pricing (8/21/2026)` | 25 `Die Cut / Kiss Cut` |
+| clear | 46 `Clear Sticker (8/24/2026)` | 49 `Clear Die Cut / Kiss Cut Pricing (8/21/2026) v.2` | 30 `Clear - Die Cut / Kiss Cut (6/29/2026)` |
+| hologram | 47 `Hologram Sticker (8/24/2026)` | 50 `Hologram Die Cut / Kiss Cut Pricing (8/21/2026)` | 31 `Hologram - Die Cut / Kiss Cut (6/29/2026)` |
 
-The generations differ in their **rates**, not only their ids — 9 of 14 cells on a probe row — so a
-CSV is only a valid baseline for the environment it came from. `pricing-products.ts` therefore holds
-`pricingIds` per environment and a single `csvSource`, and the suite splits accordingly:
+Read that table across, not down: id `45` is kiss-cut on production but die-cut on development-1,
+and `46`/`47` are clear/hologram on production but the shapes and kiss-cut tables on development-1. A
+single shared id map would not be merely incomplete, it would assert the wrong table — which is why
+`pricing-products.ts` keys `pricingIds` by environment.
+
+Generations also differ in their **rates**, so a CSV is only a valid baseline for the environments it
+was exported from or promoted to. `csvSources` records that list, and the suite splits by what each
+check can actually prove:
 
 - `product-table-mapping.spec.ts` asserts table identity and the rounding step, and runs on **every**
-  environment that has recorded ids.
+  environment with recorded ids.
 - `price-table.spec.ts` and `price-interpolation.spec.ts` compare rates against the CSV, and run
-  **only** on `csvSource`. Elsewhere they skip with the reason spelled out.
+  **only** on the environments in `csvSources`. Elsewhere they skip with the reason spelled out.
 
-So against production the suite is 11 passed / 18 skipped, and against development-1 it is all 1339.
-An environment with no recorded ids skips everything rather than guessing. To switch one on, probe it
-and add its ids to `pricingIds`.
+production and development-1 were promoted from the same price data — verified cell by cell, 1339
+passed on each — so both are listed in `csvSources` and both get full coverage. development-static-2
+still holds the older rates, so there the tables are identity-checked and the cells skipped. An
+environment with no recorded ids skips everything rather than guessing; to switch one on, probe it
+and add its ids.
 
-`normalizedNr` was checked on both generations and is stable, so it is not per environment.
+Because the naming has drifted a long way between generations (the clear table has been
+`Clear - Die Cut / Kiss Cut`, then `Clear Die Cut / Kiss Cut Pricing ... v.2`, now `Clear Sticker`),
+`pricingName` is only a coarse sanity check for some products. `pricingId` is the strict identity
+assertion.
+
+`normalizedNr` was checked on all three generations and is stable, so it is not per environment.
 
 The development servers return **HTTP 502** under sustained concurrency, which surfaces as a failed
 row rather than a pricing mismatch — `test:pricing:dev1` uses 4 workers and 2 retries for that
@@ -63,7 +76,7 @@ found!`. Conversely a CSV that stops short of its table's top row leaves those r
 ## One table, several products
 
 The server does not price one table per product: five shape products (`circle`, `rectangle`,
-`square`, `oval`, `rounded`) all share one table — `pricing_id 25` on production, `46` on
+`square`, `oval`, `rounded`) all share one table — `pricing_id 44` on production, `46` on
 development-1 — and the die-cut and shared shape tables hold identical rates. Products on a shared
 table must therefore hold matching CSVs; `product-table-mapping.spec.ts` asserts both that they
 return identical stored rows and that their CSVs agree with each other. It groups by the id resolved

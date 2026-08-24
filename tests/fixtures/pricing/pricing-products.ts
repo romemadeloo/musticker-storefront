@@ -6,17 +6,27 @@
 // Products on a shared table must therefore hold matching CSVs, which product-table-mapping.spec.ts
 // checks explicitly.
 //
-// TABLE IDS ARE PER ENVIRONMENT. Verified live on 2026-08-24, the servers carry two different
-// generations of these tables: production and development-static-2 serve the 5/23/25/30/31 set,
-// while development-1 serves a newer 45/46/47/49/50 set re-dated (8/21/2026). The generations
-// differ in their *rates* too, not just their ids -- 9 of 14 cells on a probe row -- so a CSV is
-// only a valid baseline for the environment it was exported from, which `csvSource` records.
+// TABLE IDS ARE PER ENVIRONMENT, AND THE ID NUMBERS COLLIDE ACROSS SERVERS. Probed live on
+// 2026-08-24, three different generations are in play:
 //
-// The other development-* servers have no recorded ids yet; the pricing specs skip there with an
+//   environment           ids                    naming                        rates
+//   production            43/44/45/46/47         "... Sticker (8/24/2026)"      match the CSVs
+//   development-1         45/46/47/49/50         "... Pricing (8/21/2026)"      match the CSVs
+//   development-static-2  5/23/25/30/31          "Die Cut", "Clear - ..."       differ
+//
+// The collision is the reason a single shared id map would be actively wrong rather than merely
+// incomplete: id 45 is kiss-cut on production but die-cut on development-1, and 46/47 are
+// clear/hologram on production but the shapes/kiss-cut tables on development-1.
+//
+// `csvSources` lists the environments a CSV is a valid baseline for. production and development-1
+// were promoted from the same price data -- verified cell by cell -- so the same export covers both,
+// while development-static-2 still holds the older rates and is identity-checked only.
+//
+// The remaining development-* servers have no recorded ids yet; the pricing specs skip there with an
 // explicit reason rather than guessing. Add an entry to `pricingIds` to switch a server on.
 //
 // `normalizedNr` is the rounding step in KRW that the API applies to the line total. It is 100
-// everywhere except sticker-sheet, which uses 10, and is stable across both generations.
+// everywhere except sticker-sheet, which uses 10, and is stable across all three generations.
 //
 // hologram-sticker serves both 다이컷 and 키스컷 from one table (supply_id does not change the
 // quote), which is why its CSV is a merged die-cut/kiss-cut export.
@@ -25,11 +35,11 @@ import type { EnvironmentName } from '../environments.js';
 
 type PricingProductRegistryEntry = {
   slug: string;
-  // A pattern, not a literal, so a legitimate re-dating of the table -- "(6/29/2026)" becoming a
-  // newer date -- does not fail every row test, while a swap to a different table still does. Kept
-  // loose enough to span both generations' naming, since development-1 dropped the " - " separator
-  // and appended "Pricing" ("Clear - Die Cut / Kiss Cut" -> "Clear Die Cut / Kiss Cut Pricing").
-  // pricingId is the strict identity assertion; this is the sanity check on top of it.
+  // A pattern, not a literal, so a legitimate re-dating or renaming of the table does not fail every
+  // row test. It has to span all three generations' naming, which have drifted a long way apart --
+  // the clear table has been "Clear - Die Cut / Kiss Cut", "Clear Die Cut / Kiss Cut Pricing" and
+  // now "Clear Sticker" -- so for those two products this is only a coarse sanity check. pricingId
+  // is the strict identity assertion and the reason this can afford to be loose.
   pricingName: RegExp;
   // Per-environment table id. A missing entry means "not recorded for that server".
   pricingIds: Partial<Record<EnvironmentName, number>>;
@@ -37,9 +47,9 @@ type PricingProductRegistryEntry = {
   // Path relative to this directory. Filenames follow the slug, except where the export was named
   // without the "-sticker" suffix.
   csv: string;
-  // The environment this CSV was exported from. Cell-by-cell rate comparison only runs there,
-  // because the other generation holds different rates.
-  csvSource: EnvironmentName;
+  // Environments this CSV is a valid rate baseline for. Cell-by-cell comparison runs only on these;
+  // elsewhere the table is identity-checked and the cells are skipped with the reason given.
+  csvSources: readonly EnvironmentName[];
 };
 
 export type PricingProduct = {
@@ -50,115 +60,116 @@ export type PricingProduct = {
   pricingName: RegExp;
   normalizedNr: number;
   csv: string;
-  csvSource: EnvironmentName;
-  // True when the committed CSV was exported from the environment under test, i.e. when its rates
-  // are the ones this server is expected to serve.
+  csvSources: readonly EnvironmentName[];
+  // True when the environment under test is one the CSV is a baseline for.
   ratesComparable: boolean;
 };
 
-// The older generation, shared by production and development-static-2, against the newer
-// development-1 set. Listed per product rather than as one map so a product can move generations
-// independently -- vinyl-lettering, transfer-sticker and sticker-sheet were left out of
-// development-1's regeneration entirely and still answer on their production ids.
+// production and development-1 were promoted from the same price data, so every product below lists
+// both in csvSources. development-static-2 lags on the older rates.
+const CSV_SOURCES = ['production', 'development-1'] as const satisfies readonly EnvironmentName[];
+
 const registry: readonly PricingProductRegistryEntry[] = [
   {
     slug: 'die-cut-sticker',
     pricingName: /^Die Cut\b/,
-    pricingIds: { production: 5, 'development-static-2': 5, 'development-1': 45 },
+    pricingIds: { production: 43, 'development-1': 45, 'development-static-2': 5 },
     normalizedNr: 100,
     csv: 'stickers/die-cut-sticker.csv',
-    csvSource: 'development-1'
+    csvSources: CSV_SOURCES
   },
   {
     slug: 'kiss-cut-sticker',
     pricingName: /^Kiss Cut\b/,
-    pricingIds: { production: 23, 'development-static-2': 23, 'development-1': 47 },
+    pricingIds: { production: 45, 'development-1': 47, 'development-static-2': 23 },
     normalizedNr: 100,
     csv: 'stickers/kiss-cut-sticker.csv',
-    csvSource: 'development-1'
+    csvSources: CSV_SOURCES
   },
   {
     slug: 'circle-sticker',
     pricingName: /^Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 25, 'development-static-2': 25, 'development-1': 46 },
+    pricingIds: { production: 44, 'development-1': 46, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/circle-sticker.csv',
-    csvSource: 'development-1'
+    csvSources: CSV_SOURCES
   },
   {
     slug: 'rectangle-sticker',
     pricingName: /^Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 25, 'development-static-2': 25, 'development-1': 46 },
+    pricingIds: { production: 44, 'development-1': 46, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/rectangle-sticker.csv',
-    csvSource: 'development-1'
+    csvSources: CSV_SOURCES
   },
   {
     slug: 'square-sticker',
     pricingName: /^Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 25, 'development-static-2': 25, 'development-1': 46 },
+    pricingIds: { production: 44, 'development-1': 46, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/square-sticker.csv',
-    csvSource: 'development-1'
+    csvSources: CSV_SOURCES
   },
   {
     slug: 'oval-sticker',
     pricingName: /^Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 25, 'development-static-2': 25, 'development-1': 46 },
+    pricingIds: { production: 44, 'development-1': 46, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/oval-sticker.csv',
-    csvSource: 'development-1'
+    csvSources: CSV_SOURCES
   },
   {
     slug: 'rounded-sticker',
     pricingName: /^Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 25, 'development-static-2': 25, 'development-1': 46 },
+    pricingIds: { production: 44, 'development-1': 46, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/rounded-sticker.csv',
-    csvSource: 'development-1'
+    csvSources: CSV_SOURCES
   },
   {
+    // "Clear Sticker" on production, "Clear Die Cut / Kiss Cut Pricing ... v.2" on development-1.
     slug: 'clear-sticker',
-    pricingName: /^Clear\b.*Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 30, 'development-static-2': 30, 'development-1': 49 },
+    pricingName: /^Clear\b/,
+    pricingIds: { production: 46, 'development-1': 49, 'development-static-2': 30 },
     normalizedNr: 100,
     csv: 'stickers/clear-sticker.csv',
-    csvSource: 'development-1'
+    csvSources: CSV_SOURCES
   },
   {
     slug: 'hologram-sticker',
-    pricingName: /^Hologram\b.*Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 31, 'development-static-2': 31, 'development-1': 50 },
+    pricingName: /^Hologram\b/,
+    pricingIds: { production: 47, 'development-1': 50, 'development-static-2': 31 },
     normalizedNr: 100,
     csv: 'stickers/hologram.csv',
-    csvSource: 'development-1'
+    csvSources: CSV_SOURCES
   }
   // Parked until their CSVs are exported into stickers/ -- the specs would otherwise contribute
-  // nothing but skips. Probed on development-1 on 2026-08-24, these three were left out of that
-  // server's table regeneration and still answer on the same ids and names as production.
+  // nothing but skips. Probed on 2026-08-24: the lettering products were left out of the sticker
+  // regeneration and answer on the same ids everywhere, but sticker-sheet does differ (33 on
+  // production, 34 on development-1), so do not collapse these to a single id when enabling them.
   // {
   //   slug: 'vinyl-lettering',
   //   pricingName: /^Vinyl Lettering\b/,
-  //   pricingIds: { production: 8, 'development-static-2': 8, 'development-1': 8 },
+  //   pricingIds: { production: 8, 'development-1': 8, 'development-static-2': 8 },
   //   normalizedNr: 100,
   //   csv: 'stickers/vinyl-lettering.csv',
-  //   csvSource: 'production'
+  //   csvSources: ['production']
   // },
   // {
   //   slug: 'transfer-sticker',
   //   pricingName: /^Transfer\b/,
-  //   pricingIds: { production: 11, 'development-static-2': 11, 'development-1': 11 },
+  //   pricingIds: { production: 11, 'development-1': 11, 'development-static-2': 11 },
   //   normalizedNr: 100,
   //   csv: 'stickers/transfer-sticker.csv',
-  //   csvSource: 'production'
+  //   csvSources: ['production']
   // },
   // {
   //   slug: 'sticker-sheet',
   //   pricingName: /^Custom Sheet\b/,
-  //   pricingIds: { production: 34, 'development-static-2': 34, 'development-1': 34 },
+  //   pricingIds: { production: 33, 'development-1': 34 },
   //   normalizedNr: 10,
   //   csv: 'stickers/sticker-sheet.csv',
-  //   csvSource: 'production'
+  //   csvSources: ['production']
   // }
 ];
 
@@ -175,8 +186,8 @@ function resolve(entry: PricingProductRegistryEntry): PricingProduct | undefined
     pricingName: entry.pricingName,
     normalizedNr: entry.normalizedNr,
     csv: entry.csv,
-    csvSource: entry.csvSource,
-    ratesComparable: activeEnvironment === entry.csvSource
+    csvSources: entry.csvSources,
+    ratesComparable: activeEnvironment !== undefined && entry.csvSources.includes(activeEnvironment)
   };
 }
 
