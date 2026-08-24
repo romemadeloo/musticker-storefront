@@ -1,1 +1,1 @@
-{"id":"391cfe3cf4edd539524dd56c62acb9ca","fullName":"purchasing/sheet-sticker-configurator.spec.ts:181:5","name":"MS-V2-058 둥근 사각 시트 스티커 size-guide illustrations have meaningful, localized alt text","status":"failed","testResultsByEnv":{"default":"cba776b0e8e09fa012db4e6a69b08f6c"}}
+{"id":"391cfe3cf4edd539524dd56c62acb9ca","fullName":"purchasing/sheet-sticker-configurator.spec.ts:184:10","name":"MS-V2-058 둥근 사각 시트 스티커 size-guide illustrations have meaningful, localized alt text","status":"skipped","testResultsByEnv":{"default":"6faf7f23bb2b2a3a1e6dd73998464f91"}}

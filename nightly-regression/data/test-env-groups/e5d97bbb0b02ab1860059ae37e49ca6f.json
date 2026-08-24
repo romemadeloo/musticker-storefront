@@ -1,1 +1,1 @@
-{"id":"e5d97bbb0b02ab1860059ae37e49ca6f","fullName":"purchasing/sheet-sticker-configurator.spec.ts:181:5","name":"MS-V2-058 타원형 시트 스티커 size-guide illustrations have meaningful, localized alt text","status":"failed","testResultsByEnv":{"default":"cc55cc25d7404d4b1d3270527e2dbe8e"}}
+{"id":"e5d97bbb0b02ab1860059ae37e49ca6f","fullName":"purchasing/sheet-sticker-configurator.spec.ts:184:10","name":"MS-V2-058 타원형 시트 스티커 size-guide illustrations have meaningful, localized alt text","status":"skipped","testResultsByEnv":{"default":"3d39c0cfd1d87465d42f44f5c6d0ad71"}}
