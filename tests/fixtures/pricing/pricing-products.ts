@@ -79,7 +79,7 @@ export const pricingProducts: readonly PricingProduct[] = [
     pricingId: 25,
     pricingName: /^Die Cut \/ Kiss Cut\b/,
     normalizedNr: 100,
-    csv: 'stickers/oval.csv'
+    csv: 'stickers/oval-sticker.csv'
   },
   {
     slug: 'rounded-sticker',
