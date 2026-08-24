@@ -17,7 +17,7 @@ import {
   requireSchema,
   tableIdentity
 } from '../../fixtures/pricing/pricing-api.js';
-import { pricingProducts } from '../../fixtures/pricing/pricing-products.js';
+import { activeEnvironmentLabel, pricingProducts } from '../../fixtures/pricing/pricing-products.js';
 import {
   alternateDimensionsForArea,
   dimensionsForArea,
@@ -42,6 +42,20 @@ for (const product of pricingProducts) {
       test(`MS-PRC-INT-${product.slug} interpolation follows ${product.csv}`, () => {
         test.skip(true, `${product.csv} is not committed yet -- export it into tests/fixtures/pricing/`);
         expect(loadPriceTable(product.csv)).not.toBeNull();
+      });
+
+      return;
+    }
+
+    // Interpolation is recomputed from the CSV's own rates, so it can only be checked against the
+    // environment that CSV was exported from -- see the same guard in price-table.spec.ts.
+    if (!product.ratesComparable) {
+      test(`MS-PRC-INT-${product.slug} interpolation follows ${product.csv}`, () => {
+        test.skip(
+          true,
+          `${product.csv} was exported from ${product.csvSource}, and rates differ per table generation -- interpolation is only checked there, not on ${activeEnvironmentLabel}`
+        );
+        expect(product.ratesComparable).toBe(true);
       });
 
       return;

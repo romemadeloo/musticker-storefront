@@ -15,7 +15,11 @@ import {
   tableIdentity,
   requireSchema
 } from '../../fixtures/pricing/pricing-api.js';
-import { pricingProducts } from '../../fixtures/pricing/pricing-products.js';
+import {
+  activeEnvironmentLabel,
+  pricingProducts,
+  unmappedPricingProducts
+} from '../../fixtures/pricing/pricing-products.js';
 import { canonicalNumber, dimensionsForArea, loadPriceTable } from '../../fixtures/pricing/price-table.js';
 
 test.describe.configure({ mode: 'parallel' });
@@ -28,6 +32,22 @@ for (const product of pricingProducts) {
       test(`MS-PRC-${product.slug} price table matches ${product.csv}`, () => {
         test.skip(true, `${product.csv} is not committed yet -- export it into tests/fixtures/pricing/`);
         expect(loadPriceTable(product.csv)).not.toBeNull();
+      });
+
+      return;
+    }
+
+    // The servers carry different generations of these tables, and the generations differ in their
+    // rates, not just their ids. Comparing cells outside the CSV's own environment would fail on
+    // every row for a reason that has nothing to do with a pricing regression, so identity is left
+    // to product-table-mapping.spec.ts (which runs everywhere) and the cells are skipped here.
+    if (!product.ratesComparable) {
+      test(`MS-PRC-${product.slug} price table matches ${product.csv}`, () => {
+        test.skip(
+          true,
+          `${product.csv} was exported from ${product.csvSource}, and rates differ per table generation -- cells are only compared there, not on ${activeEnvironmentLabel}`
+        );
+        expect(product.ratesComparable).toBe(true);
       });
 
       return;
@@ -103,5 +123,17 @@ for (const product of pricingProducts) {
         }
       });
     }
+  });
+}
+
+// An environment with no recorded table ids tests nothing here, which should be visible in the
+// report rather than showing up as an empty file.
+for (const slug of unmappedPricingProducts) {
+  test(`MS-PRC-${slug} price table matches its CSV`, { tag: ['@api', '@pricing', '@regression'] }, () => {
+    test.skip(
+      true,
+      `no pricing table id recorded for ${slug} on ${activeEnvironmentLabel} -- add one to pricingIds in tests/fixtures/pricing/pricing-products.ts`
+    );
+    expect(unmappedPricingProducts).not.toContain(slug);
   });
 }
