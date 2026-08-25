@@ -1,26 +1,39 @@
-// Every product under the /kr/stickers category, mapped to its price table CSV.
+// Storefront products mapped to their price table CSV: the twelve under /kr/stickers and the eight
+// under /kr/roll-stickers. The six under /kr/sheet-stickers are deliberately absent -- see the note
+// at the foot of the registry.
 //
-// CSVs live in stickers/ and are named after the product slug, one per product. Note that the
-// server does NOT have a one-table-per-product layout: the 9 products below resolve to only 5
-// distinct pricing tables, and circle / rectangle / square / oval / rounded all share one table.
-// Products on a shared table must therefore hold matching CSVs, which product-table-mapping.spec.ts
-// checks explicitly.
+// CSVs live one folder per storefront category, named after the product slug. The server does NOT
+// have a one-table-per-product layout: the 20 products below resolve to only 11 distinct pricing
+// tables. circle / rectangle / square / oval / rounded share one, and six of the eight roll products
+// share another. Products on a shared table must therefore hold matching CSVs, which
+// product-table-mapping.spec.ts checks explicitly.
 //
 // TABLE IDS ARE PER ENVIRONMENT, AND THE ID NUMBERS COLLIDE ACROSS SERVERS. Probed live on
-// 2026-08-24, three different generations are in play:
+// 2026-08-24 (the sticker tables) and 2026-08-25 (everything else). Three groups vary independently:
 //
-//   environment           ids                    naming                        rates
-//   production            43/44/45/46/47         "... Sticker (8/24/2026)"      match the CSVs
-//   development-1         45/46/47/49/50         "... Pricing (8/21/2026)"      match the CSVs
-//   development-static-2  5/23/25/30/31          "Die Cut", "Clear - ..."       differ
+//   the /kr/stickers sticker tables -- three generations in play
+//     production            43/44/45/46/47   "... Sticker (8/24/2026)"       match the CSVs
+//     development-1         45/46/47/49/50   "... Pricing (8/21/2026)"       match the CSVs
+//     development-static-2  5/23/25/30/31    "Die Cut", "Clear - ..."        differ
+//
+//   the roll and lettering tables -- left out of that regeneration, one generation everywhere
+//     all three servers     8/11/15/16/17    "Roll", "Vinyl Lettering"       match the CSVs
+//
+//   sticker-sheet -- same rates everywhere, but the id moved
+//     production            33               "Sticker Sheet (7/13/2026)"     match the CSV
+//     development-1         34               "Custom Sheet (7/10/2026) v3"   match the CSV
+//     development-static-2  34               "Custom Sheet (7/10/2026) v3"   match the CSV
 //
 // The collision is the reason a single shared id map would be actively wrong rather than merely
 // incomplete: id 45 is kiss-cut on production but die-cut on development-1, and 46/47 are
-// clear/hologram on production but the shapes/kiss-cut tables on development-1.
+// clear/hologram on production but the shapes/kiss-cut tables on development-1. sticker-sheet is the
+// same trap one category over -- id 34 is the no-material table on both development servers, but on
+// production it is the PVC table.
 //
-// `csvSources` lists the environments a CSV is a valid baseline for. production and development-1
-// were promoted from the same price data -- verified cell by cell -- so the same export covers both,
-// while development-static-2 still holds the older rates and is identity-checked only.
+// `csvSources` lists the environments a CSV is a valid baseline for. For the sticker tables that is
+// production and development-1, promoted from the same price data -- verified cell by cell -- while
+// development-static-2 still holds the older rates and is identity-checked only. The roll, lettering
+// and sticker-sheet tables are identical on all three servers, so they list all three.
 //
 // The remaining development-* servers have no recorded ids yet; the pricing specs skip there with an
 // explicit reason rather than guessing. Add an entry to `pricingIds` to switch a server on.
@@ -34,6 +47,8 @@ import { activeEnvironment } from '../env.js';
 import type { EnvironmentName } from '../environments.js';
 
 type PricingProductRegistryEntry = {
+  // The pricing endpoint is keyed on slug alone and does not care which storefront category the
+  // product sits under, so this is all the specs need to quote it.
   slug: string;
   // A pattern, not a literal, so a legitimate re-dating or renaming of the table does not fail every
   // row test. It has to span all three generations' naming, which have drifted a long way apart --
@@ -44,8 +59,9 @@ type PricingProductRegistryEntry = {
   // Per-environment table id. A missing entry means "not recorded for that server".
   pricingIds: Partial<Record<EnvironmentName, number>>;
   normalizedNr: number;
-  // Path relative to this directory. Filenames follow the slug, except where the export was named
-  // without the "-sticker" suffix.
+  // Path relative to this directory, as <category>/<slug>.csv. sticker-sheet is the one product
+  // whose file carries a further suffix, because its price depends on material and the slug alone
+  // does not name a single table -- see its entry below.
   csv: string;
   // Environments this CSV is a valid rate baseline for. Cell-by-cell comparison runs only on these;
   // elsewhere the table is identity-checked and the cells are skipped with the reason given.
@@ -53,7 +69,8 @@ type PricingProductRegistryEntry = {
 };
 
 export type PricingProduct = {
-  // Also the product page path: /kr/stickers/<slug>
+  // Also the product page path, under whichever category the product belongs to:
+  // /kr/stickers/<slug> or /kr/roll-stickers/<slug>.
   slug: string;
   // Resolved for the active environment.
   pricingId: number;
@@ -65,9 +82,20 @@ export type PricingProduct = {
   ratesComparable: boolean;
 };
 
-// production and development-1 were promoted from the same price data, so every product below lists
-// both in csvSources. development-static-2 lags on the older rates.
+// The /kr/stickers sticker tables: production and development-1 were promoted from the same price
+// data, so those two share one export. development-static-2 lags on the older rates.
 const CSV_SOURCES = ['production', 'development-1'] as const satisfies readonly EnvironmentName[];
+
+// The roll, lettering and sticker-sheet tables were left out of the sticker regeneration and are
+// identical on all three servers. Verified on 2026-08-25 two ways: production and development-1
+// return byte-identical exports of every one of these tables, and the stored rows served by all
+// three servers match the committed CSVs cell for cell at the bottom, middle and top of each grid.
+// development-static-2 has no /exportation endpoint (404), which is why it was checked by quotation.
+const CSV_SOURCES_ALL = [
+  'production',
+  'development-1',
+  'development-static-2'
+] as const satisfies readonly EnvironmentName[];
 
 const registry: readonly PricingProductRegistryEntry[] = [
   {
@@ -140,37 +168,127 @@ const registry: readonly PricingProductRegistryEntry[] = [
     pricingName: /^Hologram\b/,
     pricingIds: { production: 47, 'development-1': 50, 'development-static-2': 31 },
     normalizedNr: 100,
-    csv: 'stickers/hologram.csv',
+    csv: 'stickers/hologram-sticker.csv',
     csvSources: CSV_SOURCES
+  },
+  {
+    slug: 'vinyl-lettering',
+    pricingName: /^Vinyl Lettering\b/,
+    pricingIds: { production: 8, 'development-1': 8, 'development-static-2': 8 },
+    normalizedNr: 100,
+    csv: 'stickers/vinyl-lettering.csv',
+    csvSources: CSV_SOURCES_ALL
+  },
+  {
+    slug: 'transfer-sticker',
+    pricingName: /^Transfer\b/,
+    pricingIds: { production: 11, 'development-1': 11, 'development-static-2': 11 },
+    normalizedNr: 100,
+    csv: 'stickers/transfer-sticker.csv',
+    csvSources: CSV_SOURCES_ALL
+  },
+  {
+    // Priced per material: the endpoint resolves a different table for each material_id, and a
+    // fourth -- the one recorded here -- when no material_id is sent at all, which is what the specs
+    // do. On production that default is table 33 and it is byte-identical to the PVC table (34), so
+    // sticker-sheet-pvc.csv is a valid baseline for it and no separate CSV is committed. The other
+    // two materials (transparent, hologram) have their CSVs committed but no entry here, because
+    // one registry row cannot express "same slug, different material".
+    //
+    // "Sticker Sheet (7/13/2026)" on production, "Custom Sheet (7/10/2026) v3" on both development
+    // servers, hence the two-branch name pattern.
+    slug: 'sticker-sheet',
+    pricingName: /^(?:Sticker|Custom) Sheet\b/,
+    pricingIds: { production: 33, 'development-1': 34, 'development-static-2': 34 },
+    normalizedNr: 10,
+    csv: 'stickers/sticker-sheet-pvc.csv',
+    csvSources: CSV_SOURCES_ALL
+  },
+  // /kr/roll-stickers. Six of the eight share table 15; only clear-roll and paper-roll have their
+  // own. The ids are the same on all three servers.
+  {
+    slug: 'die-cut-roll',
+    pricingName: /^Roll\b/,
+    pricingIds: { production: 15, 'development-1': 15, 'development-static-2': 15 },
+    normalizedNr: 100,
+    csv: 'roll-stickers/die-cut-roll.csv',
+    csvSources: CSV_SOURCES_ALL
+  },
+  {
+    slug: 'circle-roll',
+    pricingName: /^Roll\b/,
+    pricingIds: { production: 15, 'development-1': 15, 'development-static-2': 15 },
+    normalizedNr: 100,
+    csv: 'roll-stickers/circle-roll.csv',
+    csvSources: CSV_SOURCES_ALL
+  },
+  {
+    slug: 'square-roll',
+    pricingName: /^Roll\b/,
+    pricingIds: { production: 15, 'development-1': 15, 'development-static-2': 15 },
+    normalizedNr: 100,
+    csv: 'roll-stickers/square-roll.csv',
+    csvSources: CSV_SOURCES_ALL
+  },
+  {
+    slug: 'rectangle-roll',
+    pricingName: /^Roll\b/,
+    pricingIds: { production: 15, 'development-1': 15, 'development-static-2': 15 },
+    normalizedNr: 100,
+    csv: 'roll-stickers/rectangle-roll.csv',
+    csvSources: CSV_SOURCES_ALL
+  },
+  {
+    slug: 'rounded-roll',
+    pricingName: /^Roll\b/,
+    pricingIds: { production: 15, 'development-1': 15, 'development-static-2': 15 },
+    normalizedNr: 100,
+    csv: 'roll-stickers/rounded-roll.csv',
+    csvSources: CSV_SOURCES_ALL
+  },
+  {
+    slug: 'oval-roll',
+    pricingName: /^Roll\b/,
+    pricingIds: { production: 15, 'development-1': 15, 'development-static-2': 15 },
+    normalizedNr: 100,
+    csv: 'roll-stickers/oval-roll.csv',
+    csvSources: CSV_SOURCES_ALL
+  },
+  {
+    slug: 'clear-roll',
+    pricingName: /^Clear Roll\b/,
+    pricingIds: { production: 16, 'development-1': 16, 'development-static-2': 16 },
+    normalizedNr: 100,
+    csv: 'roll-stickers/clear-roll.csv',
+    csvSources: CSV_SOURCES_ALL
+  },
+  {
+    slug: 'paper-roll',
+    pricingName: /^Paper Roll\b/,
+    pricingIds: { production: 17, 'development-1': 17, 'development-static-2': 17 },
+    normalizedNr: 100,
+    csv: 'roll-stickers/paper-roll.csv',
+    csvSources: CSV_SOURCES_ALL
   }
-  // Parked until their CSVs are exported into stickers/ -- the specs would otherwise contribute
-  // nothing but skips. Probed on 2026-08-24: the lettering products were left out of the sticker
-  // regeneration and answer on the same ids everywhere, but sticker-sheet does differ (33 on
-  // production, 34 on development-1), so do not collapse these to a single id when enabling them.
-  // {
-  //   slug: 'vinyl-lettering',
-  //   pricingName: /^Vinyl Lettering\b/,
-  //   pricingIds: { production: 8, 'development-1': 8, 'development-static-2': 8 },
-  //   normalizedNr: 100,
-  //   csv: 'stickers/vinyl-lettering.csv',
-  //   csvSources: ['production']
-  // },
-  // {
-  //   slug: 'transfer-sticker',
-  //   pricingName: /^Transfer\b/,
-  //   pricingIds: { production: 11, 'development-1': 11, 'development-static-2': 11 },
-  //   normalizedNr: 100,
-  //   csv: 'stickers/transfer-sticker.csv',
-  //   csvSources: ['production']
-  // },
-  // {
-  //   slug: 'sticker-sheet',
-  //   pricingName: /^Custom Sheet\b/,
-  //   pricingIds: { production: 33, 'development-1': 34 },
-  //   normalizedNr: 10,
-  //   csv: 'stickers/sticker-sheet.csv',
-  //   csvSources: ['production']
-  // }
+  // The six /kr/sheet-stickers products are NOT registered, even though their CSVs are committed in
+  // sheet-stickers/. They are priced by a different mechanism that these three specs cannot express,
+  // so adding them would produce failures that are not pricing regressions. Probed 2026-08-25:
+  //
+  //   - circle/oval/square/rectangle/rounded-sheet (tables 40/41/42 by material) answer with a
+  //     SHEET-keyed ladder: data.prices carries one entry per sheet count (5, 10, 20, 50, ...) whose
+  //     `nr` is stickers-per-sheet x sheets, so a request for quantity=100 comes back with entries
+  //     at nr 120, 240, 480 ... and never at 100. quotedPrice() looks up prices by the requested
+  //     quantity and would throw on every row.
+  //   - Their tables are also banded rather than full grids: the export pads unavailable
+  //     (area, quantity) combinations with 0, and the API omits those rungs from the stored row
+  //     entirely, so a straight CSV-to-row comparison sees the zero cells as missing.
+  //   - die-cut-sheet (tables 37/38/39) answers `success: false "Unable show of pricing."` to a
+  //     plain width/height/quantity probe at all -- it is the A5-template flow and needs the
+  //     sheet-template parameters the configurator sends.
+  //
+  // Wiring these up needs sheet-aware helpers in pricing-api.ts and a quantity model that
+  // understands the sheet ladder; the CSVs are committed now so that work has a baseline to
+  // start from.
 ];
 
 function resolve(entry: PricingProductRegistryEntry): PricingProduct | undefined {

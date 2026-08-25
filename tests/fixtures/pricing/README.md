@@ -4,20 +4,41 @@ Each CSV is the admin-entered price table for one product, committed so the suit
 the pricing API serves exactly what was typed in. The git history of these files is the audit trail
 for every price change.
 
-`stickers/` holds the products under `/kr/stickers`, one CSV per product slug.
+One folder per storefront category, one CSV per product slug:
+
+| folder | storefront category | CSVs |
+|---|---|---|
+| `stickers/` | `/kr/stickers` | 14 |
+| `roll-stickers/` | `/kr/roll-stickers` | 8 |
+| `sheet-stickers/` | `/kr/sheet-stickers` | 18 |
+
+Where price depends on material -- the six sheet products and `sticker-sheet` -- the slug alone does
+not identify a table, because the server resolves a different one per `material_id`. Those hold one
+CSV per material, suffixed `-pvc` (1), `-transparent` (2) or `-hologram` (3).
 
 ## Adding a table
 
 1. Export the table as an `area_factor` CSV: first column is the stored `base_area` in mm², one
-   further column per quantity rung. Quoted thousands separators (`"1,000"`) are fine.
-2. Save it under `stickers/<slug>.csv` and point the product's `csv` field at it in
+   further column per quantity rung. Quoted thousands separators (`"1,000"`) are fine -- the export
+   endpoint emits them unquoted, and [price-table.ts](./price-table.ts) accepts either.
+
+   ```bash
+   curl -s "https://api.musticker.com/index.php/sys/kr/pricing/43/exportation"
+   ```
+
+   The id is the `meta.pricing_id` the quotation endpoint reports for that product (see *Probing by
+   hand* below), so resolve the id on the environment you are exporting from -- the ids collide
+   across servers.
+2. Save it under `<category>/<slug>.csv` and point the product's `csv` field at it in
    [pricing-products.ts](./pricing-products.ts), and list the environments it is a valid baseline for
    in `csvSources`. Nothing else needs editing; the specs generate one test per row automatically.
 3. Run it: `npm run test:pricing:dev1` (or `test:pricing:static2`, `test:pricing:prod`).
 
 Until a CSV is committed its product's tests report as skipped rather than failing, so products can
-be rolled out one export at a time. Still missing: `sticker-sheet`, `vinyl-lettering`,
-`transfer-sticker`.
+be rolled out one export at a time. Every storefront product now has a CSV, but only the nine
+`/kr/stickers` products in `pricing-products.ts` are wired up; the `roll-stickers/` and
+`sheet-stickers/` exports are committed as a baseline and nothing reads them until registry entries
+are added for them.
 
 ## Table ids and rates are per environment
 
@@ -73,6 +94,38 @@ A CSV only needs the rows its table actually has. `die-cut-sticker` starts at ar
 found!`. Conversely a CSV that stops short of its table's top row leaves those rows unverified —
 `kiss-cut-sticker.csv` ends at 90,000 while the kiss-cut table continues past 545,382.
 
+### Production ids for the categories not yet in the registry
+
+The `roll-stickers/` and `sheet-stickers/` CSVs, and the four `/kr/stickers` products still commented
+out of `pricing-products.ts`, were exported from **production** on 2026-08-25. Their ids are recorded
+here until registry entries exist:
+
+| products | pricing_id | table name |
+|---|---|---|
+| `vinyl-lettering` | 8 | `Vinyl Lettering` |
+| `transfer-sticker` | 11 | `Transfer` |
+| `sticker-sheet` | 33 / 34 / 35 / 36 | `Sticker Sheet (7/13/2026)`, then `... PVC(Matte) / Transparent / Hologram 07/22/2026` |
+| `die-cut-roll`, `circle-roll`, `square-roll`, `rectangle-roll`, `rounded-roll`, `oval-roll` | 15 | `Roll` |
+| `clear-roll` | 16 | `Clear Roll` |
+| `paper-roll` | 17 | `Paper Roll` |
+| `die-cut-sheet` | 39 / 38 / 37 | `Die Cut Sheet PVC(Matte) / Transparent / Hologram 07/22/2026` |
+| `circle-sheet`, `oval-sheet`, `square-sheet`, `rectangle-sheet`, `rounded-sheet` | 40 / 41 / 42 | `Simple Sheet - PVC / Transparent / Hologram (08/17/2026)` |
+
+Material-keyed rows list ids in `pvc / transparent / hologram` order (`material_id` 1 / 2 / 3). Note
+that die-cut-sheet's run **backwards** against that order, so they cannot be assigned by arithmetic.
+
+`sticker-sheet` carries a fourth table, id 33, which is what the endpoint serves when no
+`material_id` is sent at all. It is byte-identical to the PVC table (34), so
+`sticker-sheet-pvc.csv` is a valid baseline for both and no separate CSV is committed for it. This
+also corrects the note in [pricing-products.ts](./pricing-products.ts), which records `sticker-sheet`
+as a single id 33: the product resolves four tables, and enabling it needs the material split.
+
+Two more things to know before wiring these up. The six roll products share one table and the five
+simple-sheet shapes share one per material, so those CSVs are duplicates by design, the same way the
+five shape stickers already are. And the simple-sheet tables use a 21-rung quantity ladder that
+starts at 1 and tops out at 117,000 -- every other table here uses the 14-rung ladder from 10, or the
+8-rung lettering ladder.
+
 ## One table, several products
 
 The server does not price one table per product: five shape products (`circle`, `rectangle`,
@@ -103,6 +156,41 @@ easy to get backwards and is verified against live `debug=1` traces:
 |---|---|
 | area, between two grid rows | the **unrounded** bound totals, rounding once at the end |
 | quantity, between two rungs | the **already rounded** rung totals |
+
+## A known API defect: interpolating across a falling price
+
+The API interpolates area from the *magnitude* of the gap between the two bound totals rather than
+its sign, so wherever a table's line total falls as area grows, the quote runs the wrong way and
+lands outside the bracket it was interpolating within. Confirmed live on production, 2026-08-25:
+
+| product | area | qty | lower bound | upper bound | API quoted | correct |
+|---|---|---|---|---|---|---|
+| `transfer-sticker` | 432313 (409x1057) | 50 | 2,061,700 | 2,010,500 | **2,087,300** | 2,036,100 |
+| `vinyl-lettering` | 61000 (200x305) | 100 | 614,300 | 612,700 | **614,900** | 613,700 |
+
+In both cases the quote exceeds *both* bounds, which no linear interpolation between them can
+produce. The `debug=1` trace shows the mechanism directly -- `bound_price_diff` comes back positive
+(51199.977 for the transfer case, i.e. lower minus upper), and `diff` is then added to the lower
+bound instead of subtracted.
+
+It is rare because it needs a table whose total price is non-monotonic in area, which takes a rate
+cliff steep enough to outrun the area increase. Across the 22 tables wired into
+[pricing-products.ts](./pricing-products.ts) there are exactly two such intervals, each a single
+cell:
+
+- `transfer-sticker` at qty 50, where the rate drops 0.09611095 -> 0.09230946 (-4.0%) between areas
+  429025 and 435600 while the area rises only 1.5%
+- `vinyl-lettering` at qty 100, the equivalent cliff between areas 60025 and 62500
+
+`price-interpolation.spec.ts` computes the interpolation correctly and so disagrees with the API on
+the transfer-sticker interval. Rather than skip that test, it is marked `test.fail()` through
+`KNOWN_FALLING_PRICE_INTERVALS` at the top of that spec: the assertion still runs, CI stays green
+while the defect is open, and if the backend ever starts interpolating signed the test turns **red**
+to say the annotation should now be deleted. Both intervals are listed there, though only the
+transfer-sticker one is currently reached by the spec's `sampleIndices` walk.
+
+Emptying that list without a backend fix would hide a live overcharge, so treat it as a tracked bug
+rather than as test debt.
 
 ## Probing by hand
 

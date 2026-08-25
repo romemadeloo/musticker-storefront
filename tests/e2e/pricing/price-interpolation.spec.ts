@@ -34,6 +34,30 @@ import {
 
 test.describe.configure({ mode: 'parallel' });
 
+// The API interpolates area from the MAGNITUDE of the gap between the two bound totals instead of its
+// sign, so wherever a table's line total falls as area grows it overshoots and answers with a price
+// above BOTH bounds -- which no linear interpolation between them can produce. Confirmed live on
+// production 2026-08-25 and written up in tests/fixtures/pricing/README.md: transfer-sticker at area
+// 432313 qty 50 is quoted 2,087,300 where 2,036,100 is correct, a 51,200 KRW overcharge.
+//
+// These are the only two descending intervals across all 22 committed tables, so they are listed
+// explicitly rather than derived from the CSV: a new one appearing should surface as a fresh failure
+// to triage, not be swallowed by a rule. They are marked test.fail() rather than skipped so the
+// assertion still runs -- if the backend starts interpolating signed, these turn red and this whole
+// list should be deleted.
+const KNOWN_FALLING_PRICE_INTERVALS: readonly { slug: string; lower: number; upper: number }[] = [
+  { slug: 'transfer-sticker', lower: 429025, upper: 435600 },
+  // Not currently reached by the sampleIndices walk below, listed so it is handled rather than
+  // suddenly red if that sampling shifts.
+  { slug: 'vinyl-lettering', lower: 60025, upper: 62500 }
+];
+
+function interpolatesAcrossFallingPrice(slug: string, lower: number, upper: number): boolean {
+  return KNOWN_FALLING_PRICE_INTERVALS.some(
+    (known) => known.slug === slug && known.lower === lower && known.upper === upper
+  );
+}
+
 for (const product of pricingProducts) {
   test.describe(`pricing interpolation ${product.slug}`, { tag: ['@api', '@pricing', '@regression'] }, () => {
     const table = loadPriceTable(product.csv);
@@ -79,6 +103,11 @@ for (const product of pricingProducts) {
       test(`MS-PRC-INT-${product.slug} area ${area} (${width}x${height}) interpolates between ${lower} and ${upper}`, async ({
         request
       }) => {
+        test.fail(
+          interpolatesAcrossFallingPrice(product.slug, lower, upper),
+          `${product.slug} interpolates across a falling total between areas ${lower} and ${upper}, where the API overshoots both bounds -- known defect, see tests/fixtures/pricing/README.md`
+        );
+
         const body = await fetchQuotation(request, product.slug, {
           width,
           height,
