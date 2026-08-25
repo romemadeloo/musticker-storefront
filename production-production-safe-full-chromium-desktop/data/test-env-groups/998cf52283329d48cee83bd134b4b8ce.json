@@ -1,1 +1,1 @@
-{"id":"998cf52283329d48cee83bd134b4b8ce","fullName":"smoke/storefront-smoke.spec.ts:16:3","name":"MS-V2-002 header navigation opens product categories","status":"failed","testResultsByEnv":{"default":"d69a0669835c794a8d78ff688fd17850"}}
+{"id":"998cf52283329d48cee83bd134b4b8ce","fullName":"smoke/storefront-smoke.spec.ts:16:3","name":"MS-V2-002 header navigation opens product categories","status":"passed","testResultsByEnv":{"default":"05bebadb4cc112b53b51486847c88d0e"}}
