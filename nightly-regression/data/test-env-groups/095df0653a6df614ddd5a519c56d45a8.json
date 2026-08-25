@@ -1,1 +1,1 @@
-{"id":"095df0653a6df614ddd5a519c56d45a8","fullName":"pricing/price-interpolation.spec.ts:162:7","name":"MS-PRC-INT-rectangle-sticker area 100 prices the same as 10x10 and 5x20","status":"passed","testResultsByEnv":{"default":"8751c446c5c12f404ff58021f6e7935b"}}
+{"id":"095df0653a6df614ddd5a519c56d45a8","fullName":"pricing/price-interpolation.spec.ts:191:7","name":"MS-PRC-INT-rectangle-sticker area 100 prices the same as 10x10 and 5x20","status":"passed","testResultsByEnv":{"default":"35d9747bea5017611b910e61cd2eae61"}}
