@@ -16,6 +16,7 @@ type GuardOptions = {
   allowTransientApiCorsFailures: boolean;
   allowTransientProductPageFailures: boolean;
   allowGuestCheckoutBootstrap401: boolean;
+  allowExpectedNotFound: boolean;
 };
 
 function isExpectedGuestUserMe401(status: number, url: string): boolean {
@@ -78,6 +79,24 @@ function isTransientApiFetchFailure(text: string): boolean {
   ).test(text);
 }
 
+// Only for tests that deliberately navigate to a route the storefront is expected to reject: the
+// branded 404 page answers with a real 404 status, and the browser logs that document failure to
+// the console as well, so the response and its console message are cleared together as one pair.
+function isExpectedStorefrontNotFound(status: number, url: string): boolean {
+  return status === 404 && new RegExp(`^https://${DEV_STOREFRONT_HOST}/`, 'i').test(url);
+}
+
+// Hydrating the 404 page re-runs the failed route resolution client-side, so Nuxt logs the same
+// not-found error again during app initialization. The class name is minified and changes per
+// build, so match on the surrounding message instead.
+function isNuxtPageNotFoundError(text: string): boolean {
+  return /\[nuxt\] error caught during app initialization[\s\S]*Page not found/i.test(text);
+}
+
+function isNotFoundResourceConsoleError(text: string): boolean {
+  return text === 'Failed to load resource: the server responded with a status of 404 ()';
+}
+
 function isTransientProductPageServerFailure(status: number, url: string): boolean {
   return (
     [502, 503].includes(status) &&
@@ -97,6 +116,10 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
   }
 
   if (options.allowGuestCheckoutBootstrap401 && isGuestCheckoutBootstrapUnauthorizedWarning(text)) {
+    return true;
+  }
+
+  if (options.allowExpectedNotFound && isNuxtPageNotFoundError(text)) {
     return true;
   }
 
@@ -133,6 +156,7 @@ export const test = base.extend<GuardOptions>({
   allowTransientApiCorsFailures: [false, { option: true }],
   allowTransientProductPageFailures: [false, { option: true }],
   allowGuestCheckoutBootstrap401: [false, { option: true }],
+  allowExpectedNotFound: [false, { option: true }],
 
   page: async (
     {
@@ -144,7 +168,8 @@ export const test = base.extend<GuardOptions>({
       allowTransientCartCreateFailures,
       allowTransientApiCorsFailures,
       allowTransientProductPageFailures,
-      allowGuestCheckoutBootstrap401
+      allowGuestCheckoutBootstrap401,
+      allowExpectedNotFound
     },
     use
   ) => {
@@ -156,7 +181,8 @@ export const test = base.extend<GuardOptions>({
       allowTransientCartCreateFailures,
       allowTransientApiCorsFailures,
       allowTransientProductPageFailures,
-      allowGuestCheckoutBootstrap401
+      allowGuestCheckoutBootstrap401,
+      allowExpectedNotFound
     };
     const consoleFailures: string[] = [];
     const responseFailures: string[] = [];
@@ -164,6 +190,7 @@ export const test = base.extend<GuardOptions>({
     let pendingCartCreateNetworkFailures = 0;
     let pendingTransientApiNetworkFailures = 0;
     let pendingTransientProductPageFailures = 0;
+    let pendingExpectedNotFoundResponses = 0;
 
     page.on('console', (message) => {
       if (!['error', 'warning'].includes(message.type())) {
@@ -177,6 +204,11 @@ export const test = base.extend<GuardOptions>({
         /Failed to load resource: the server responded with a status of 50[23]/i.test(text)
       ) {
         pendingTransientProductPageFailures = Math.max(0, pendingTransientProductPageFailures - 1);
+        return;
+      }
+
+      if (allowExpectedNotFound && pendingExpectedNotFoundResponses > 0 && isNotFoundResourceConsoleError(text)) {
+        pendingExpectedNotFoundResponses = Math.max(0, pendingExpectedNotFoundResponses - 1);
         return;
       }
 
@@ -254,6 +286,11 @@ export const test = base.extend<GuardOptions>({
 
       if (allowTransientProductPageFailures && isTransientProductPageServerFailure(status, url)) {
         pendingTransientProductPageFailures += 1;
+        return;
+      }
+
+      if (allowExpectedNotFound && isExpectedStorefrontNotFound(status, url)) {
+        pendingExpectedNotFoundResponses += 1;
         return;
       }
 

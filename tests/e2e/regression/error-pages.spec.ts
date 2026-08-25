@@ -2,16 +2,35 @@ import { test, expect } from '../../fixtures/e2e-test.js';
 import { appPath } from '../../fixtures/env.js';
 import { ko } from '../../fixtures/storefront-data.js';
 
+const unknownRoute = 'this-page-does-not-exist-e2e-check';
+
 test.describe('storefront v2 error handling', { tag: ['@regression', '@production'] }, () => {
-  test.use({ allowGuestUserMe401: true, allowKnownNuxtPayloadFailures: true });
+  test.use({
+    allowGuestUserMe401: true,
+    allowKnownNuxtPayloadFailures: true,
+    allowExpectedNotFound: true
+  });
 
-  // Production observation on 2026-08-11: there is no dedicated 404 page. Unknown routes under
-  // /kr redirect to the homepage with a 200 status instead of rendering a not-found page. This
-  // asserts that verified behavior (safe redirect, no broken/error page) rather than a 404 page.
-  test('MS-V2-043 unknown route redirects safely instead of showing a broken page', async ({ page }) => {
-    const response = await page.goto(appPath('./this-page-does-not-exist-e2e-check'));
+  // Production behavior changed after the 2026-08-11 observation: unknown routes under /kr used to
+  // redirect silently to the homepage with a 200. They now return a real 404 and render a dedicated
+  // not-found page, so this asserts that page and its way back home rather than a redirect.
+  test('MS-V2-043 unknown route serves the 404 page with a working way back home', async ({ page }) => {
+    const response = await page.goto(appPath(`./${unknownRoute}`));
 
-    expect(response?.ok(), 'unknown route should not return a server error status').toBe(true);
-    await expect(page.getByRole('heading', { name: ko.homeHero })).toBeVisible();
+    expect(response?.status(), 'unknown route should return a not-found status').toBe(404);
+    await expect(page.getByRole('heading', { name: ko.notFoundHeading })).toBeVisible();
+
+    const backHome = page.getByRole('button', { name: ko.backToHome });
+    const homeHeading = page.getByRole('heading', { name: ko.homeHero });
+
+    // The button routes client-side, but the 404 page is server-rendered and only hydrates a second
+    // or so later, so a click that lands first is swallowed. Retry until the navigation takes.
+    await expect(async () => {
+      if (page.url().includes(unknownRoute)) {
+        await backHome.click();
+      }
+
+      await expect(homeHeading).toBeVisible({ timeout: 5000 });
+    }).toPass({ timeout: 30000 });
   });
 });
