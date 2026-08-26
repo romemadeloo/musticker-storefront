@@ -67,18 +67,28 @@ export class ProductV2Page {
   async selectCustomIndividualSize(widthMm: number, heightMm: number): Promise<void> {
     const widthInput = this.optionsPanel.getByPlaceholder('가로');
 
-    await this.optionsPanel.getByRole('button', { name: ko.customSize }).first().click();
-    const appeared = await widthInput
-      .waitFor({ state: 'visible', timeout: 5_000 })
-      .then(() => true)
-      .catch(() => false);
+    // Clicking the custom-size pill before Vue has hydrated silently does nothing (and a blind
+    // retry can toggle a row that mounted late straight back off). A priced quantity tier is the
+    // signal that the page's own bootstrap pricing round-trip has rendered -- it lands seconds
+    // after the options panel first becomes visible -- so gate on that, then re-check visibility
+    // before every click rather than clicking blind.
+    await this.optionsPanel
+      .locator('.qty-pill-price')
+      .filter({ hasNotText: /^0원$/ })
+      .first()
+      .waitFor({ state: 'visible', timeout: 20_000 })
+      .catch(() => undefined);
 
-    if (!appeared) {
-      // Occasionally the custom-size row does not mount on the first click on development
-      // environments (observed alongside a Vue hydration-mismatch warning); one retry clears it.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (await widthInput.isVisible().catch(() => false)) {
+        break;
+      }
+
       await this.optionsPanel.getByRole('button', { name: ko.customSize }).first().click();
-      await widthInput.waitFor({ state: 'visible', timeout: 10_000 });
+      await widthInput.waitFor({ state: 'visible', timeout: 4_000 }).catch(() => undefined);
     }
+
+    await expect(widthInput, 'custom individual size inputs never mounted').toBeVisible();
 
     await widthInput.fill(String(widthMm));
     await this.optionsPanel.getByPlaceholder('세로').fill(String(heightMm));
@@ -144,6 +154,111 @@ export class ProductV2Page {
     );
   }
 
+  // --- individual-sticker sheet size rules (see sheet-sticker-size-rules.spec.ts) ---
+
+  // `1시트 = 스티커 N개`. Polled rather than read once: both count readouts repaint asynchronously
+  // when the pricing round-trip lands, so an immediate read catches the previous size's numbers or
+  // an empty node mid-render. Asserts the rendered readout rather than recomputing the packing --
+  // the point is that what the shopper is shown matches what the pricing engine actually packs.
+  async expectStickersPerSheet(expected: number): Promise<void> {
+    await expect
+      .poll(() => this.readCount(/1시트 = 스티커 ([\d,]+)개/), {
+        timeout: 15_000,
+        message: `Expected the sheet to report ${expected} stickers per sheet`
+      })
+      .toBe(expected);
+  }
+
+  async expectStickersPerSheetAtLeast(minimum: number, description: string): Promise<void> {
+    await expect
+      .poll(() => this.readCount(/1시트 = 스티커 ([\d,]+)개/), {
+        timeout: 15_000,
+        message: `${description} must fit at least ${minimum} stickers per sheet`
+      })
+      .toBeGreaterThanOrEqual(minimum);
+  }
+
+  // `총 스티커 수량 : N개`
+  async expectTotalStickers(expected: number): Promise<void> {
+    await expect
+      .poll(() => this.readCount(/총 스티커 수량\s*:\s*([\d,]+)개/), {
+        timeout: 15_000,
+        message: `Expected a total of ${expected} stickers`
+      })
+      .toBe(expected);
+  }
+
+  async expectSizePresets(presets: ReadonlyArray<{ label: string; dimensions: string }>): Promise<void> {
+    const grid = this.sizeGrid();
+    await expect(grid).toBeVisible();
+
+    for (const [index, preset] of presets.entries()) {
+      const pill = grid.locator('.option-pill').nth(index);
+      await expect(pill.locator('.size-pill-name'), `size preset ${index} label`).toHaveText(preset.label);
+      await expect(pill.locator('.size-pill-dim'), `size preset ${index} dimensions`).toHaveText(preset.dimensions);
+    }
+
+    // The custom-size pill trails the presets, so the count is presets + 1.
+    await expect(grid.locator('.option-pill')).toHaveCount(presets.length + 1);
+  }
+
+  async selectSizePreset(label: string): Promise<void> {
+    await this.sizeGrid().locator('.option-pill').filter({ hasText: label }).first().click();
+  }
+
+  async expectMinimumTwoPerSheetError(): Promise<void> {
+    await expect(this.optionsPanel.getByText(ko.minimumTwoPerSheetError)).toBeVisible();
+  }
+
+  async expectNoMinimumTwoPerSheetError(): Promise<void> {
+    await expect(this.optionsPanel.getByText(ko.minimumTwoPerSheetError)).toHaveCount(0);
+  }
+
+  // A rejected size shows only the minimum-two-per-sheet message -- an oversized entry does not get
+  // a separate "가로 138mm × 세로 200mm 이내로 작업해 주세요." line. Confirmed intended on
+  // development-1 (2026-08-26), so this asserts the absence rather than treating it as a gap.
+  async expectNoMaxWorkAreaMessage(): Promise<void> {
+    await expect(this.optionsPanel.getByText(/가로 \d+mm × 세로 \d+mm 이내로 작업해 주세요\./)).toHaveCount(0);
+  }
+
+  // Every sheet-quantity tier zeroes out while the chosen size is rejected, not just the selected
+  // one, so a shopper cannot switch tiers to find a priced combination.
+  async expectAllQuantityTiersZeroPriced(): Promise<void> {
+    const prices = this.quantityGrid().locator('.qty-pill-price');
+    const count = await prices.count();
+    expect(count, 'Expected sheet-quantity tiers to be present').toBeGreaterThan(0);
+
+    for (let index = 0; index < count; index += 1) {
+      await expect(prices.nth(index), `quantity tier ${index} price`).toHaveText('0원');
+    }
+  }
+
+  async expectNextStepDisabled(): Promise<void> {
+    await expect(this.nextStepButton()).toBeDisabled();
+  }
+
+  async openSizeGuide(): Promise<Locator> {
+    await this.optionsPanel.getByText(ko.sizeGuideOpen).first().click();
+    const dialog = this.page.getByRole('dialog').first();
+    await expect(dialog).toBeVisible();
+
+    return dialog;
+  }
+
+  // The size-guide modal's inputs are `#sheet-width`/`#sheet-height` and carry no `type` attribute,
+  // so an `input[type=...]` selector finds nothing here.
+  async enterSizeGuideCustomSize(dialog: Locator, widthMm: number, heightMm: number): Promise<void> {
+    await dialog.getByText(ko.sizeGuideCustomSize).first().click({ force: true });
+
+    const width = dialog.locator('#sheet-width');
+    await expect(width).toBeVisible();
+    await width.fill(String(widthMm));
+
+    const height = dialog.locator('#sheet-height');
+    await height.fill(String(heightMm));
+    await height.blur();
+  }
+
   async expectNextStepEnabled(): Promise<void> {
     await expect(this.nextStepButton()).toBeEnabled();
   }
@@ -198,6 +313,22 @@ export class ProductV2Page {
   async expectSheetTemplateControls(): Promise<void> {
     await expect(this.page.locator('body')).toContainText(/\uc2dc\ud2b8 \uc2a4\ud2f0\ucee4 \ud15c\ud50c\ub9bf \ub2e4\uc6b4\ub85c\ub4dc/);
     await expect(this.page.locator('body')).toContainText(/\ubc30\uce58 \uac00\uc774\ub4dc \ubcf4\uae30/);
+  }
+
+  private sizeGrid(): Locator {
+    return this.optionsPanel.locator('.option-grid.option-grid-size').first();
+  }
+
+  // The size grid and the quantity grid are both `.option-grid`; only the size grid carries the
+  // `option-grid-size` modifier, so the quantity grid is the one without it.
+  private quantityGrid(): Locator {
+    return this.optionsPanel.locator('.option-grid:not(.option-grid-size)').last();
+  }
+
+  private async readCount(pattern: RegExp): Promise<number | undefined> {
+    const match = (await this.optionsPanel.innerText()).match(pattern);
+
+    return match?.[1] ? Number(match[1].replace(/,/g, '')) : undefined;
   }
 
   private nextStepButton(): Locator {

@@ -17,6 +17,7 @@ type GuardOptions = {
   allowTransientProductPageFailures: boolean;
   allowGuestCheckoutBootstrap401: boolean;
   allowExpectedNotFound: boolean;
+  allowSheetSizeValidationWarnings: boolean;
 };
 
 function isExpectedGuestUserMe401(status: number, url: string): boolean {
@@ -134,6 +135,13 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
     return true;
   }
 
+  // The storefront logs `Size error: <the shopper-facing message>` whenever the minimum-two-per-
+  // sheet rule rejects an individual size. Tests that exercise that rule opt in; everywhere else an
+  // unexpected size rejection should still fail the run.
+  if (options.allowSheetSizeValidationWarnings && /^Size error:/.test(text)) {
+    return true;
+  }
+
   if (
     options.allowKnownNuxtPayloadFailures &&
     (/Cannot load payload\s+\/kr\/.*_payload\.json/i.test(text) ||
@@ -157,6 +165,7 @@ export const test = base.extend<GuardOptions>({
   allowTransientProductPageFailures: [false, { option: true }],
   allowGuestCheckoutBootstrap401: [false, { option: true }],
   allowExpectedNotFound: [false, { option: true }],
+  allowSheetSizeValidationWarnings: [false, { option: true }],
 
   page: async (
     {
@@ -169,7 +178,8 @@ export const test = base.extend<GuardOptions>({
       allowTransientApiCorsFailures,
       allowTransientProductPageFailures,
       allowGuestCheckoutBootstrap401,
-      allowExpectedNotFound
+      allowExpectedNotFound,
+      allowSheetSizeValidationWarnings
     },
     use
   ) => {
@@ -182,7 +192,8 @@ export const test = base.extend<GuardOptions>({
       allowTransientApiCorsFailures,
       allowTransientProductPageFailures,
       allowGuestCheckoutBootstrap401,
-      allowExpectedNotFound
+      allowExpectedNotFound,
+      allowSheetSizeValidationWarnings
     };
     const consoleFailures: string[] = [];
     const responseFailures: string[] = [];

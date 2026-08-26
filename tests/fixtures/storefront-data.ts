@@ -17,6 +17,16 @@ export const ko = {
   cart: '\uc7a5\ubc14\uad6c\ub2c8',
   nextStep: '\ub2e4\uc74c \ub2e8\uacc4',
   customSize: '\uc6d0\ud558\ub294 \ud06c\uae30 \uc785\ub825',
+  // The cart edit dialogs label the same custom-size choice differently to the product page's
+  // 원하는 크기 입력 pill -- there it is a 맞춤 사이즈 option inside a ui-select listbox.
+  cartCustomSize: '맞춤 사이즈',
+  cartUpdate: '업데이트',
+  sizeGuideOpen: '배치 가이드 보기',
+  sizeGuideCustomSize: '직접 입력',
+  sizeGuideApply: '적용하기',
+  minimumTwoPerSheetError:
+    '더 작은 사이즈를 입력해 주세요. 한 시트에 최소 2개의 스티커가 들어가야 합니다.',
+  minimumSizeError: '가로 또는 세로 크기는 최소 10×10mm 이상이어야 합니다.',
   customQuantity: '\uc6d0\ud558\ub294 \uc218\ub7c9 \uc785\ub825',
   medium75: '\uc911\ud615 75x75',
   transparent: '\ud22c\uba85',
@@ -228,25 +238,80 @@ export const transferStickerProduct = {
 // Per-shape individual-sticker sheet configurators (material + individual size + sheet quantity,
 // distinct from the die-cut sheet's A5-template flow above). categoryLinks.sheetStickers[0] is the
 // freeform/die-cut variant already covered by v2Products.dieCutSheet, so it is skipped here.
+//
+// The preset tables below were re-cut on development-1 (verified 2026-08-26) so every preset packs
+// at least two stickers onto an A5 sheet; the five products now share exactly two tables, one per
+// shape family. Production still carries the older, wider tables (circle 40x40..100x100, square/
+// rounded 30x30..125x125, oval/rectangle 50x25..125x100), seven of whose presets pack only one
+// sticker per sheet and are still orderable there -- that is the defect this change closes.
+const roundShapeSizePresets = [
+  { label: '소형', dimensions: '30x30' },
+  { label: '중형', dimensions: '50x50' },
+  { label: '대형', dimensions: '75x75' },
+  { label: '초대형', dimensions: '90x90' }
+] as const;
+
+const oblongShapeSizePresets = [
+  { label: '소형', dimensions: '40x20' },
+  { label: '중형', dimensions: '50x30' },
+  { label: '대형', dimensions: '75x50' },
+  { label: '초대형', dimensions: '90x60' }
+] as const;
+
+// A custom size that packs exactly one sticker per sheet on all five products, so it trips the
+// minimum-two-per-sheet rule everywhere. 144x206 and larger packs zero and trips the same rule --
+// there is deliberately no separate max-work-area message, see MS-V2-073.
+export const blockedCustomSize = { widthMm: 123, heightMm: 123 } as const;
+
+// The product page opens on the 소형 preset at the 5시트 tier, and a rejected size intentionally
+// leaves both count readouts showing that default rather than the entered size's counts.
+const defaultSheetQuantity = 5;
+
 export const sheetStickerConfiguratorProducts = [
   {
     path: './sheet-stickers/circle-sheet',
-    heading: categoryLinks.sheetStickers[1]
+    heading: categoryLinks.sheetStickers[1],
+    sizePresets: roundShapeSizePresets,
+    defaultStickersPerSheet: 20
   },
   {
     path: './sheet-stickers/oval-sheet',
-    heading: categoryLinks.sheetStickers[2]
+    heading: categoryLinks.sheetStickers[2],
+    sizePresets: oblongShapeSizePresets,
+    defaultStickersPerSheet: 24
   },
   {
     path: './sheet-stickers/square-sheet',
-    heading: categoryLinks.sheetStickers[3]
+    heading: categoryLinks.sheetStickers[3],
+    sizePresets: roundShapeSizePresets,
+    defaultStickersPerSheet: 20
   },
   {
     path: './sheet-stickers/rectangle-sheet',
-    heading: categoryLinks.sheetStickers[4]
+    heading: categoryLinks.sheetStickers[4],
+    sizePresets: oblongShapeSizePresets,
+    defaultStickersPerSheet: 24
   },
   {
     path: './sheet-stickers/rounded-sheet',
-    heading: categoryLinks.sheetStickers[5]
+    heading: categoryLinks.sheetStickers[5],
+    sizePresets: roundShapeSizePresets,
+    defaultStickersPerSheet: 20
   }
 ] as const;
+
+export function defaultTotalStickers(product: { defaultStickersPerSheet: number }): number {
+  return product.defaultStickersPerSheet * defaultSheetQuantity;
+}
+
+// The exact minimum-two-per-sheet boundary on circle-sheet, confirmed against both the storefront
+// and the pricing API on development-1 (2026-08-26). The A5 sheet's usable area is 138x200mm with a
+// 5mm gap between stickers, so two 98mm rows fit (98 + 5 + 98 = 201 exceeds 200 at 99mm). A
+// one-millimetre client/server disagreement here previously let 98x98 through the UI as "2 per
+// sheet" while the pricing engine packed one; MS-V2-074 exists to catch a repeat.
+export const sheetSizeBoundary = {
+  path: './sheet-stickers/circle-sheet',
+  heading: categoryLinks.sheetStickers[1],
+  largestAllowed: { widthMm: 98, heightMm: 98, stickersPerSheet: 2 },
+  smallestBlocked: { widthMm: 99, heightMm: 99 }
+} as const;

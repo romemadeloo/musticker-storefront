@@ -138,7 +138,7 @@ test.describe('storefront v2 sheet sticker configurator (circle/oval/square/rect
     await drawer.viewCart();
 
     const cart = new CartV2Page(page);
-    await cart.expectRowContainsText(data.heading, '40x40mm', 'PVC 매트', '5시트');
+    await cart.expectRowContainsText(data.heading, '30x30mm', 'PVC 매트', '5시트');
     await cart.expectAddImageLinkVisible(data.heading);
   });
 

@@ -105,6 +105,11 @@ Scanned pages:
 | MS-V2-057 | Cart | `@regression @production @purchasing` | Full cart page row-level quantity select updates price without a separate confirm step | P1 |
 | MS-V2-058 | Product | `@regression @production` | Sheet sticker size-guide illustrations expose meaningful, localized alt text (parameterized x5) — currently failing on development-3, documents a live defect | P1 |
 | MS-V2-059 | Product | `@regression @production` | Sheet sticker per-unit price is always a whole-won amount, even for custom sizes at bulk tiers — currently failing on development-3, documents a live defect | P2 |
+| MS-V2-073 | Product | `@regression @purchasing` | Custom individual size that fits only one sticker per sheet is rejected: error message, every quantity tier at 0원, `다음 단계` disabled (parameterized x5) | P0 |
+| MS-V2-074 | Product | `@regression @purchasing` | Minimum-two-per-sheet boundary is exact on circle sheet — 98x98 orderable, 99x99 rejected | P1 |
+| MS-V2-075 | Product | `@regression @purchasing` | Sheet sticker preset sizes match the shape-family table and every preset fits at least two stickers per sheet (parameterized x5) | P1 |
+| MS-V2-076 | Cart | `@regression @purchasing` | Both cart edit dialogs (drawer `사이즈 및 수량 수정`, cart page `사이즈 변경`) reject a one-per-sheet custom size and disable `업데이트` | P1 |
+| MS-V2-077 | Product | `@regression @purchasing` | A5 `배치 가이드` modal rejects a one-per-sheet custom size and disables `적용하기` | P2 |
 
 ## Detailed Test Cases
 
@@ -406,7 +411,7 @@ Scanned pages:
 
 | Preconditions | Steps | Expected Result | Automation Notes |
 | --- | --- | --- | --- |
-| Anonymous session with a circle sheet sticker (`PVC 매트`, `5시트`, no file uploaded) in the cart. | 1. From the cart preview drawer, click `장바구니 보기`.<br>2. Assert the URL is `/kr/cart` and the row shows `40x40mm`, `PVC 매트`, `5시트`.<br>3. Assert the row shows `이미지 추가` (no file was uploaded). | The cart preview drawer and full cart page agree on the item's configuration. | New `CartV2Page` POM (`tests/pom/cart-page.ts`), scoped via `data-testid="cart-page-row"`. |
+| Anonymous session with a circle sheet sticker (`PVC 매트`, `5시트`, no file uploaded) in the cart. | 1. From the cart preview drawer, click `장바구니 보기`.<br>2. Assert the URL is `/kr/cart` and the row shows `30x30mm`, `PVC 매트`, `5시트`.<br>3. Assert the row shows `이미지 추가` (no file was uploaded). | The cart preview drawer and full cart page agree on the item's configuration. | New `CartV2Page` POM (`tests/pom/cart-page.ts`), scoped via `data-testid="cart-page-row"`. |
 
 ### MS-V2-056 - Full Cart Page Material/Size Edit Dialog
 
@@ -432,6 +437,60 @@ Scanned pages:
 | --- | --- | --- | --- |
 | Anonymous session. | 1. Navigate to `/sheet-stickers/circle-sheet`.<br>2. Enter custom individual size `20`x`20` and select quantity `1,000시트`.<br>3. Assert the sticker-yield summary reads `40 시트당 스티커 수량` / `합계: 40,000 스티커`.<br>4. Read the `(1매당 X원)` per-unit price readout and assert `X` has no decimal point. | KRW has no sub-won denomination, so the per-unit price should always render as a whole number. | **Currently fails on development-3** — observed `(1매당 8.582원)` and, on a later run, `(1매당 7.463원)` (the fractional value drifts slightly between runs, presumably tied to a live promo/discount calculation, but the fractional-won *format* itself is consistently reproduced). The Figma export for this same screen showed the sticker-yield summary in English (`40 stickers per sheet` / `Total: 40,000 Stickers`); the live development-3 implementation renders it in Korean (`40 시트당 스티커 수량` / `합계: 40,000 스티커`) instead. That divergence is not asserted as a defect here — Korean copy is plausibly correct for a KR storefront — but it is worth confirming with design/product whether the Figma copy or the live copy is the intended source of truth. |
 
+
+## Sheet Sticker Size Rules (Minimum Two Stickers Per Sheet)
+
+Added 2026-08-26 alongside a storefront change that re-cut the preset size tables for the five
+individual-sticker sheet products and introduced a hard rule: an A5 sheet must fit at least two
+stickers, so any individual size that packs one (or zero) is priced at 0원 and cannot be ordered.
+
+The five products now share two preset tables by shape family:
+
+| Family | 소형 | 중형 | 대형 | 초대형 |
+| --- | --- | --- | --- | --- |
+| circle / square / rounded | 30x30 | 50x50 | 75x75 | 90x90 |
+| oval / rectangle | 40x20 | 50x30 | 75x50 | 90x60 |
+
+Shopper-facing message (Korean): `더 작은 사이즈를 입력해 주세요. 한 시트에 최소 2개의 스티커가 들어가야 합니다.`
+English equivalent: "Please enter a smaller size. At least 2 stickers must fit on each sheet."
+
+All five tests are verified against development-1 and are deliberately **not** tagged `@production`.
+Production still serves the older, wider preset tables in which seven presets pack a single sticker
+per sheet and remain orderable — `circle` 초대형 100x100, `square`/`rounded` 대형 100x100 and 초대형
+125x125, `oval`/`rectangle` 초대형 125x100 — which is the defect this rule closes. MS-V2-075 will
+fail on production by design until those tables are promoted; add `@production` to the describe
+block at that point.
+
+### MS-V2-073 - One-Per-Sheet Custom Size Is Rejected
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session. | 1. For each of the five shape variants, navigate to the product page.<br>2. Open `원하는 크기 입력` and enter `123` x `123`.<br>3. Assert the message `더 작은 사이즈를 입력해 주세요. 한 시트에 최소 2개의 스티커가 들어가야 합니다.` is visible.<br>4. Assert **every** sheet-quantity tier shows `0원`, not just the selected one.<br>5. Assert `다음 단계` is disabled.<br>6. Assert no separate max-work-area message is shown.<br>7. Assert `1시트 = 스티커 N개` and `총 스티커 수량` show the page's default 소형 preset values (20/100 for circle/square/rounded, 24/120 for oval/rectangle). | A size that fits only one sticker per sheet cannot be priced or ordered on any of the five products. | `ProductV2Page.expectMinimumTwoPerSheetError()`, `expectAllQuantityTiersZeroPriced()`, `expectNextStepDisabled()`. Steps 6 and 7 assert **intended** behavior confirmed on development-1 on 2026-08-26, not defects: an oversized entry (144x206 and up, which packs zero) deliberately reuses the same minimum-two message rather than getting its own `가로 138mm × 세로 200mm 이내로 작업해 주세요.` line, and the two count readouts deliberately fall back to the default preset while the entered size is rejected. Both are asserted so a silent change to either is caught. |
+
+### MS-V2-074 - Minimum-Two-Per-Sheet Boundary Is Exact
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session on `./sheet-stickers/circle-sheet`. | 1. Enter custom size `98` x `98`.<br>2. Assert no error, `1시트 = 스티커 2개`, a visible price, and `다음 단계` enabled.<br>3. Enter custom size `99` x `99`.<br>4. Assert the minimum-two-per-sheet error and `다음 단계` disabled. | The boundary sits exactly between 98mm and 99mm, and the storefront agrees with the pricing engine about which side a size falls on. | The A5 sheet's usable area is 138x200mm with a 5mm gap between stickers, so two 98mm rows fit (a 99mm pair would need 203mm). This pair guards client/server agreement: the storefront briefly accepted 98x98 as "2 per sheet" while the pricing engine packed one, making the rule bypassable — the cart accepted the item at 2,630원. Fixed in the packing engine on 2026-08-26. |
+
+### MS-V2-075 - Preset Sizes Match The Shape-Family Table
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session. | 1. For each of the five shape variants, navigate to the product page.<br>2. Assert the four `.option-grid-size` preset pills read exactly the shape family's labels and dimensions, and that the grid holds those four plus the trailing `원하는 크기 입력` pill.<br>3. Select each preset in turn and assert it reports at least two stickers per sheet, shows no error, and leaves `다음 단계` enabled. | No shipped preset is a size the custom-size input would reject. | This is the invariant behind the whole change, and the one production currently violates — see the section preamble. Fixture data lives in `sheetStickerConfiguratorProducts` (`sizePresets`) in `tests/fixtures/storefront-data.ts`. |
+
+### MS-V2-076 - Cart Edit Dialogs Enforce The Same Rule
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session with a circle sheet sticker (`PVC 매트`, `5시트`) in the cart. | 1. In the cart preview drawer, open `사이즈 및 수량 수정`.<br>2. Choose `맞춤 사이즈` from the 개별 사이즈 select and enter `123` x `123`.<br>3. Assert the minimum-two-per-sheet error is visible and `업데이트` is disabled.<br>4. Reload, go to the full cart page, open the row's `사이즈 변경` dialog and repeat.<br>5. Assert the same error and a disabled `업데이트`. | The rule cannot be bypassed by editing an already-carted item on either cart surface. | Both dialogs surface the custom option as `맞춤 사이즈` inside a ui-select listbox (not the product page's `원하는 크기 입력` pill), and their inputs are `.cart-item-edit-inline-input` pre-filled with the line item's current size. Shared helper: `tests/pom/cart-size-dialog.ts`. |
+
+### MS-V2-077 - Size Guide Modal Enforces The Same Rule
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session on `./sheet-stickers/circle-sheet`. | 1. Open the `배치 가이드 보기` modal.<br>2. Click `직접 입력` and enter `123` x `123`.<br>3. Assert the minimum-two-per-sheet error is visible and `적용하기` is disabled. | The rule is enforced on the third surface that accepts a custom size, so it cannot be applied to the configurator from the guide. | The modal's inputs are `#sheet-width`/`#sheet-height` and carry no `type` attribute, so an `input[type=...]` selector matches nothing there. |
+
 ## Suggested Spec Organization
 
 - `tests/e2e/smoke/storefront-smoke.spec.ts`
@@ -449,6 +508,7 @@ Scanned pages:
 - `tests/e2e/purchasing/checkout-page.spec.ts`
 - `tests/e2e/regression/error-pages.spec.ts`
 - `tests/e2e/purchasing/sheet-sticker-configurator.spec.ts`
+- `tests/e2e/purchasing/sheet-sticker-size-rules.spec.ts`
 
 ## Suggested POM Updates
 

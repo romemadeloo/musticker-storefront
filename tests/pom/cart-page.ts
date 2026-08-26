@@ -2,6 +2,8 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { ko } from '../fixtures/storefront-data.js';
+import { enterCartDialogCustomSize } from './cart-size-dialog.js';
 
 const sizeChangeDialogTitle = /사이즈 변경/;
 
@@ -68,6 +70,24 @@ export class CartV2Page {
     await listbox.getByText(new RegExp(`^${escapeRegExp(quantityLabel)}`)).first().click();
 
     await expect.poll(() => this.captureTotal(), { timeout: 15_000 }).not.toBe(totalBefore);
+  }
+
+  // The full cart page's 사이즈 변경 dialog enforces the same minimum-two-per-sheet rule as the
+  // product page, but through a ui-select listbox (`맞춤 사이즈`) rather than a visible pill, and it
+  // gates 업데이트 instead of 다음 단계.
+  async expectCustomSizeRejectedInSizeChangeDialog(
+    productName: string,
+    widthMm: number,
+    heightMm: number
+  ): Promise<void> {
+    await this.row(productName).getByText(ko.sizeChangeAction).click();
+
+    const dialog = this.page.getByRole('dialog').filter({ hasText: sizeChangeDialogTitle }).last();
+    await expect(dialog).toBeVisible();
+    await enterCartDialogCustomSize(this.page, dialog, widthMm, heightMm);
+
+    await expect(dialog.getByText(ko.minimumTwoPerSheetError)).toBeVisible();
+    await expect(dialog.getByRole('button', { name: new RegExp(`${ko.cartUpdate}|Update`, 'i') })).toBeDisabled();
   }
 
   async captureTotal(): Promise<string> {
