@@ -106,10 +106,11 @@ Scanned pages:
 | MS-V2-058 | Product | `@regression @production` | Sheet sticker size-guide illustrations expose meaningful, localized alt text (parameterized x5) — currently failing on development-3, documents a live defect | P1 |
 | MS-V2-059 | Product | `@regression @production` | Sheet sticker per-unit price is always a whole-won amount, even for custom sizes at bulk tiers — currently failing on development-3, documents a live defect | P2 |
 | MS-V2-073 | Product | `@regression @purchasing` | Custom individual size that fits only one sticker per sheet is rejected: error message, every quantity tier at 0원, `다음 단계` disabled (parameterized x5) | P0 |
-| MS-V2-074 | Product | `@regression @purchasing` | Minimum-two-per-sheet boundary is exact on circle sheet — 98x98 orderable, 99x99 rejected | P1 |
+| MS-V2-074 | Product | `@regression @purchasing` | The 138x97 gate is exact on circle sheet — 138x97 orderable, 138x98 rejected | P1 |
 | MS-V2-075 | Product | `@regression @purchasing` | Sheet sticker preset sizes match the shape-family table and every preset fits at least two stickers per sheet (parameterized x5) | P1 |
 | MS-V2-076 | Cart | `@regression @purchasing` | Both cart edit dialogs (drawer `사이즈 및 수량 수정`, cart page `사이즈 변경`) reject a one-per-sheet custom size and disable `업데이트` | P1 |
 | MS-V2-077 | Product | `@regression @purchasing` | A5 `배치 가이드` modal rejects a one-per-sheet custom size and disables `적용하기` | P2 |
+| MS-V2-078 | Product | `@regression @purchasing` | Rendered per-sheet count matches the A5 layout formula across the gate boundary, and the gate follows it (parameterized x11) | P1 |
 
 ## Detailed Test Cases
 
@@ -461,23 +462,57 @@ per sheet and remain orderable — `circle` 초대형 100x100, `square`/`rounded
 fail on production by design until those tables are promoted; add `@production` to the describe
 block at that point.
 
+### A5 Sheet Layout Formula
+
+All expected sticker counts in this suite are derived from the storefront's layout formula, not
+restated. It lives in `tests/fixtures/sheet-packing.ts`:
+
+```
+Columns            = floor((148 - 5) / (Width  + 5))
+Rows               = floor((210 - 5) / (Height + 5))
+Stickers per sheet = Columns x Rows
+```
+
+The A5 sheet is 148x210mm, 5mm is lost to the sheet edge, and each sticker reserves a further 5mm
+gap — hence the `+ 5` on each dimension. A size is orderable only when it packs at least two.
+
+**The gate is 138x97.** 138mm is the widest a single column can be (139mm leaves zero columns), and
+at that width 97mm is the tallest two rows can be (98mm leaves one row, so one sticker per sheet).
+
+Verified on development-1 (2026-08-26): the formula reproduces the live `1시트 = 스티커 N개` readout
+for all eight shipped presets and across the whole boundary region.
+
+| Size | Columns | Rows | Per sheet | Orderable |
+| --- | --- | --- | --- | --- |
+| 138x97 | 1 | 2 | 2 | yes — the gate |
+| 97x97 | 1 | 2 | 2 | yes |
+| 66x97 | 2 | 2 | 4 | yes |
+| 67x97 | 1 | 2 | 2 | yes |
+| 66x200 | 2 | 1 | 2 | yes — allowed via the width axis |
+| 98x98 | 1 | 1 | 1 | no |
+| 138x98 | 1 | 1 | 1 | no — 1mm over the gate height |
+| 67x200 | 1 | 1 | 1 | no |
+| 123x123 | 1 | 1 | 1 | no |
+| 139x97 | 0 | 2 | 0 | no — 1mm over the gate width |
+| 200x300 | 0 | 0 | 0 | no |
+
 ### MS-V2-073 - One-Per-Sheet Custom Size Is Rejected
 
 | Preconditions | Steps | Expected Result | Automation Notes |
 | --- | --- | --- | --- |
 | Anonymous session. | 1. For each of the five shape variants, navigate to the product page.<br>2. Open `원하는 크기 입력` and enter `123` x `123`.<br>3. Assert the message `더 작은 사이즈를 입력해 주세요. 한 시트에 최소 2개의 스티커가 들어가야 합니다.` is visible.<br>4. Assert **every** sheet-quantity tier shows `0원`, not just the selected one.<br>5. Assert `다음 단계` is disabled.<br>6. Assert no separate max-work-area message is shown.<br>7. Assert `1시트 = 스티커 N개` and `총 스티커 수량` show the page's default 소형 preset values (20/100 for circle/square/rounded, 24/120 for oval/rectangle). | A size that fits only one sticker per sheet cannot be priced or ordered on any of the five products. | `ProductV2Page.expectMinimumTwoPerSheetError()`, `expectAllQuantityTiersZeroPriced()`, `expectNextStepDisabled()`. Steps 6 and 7 assert **intended** behavior confirmed on development-1 on 2026-08-26, not defects: an oversized entry (144x206 and up, which packs zero) deliberately reuses the same minimum-two message rather than getting its own `가로 138mm × 세로 200mm 이내로 작업해 주세요.` line, and the two count readouts deliberately fall back to the default preset while the entered size is rejected. Both are asserted so a silent change to either is caught. |
 
-### MS-V2-074 - Minimum-Two-Per-Sheet Boundary Is Exact
+### MS-V2-074 - The 138x97 Gate Is Exact
 
 | Preconditions | Steps | Expected Result | Automation Notes |
 | --- | --- | --- | --- |
-| Anonymous session on `./sheet-stickers/circle-sheet`. | 1. Enter custom size `98` x `98`.<br>2. Assert no error, `1시트 = 스티커 2개`, a visible price, and `다음 단계` enabled.<br>3. Enter custom size `99` x `99`.<br>4. Assert the minimum-two-per-sheet error and `다음 단계` disabled. | The boundary sits exactly between 98mm and 99mm, and the storefront agrees with the pricing engine about which side a size falls on. | The A5 sheet's usable area is 138x200mm with a 5mm gap between stickers, so two 98mm rows fit (a 99mm pair would need 203mm). This pair guards client/server agreement: the storefront briefly accepted 98x98 as "2 per sheet" while the pricing engine packed one, making the rule bypassable — the cart accepted the item at 2,630원. Fixed in the packing engine on 2026-08-26. |
+| Anonymous session on `./sheet-stickers/circle-sheet`. | 1. Enter custom size `138` x `97`.<br>2. Assert no error, `1시트 = 스티커 2개`, a visible price, and `다음 단계` enabled.<br>3. Change the height to `98`.<br>4. Assert the minimum-two-per-sheet error and `다음 단계` disabled. | The documented gate holds exactly: at full column width, two rows fit at 97mm and only one at 98mm. | Expected counts come from `stickersPerSheet()` rather than being hard-coded. Step 3 also covers the allowed-then-blocked transition within one session, which is a distinct path from landing on a blocked size on a fresh page (MS-V2-078) — on this path the count readout falls back to the previous valid size's count rather than the page default. |
 
 ### MS-V2-075 - Preset Sizes Match The Shape-Family Table
 
 | Preconditions | Steps | Expected Result | Automation Notes |
 | --- | --- | --- | --- |
-| Anonymous session. | 1. For each of the five shape variants, navigate to the product page.<br>2. Assert the four `.option-grid-size` preset pills read exactly the shape family's labels and dimensions, and that the grid holds those four plus the trailing `원하는 크기 입력` pill.<br>3. Select each preset in turn and assert it reports at least two stickers per sheet, shows no error, and leaves `다음 단계` enabled. | No shipped preset is a size the custom-size input would reject. | This is the invariant behind the whole change, and the one production currently violates — see the section preamble. Fixture data lives in `sheetStickerConfiguratorProducts` (`sizePresets`) in `tests/fixtures/storefront-data.ts`. |
+| Anonymous session. | 1. For each of the five shape variants, navigate to the product page.<br>2. Assert the four `.option-grid-size` preset pills read exactly the shape family's labels and dimensions, and that the grid holds those four plus the trailing `원하는 크기 입력` pill.<br>3. Select each preset in turn and assert its rendered per-sheet count equals the layout formula's count exactly, that the formula's count is at least two, that no error shows, and that `다음 단계` stays enabled. | No shipped preset is a size the custom-size input would reject. | This is the invariant behind the whole change, and the one production currently violates — see the section preamble. Fixture data lives in `sheetStickerConfiguratorProducts` (`sizePresets`) in `tests/fixtures/storefront-data.ts`. |
 
 ### MS-V2-076 - Cart Edit Dialogs Enforce The Same Rule
 
@@ -490,6 +525,12 @@ block at that point.
 | Preconditions | Steps | Expected Result | Automation Notes |
 | --- | --- | --- | --- |
 | Anonymous session on `./sheet-stickers/circle-sheet`. | 1. Open the `배치 가이드 보기` modal.<br>2. Click `직접 입력` and enter `123` x `123`.<br>3. Assert the minimum-two-per-sheet error is visible and `적용하기` is disabled. | The rule is enforced on the third surface that accepts a custom size, so it cannot be applied to the configurator from the guide. | The modal's inputs are `#sheet-width`/`#sheet-height` and carry no `type` attribute, so an `input[type=...]` selector matches nothing there. |
+
+### MS-V2-078 - Per-Sheet Count Matches The Layout Formula
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session on `./sheet-stickers/circle-sheet`. | 1. For each size in the boundary table above, enter it as a custom individual size.<br>2. Where the formula packs two or more: assert no error, assert `1시트 = 스티커 N개` equals the formula's count exactly, assert a visible price and `다음 단계` enabled.<br>3. Where the formula packs fewer than two: assert the minimum-two-per-sheet error, every quantity tier at `0원`, and `다음 단계` disabled. | The storefront's own arithmetic agrees with the layout formula on both sides of the gate, not merely on the shipped presets. | Parameterized from `sheetPackingBoundaryCases` in `tests/fixtures/sheet-packing.ts`; each case's expected count is cross-checked against `stickersPerSheet()` so the table cannot drift from the formula. Covers both gate axes — width (138 vs 139) and height (97 vs 98) — and the case where two columns rather than two rows satisfy the rule (`66x200`).<br><br>Note on rejected sizes: the counts fall back to the **last valid** configuration, which on a freshly loaded page is the default 소형 preset. Step 3 therefore asserts only the gate, while MS-V2-073 asserts the fallback values explicitly. |
 
 ## Suggested Spec Organization
 

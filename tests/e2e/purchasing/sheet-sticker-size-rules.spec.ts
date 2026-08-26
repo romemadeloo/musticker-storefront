@@ -3,11 +3,19 @@ import { expect } from '@playwright/test';
 import { test } from '../../fixtures/e2e-test.js';
 import {
   blockedCustomSize,
+  defaultStickersPerSheet,
   defaultTotalStickers,
   ko,
+  presetStickersPerSheet,
   sheetSizeBoundary,
   sheetStickerConfiguratorProducts
 } from '../../fixtures/storefront-data.js';
+import {
+  fitsMinimumPerSheet,
+  minimumStickersPerSheet,
+  sheetPackingBoundaryCases,
+  stickersPerSheet
+} from '../../fixtures/sheet-packing.js';
 import { CartDrawer } from '../../pom/cart-drawer.js';
 import { CartV2Page } from '../../pom/cart-page.js';
 import { ProductV2Page } from '../../pom/product-page.js';
@@ -53,29 +61,55 @@ test.describe('storefront v2 sheet sticker size rules (minimum two stickers per 
 
       // Also intended: while the size is rejected the two count readouts fall back to the page's
       // default 소형 preset at the 5시트 tier instead of reporting the entered size's counts.
-      await product.expectStickersPerSheet(data.defaultStickersPerSheet);
+      await product.expectStickersPerSheet(defaultStickersPerSheet(data));
       await product.expectTotalStickers(defaultTotalStickers(data));
     });
   }
 
-  test('MS-V2-074 circle sheet sticker: the minimum-two-per-sheet boundary is exact', async ({ page }) => {
+  test('MS-V2-074 circle sheet sticker: the 138x97 gate is exact', async ({ page }) => {
     const product = new ProductV2Page(page);
     const { largestAllowed, smallestBlocked } = sheetSizeBoundary;
     await product.goto(sheetSizeBoundary.path, sheetSizeBoundary.heading);
 
     await product.selectCustomIndividualSize(largestAllowed.widthMm, largestAllowed.heightMm);
     await product.expectNoMinimumTwoPerSheetError();
-    await product.expectStickersPerSheet(largestAllowed.stickersPerSheet);
+    await product.expectStickersPerSheet(stickersPerSheet(largestAllowed.widthMm, largestAllowed.heightMm));
     await product.expectVisiblePrice();
     await product.expectNextStepEnabled();
 
-    // One millimetre larger drops to a single sticker per sheet and must be refused. This pair
-    // guards the client/server agreement: the storefront previously accepted 98x98 as "2 per
-    // sheet" while the pricing engine packed one.
+    // One millimetre taller leaves a single row, so a single sticker per sheet, and must be refused.
     await product.selectCustomIndividualSize(smallestBlocked.widthMm, smallestBlocked.heightMm);
     await product.expectMinimumTwoPerSheetError();
     await product.expectNextStepDisabled();
   });
+
+  // The rendered per-sheet readout must agree with the layout formula across the boundary region --
+  // not just on the shipped presets. This is what ties the storefront's arithmetic to the spec.
+  for (const boundaryCase of sheetPackingBoundaryCases) {
+    const label = `${boundaryCase.widthMm}x${boundaryCase.heightMm}`;
+
+    test(`MS-V2-078 circle sheet sticker: ${label} packs ${boundaryCase.expected} per sheet and is ${
+      fitsMinimumPerSheet(boundaryCase.widthMm, boundaryCase.heightMm) ? 'orderable' : 'refused'
+    }`, async ({ page }) => {
+      const product = new ProductV2Page(page);
+      await product.goto(sheetSizeBoundary.path, sheetSizeBoundary.heading);
+      await product.selectCustomIndividualSize(boundaryCase.widthMm, boundaryCase.heightMm);
+
+      if (fitsMinimumPerSheet(boundaryCase.widthMm, boundaryCase.heightMm)) {
+        await product.expectNoMinimumTwoPerSheetError();
+        await product.expectStickersPerSheet(boundaryCase.expected);
+        await product.expectVisiblePrice();
+        await product.expectNextStepEnabled();
+
+        return;
+      }
+
+      // Rejected sizes leave the counts showing the page default, so only the gate is asserted here.
+      await product.expectMinimumTwoPerSheetError();
+      await product.expectAllQuantityTiersZeroPriced();
+      await product.expectNextStepDisabled();
+    });
+  }
 
   for (const data of sheetStickerConfiguratorProducts) {
     test(`MS-V2-075 ${data.heading} preset sizes match the shape family table and all fit at least two per sheet`, async ({ page }) => {
@@ -89,7 +123,11 @@ test.describe('storefront v2 sheet sticker size rules (minimum two stickers per 
       for (const preset of data.sizePresets) {
         await product.selectSizePreset(preset.label);
         await product.expectNoMinimumTwoPerSheetError();
-        await product.expectStickersPerSheetAtLeast(2, `preset ${preset.label} (${preset.dimensions})`);
+        await product.expectStickersPerSheet(presetStickersPerSheet(preset));
+        expect(
+          presetStickersPerSheet(preset),
+          `preset ${preset.label} (${preset.dimensions}) must fit at least ${minimumStickersPerSheet} per sheet`
+        ).toBeGreaterThanOrEqual(minimumStickersPerSheet);
         await product.expectNextStepEnabled();
       }
     });

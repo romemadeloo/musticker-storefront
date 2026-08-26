@@ -169,15 +169,6 @@ export class ProductV2Page {
       .toBe(expected);
   }
 
-  async expectStickersPerSheetAtLeast(minimum: number, description: string): Promise<void> {
-    await expect
-      .poll(() => this.readCount(/1시트 = 스티커 ([\d,]+)개/), {
-        timeout: 15_000,
-        message: `${description} must fit at least ${minimum} stickers per sheet`
-      })
-      .toBeGreaterThanOrEqual(minimum);
-  }
-
   // `총 스티커 수량 : N개`
   async expectTotalStickers(expected: number): Promise<void> {
     await expect

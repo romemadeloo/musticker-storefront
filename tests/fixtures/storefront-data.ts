@@ -1,3 +1,5 @@
+import { stickersPerSheet } from './sheet-packing.js';
+
 export const ko = {
   homeHero: '\uc2a4\ud2f0\ucee4\u314b\u314b\u314b, \uc774\uc720\uac00 \uc788\uad6c\ub098',
   notFoundHeading: '\uc557! \ud398\uc774\uc9c0\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.',
@@ -267,51 +269,65 @@ export const blockedCustomSize = { widthMm: 123, heightMm: 123 } as const;
 // leaves both count readouts showing that default rather than the entered size's counts.
 const defaultSheetQuantity = 5;
 
+type SizePreset = { readonly label: string; readonly dimensions: string };
+
+function presetDimensions(preset: SizePreset): { widthMm: number; heightMm: number } {
+  const [widthMm, heightMm] = preset.dimensions.split('x').map(Number);
+
+  return { widthMm, heightMm };
+}
+
+// Derived from the layout formula rather than restated, so re-cutting a preset table cannot leave a
+// stale expected count behind.
+export function presetStickersPerSheet(preset: SizePreset): number {
+  const { widthMm, heightMm } = presetDimensions(preset);
+
+  return stickersPerSheet(widthMm, heightMm);
+}
+
+export function defaultStickersPerSheet(product: { sizePresets: readonly SizePreset[] }): number {
+  return presetStickersPerSheet(product.sizePresets[0]);
+}
+
 export const sheetStickerConfiguratorProducts = [
   {
     path: './sheet-stickers/circle-sheet',
     heading: categoryLinks.sheetStickers[1],
-    sizePresets: roundShapeSizePresets,
-    defaultStickersPerSheet: 20
+    sizePresets: roundShapeSizePresets
   },
   {
     path: './sheet-stickers/oval-sheet',
     heading: categoryLinks.sheetStickers[2],
-    sizePresets: oblongShapeSizePresets,
-    defaultStickersPerSheet: 24
+    sizePresets: oblongShapeSizePresets
   },
   {
     path: './sheet-stickers/square-sheet',
     heading: categoryLinks.sheetStickers[3],
-    sizePresets: roundShapeSizePresets,
-    defaultStickersPerSheet: 20
+    sizePresets: roundShapeSizePresets
   },
   {
     path: './sheet-stickers/rectangle-sheet',
     heading: categoryLinks.sheetStickers[4],
-    sizePresets: oblongShapeSizePresets,
-    defaultStickersPerSheet: 24
+    sizePresets: oblongShapeSizePresets
   },
   {
     path: './sheet-stickers/rounded-sheet',
     heading: categoryLinks.sheetStickers[5],
-    sizePresets: roundShapeSizePresets,
-    defaultStickersPerSheet: 20
+    sizePresets: roundShapeSizePresets
   }
 ] as const;
 
-export function defaultTotalStickers(product: { defaultStickersPerSheet: number }): number {
-  return product.defaultStickersPerSheet * defaultSheetQuantity;
+export function defaultTotalStickers(product: { sizePresets: readonly SizePreset[] }): number {
+  return defaultStickersPerSheet(product) * defaultSheetQuantity;
 }
 
-// The exact minimum-two-per-sheet boundary on circle-sheet, confirmed against both the storefront
-// and the pricing API on development-1 (2026-08-26). The A5 sheet's usable area is 138x200mm with a
-// 5mm gap between stickers, so two 98mm rows fit (98 + 5 + 98 = 201 exceeds 200 at 99mm). A
-// one-millimetre client/server disagreement here previously let 98x98 through the UI as "2 per
-// sheet" while the pricing engine packed one; MS-V2-074 exists to catch a repeat.
+// The minimum-two-per-sheet gate, expressed through the layout formula in sheet-packing.ts. The
+// storefront's documented gate is 138x97: the widest a single column can be, at the tallest two
+// rows can be. Circle-sheet is the representative product for the boundary tests.
 export const sheetSizeBoundary = {
   path: './sheet-stickers/circle-sheet',
   heading: categoryLinks.sheetStickers[1],
-  largestAllowed: { widthMm: 98, heightMm: 98, stickersPerSheet: 2 },
-  smallestBlocked: { widthMm: 99, heightMm: 99 }
+  largestAllowed: { widthMm: 138, heightMm: 97 },
+  // One millimetre taller drops to a single row, so a single sticker per sheet.
+  smallestBlocked: { widthMm: 138, heightMm: 98 }
 } as const;
