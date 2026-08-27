@@ -1,0 +1,1 @@
+{"id":"bb06a96cbb2b21157a64e49771d278de","fullName":"auth/registration.spec.ts:57:3","name":"MS-V2-082 password below the stated policy is rejected @validation","status":"passed","testResultsByEnv":{"default":"2d46c2a082a6793e27b0ff48cb9ba834"}}
