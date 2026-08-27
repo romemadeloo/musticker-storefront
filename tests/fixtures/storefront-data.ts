@@ -64,6 +64,52 @@ export const ko = {
   orderCompletedHeading: '\uc8fc\ubb38\uc774 \uc644\ub8cc\ub418\uc5c8\uc2b5\ub2c8\ub2e4!'
 } as const;
 
+// Shopper-facing copy for the authentication surfaces (login, register, and the account profile's
+// password section), captured live from development-1 on 2026-08-27. Kept as literal Korean rather
+// than escapes so a copy change stays greppable against what the app actually renders.
+export const authCopy = {
+  loginHeading: '로그인',
+  registerHeading: '회원가입',
+  forgotPasswordHeading: '비밀번호를 잊으셨나요?',
+  // The register form reports a blank field with a different string to the login form -- 
+  // '필수 항목입니다.' vs '필수 입력 항목입니다.' -- so neither can stand in for the other.
+  requiredFieldRegister: '필수 항목입니다.',
+  requiredFieldLogin: '필수 입력 항목입니다.',
+  invalidEmailFormat: '이메일 형식이 올바르지 않습니다.',
+  // Deliberately identical whether or not the address is registered, so the form does not leak
+  // account existence. MS-V2-030 asserts exactly that.
+  invalidCredentials: '이메일 주소 & 비밀번호가 일치하지 않습니다.',
+  loginSuccessToast: '로그인에 성공했습니다.',
+  registerPasswordPolicy: /비밀번호는 최소 6자 이상[\s\S]*대문자, 숫자/,
+  registerWeakPassword: '비밀번호가 요구 사항을 충족하지 않습니다.',
+  registerOtpHeading: '인증 요청',
+  registerOtpMismatch: '입력하신 인증번호가 일치하지 않습니다.',
+  emailAlreadyRegisteredHeading: '이미 등록된 이메일입니다.',
+  registerWelcomeHeading: /님, 환영합니다!/,
+  // The account profile's password section reports each failure with its own distinct message.
+  passwordMismatch: '비밀번호가 일치하지 않습니다.',
+  passwordPolicyUnmet: '비밀번호가 설정 요구사항을 충족하지 않습니다.',
+  currentPasswordWrong: '비밀번호가 올바르지 않습니다.'
+} as const;
+
+// Credentials for accounts the suite creates and then abandons. Registration is gated behind a real
+// emailed OTP, so the address must belong to a live disposable inbox (mail.tm) rather than being a
+// made-up string -- see tests/fixtures/mail-tm.ts.
+export const throwawayAccount = {
+  fullName: 'E2E Test User',
+  // Satisfies the register form's stated policy: at least 6 characters including an uppercase
+  // letter, a digit, or a special character.
+  password: 'E2eSuite!2026',
+  rotatedPassword: 'E2eSuite!2027'
+} as const;
+
+// A syntactically valid address that is never registered, for negative login tests. example.com is
+// reserved by RFC 2606, so this can never collide with a real customer.
+export const unregisteredLogin = {
+  email: 'invalid-login-e2e@example.com',
+  password: 'WrongPass!2026'
+} as const;
+
 // Verified working guest checkout profile for full-payment tests (see checkout-destructive.spec.ts).
 // Hardcoded rather than sourced from the CHECKOUT_* vars in .env.example: those were never wired up
 // by anything, and this data only needs to pass client-side validation, not represent a real person.

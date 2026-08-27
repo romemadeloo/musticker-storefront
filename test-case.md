@@ -85,7 +85,7 @@ Scanned pages:
 | MS-V2-032 | Auth | `@regression @production @auth` | Forgot-password entry opens recovery flow and validates blank/invalid email safely | P1 |
 | MS-V2-033 | Auth | `@regression @production @auth` | Register entry is reachable from login without creating a production account | P1 |
 | MS-V2-034 | Auth | `@smoke @production @auth @credentialed` | Valid seeded member credentials log in and reveal member-only account state | P0 |
-| MS-V2-035 | Auth | `@regression @production @auth @credentialed` | Authenticated session persists across reload/navigation and logout clears the session | P0 |
+| MS-V2-035 | Auth | `@regression @production @auth @credentialed` | Authenticated session survives reload and navigation, reaches a member-only route, and logout clears it | P0 |
 | MS-V2-036 | API | `@smoke @production @api` | Navigation categories API returns public category data used by the storefront | P0 |
 | MS-V2-037 | API | `@smoke @production @api` | Inquiry types API returns selectable inquiry metadata without requiring login | P1 |
 | MS-V2-038 | API | `@smoke @production @api` | Anonymous user session API rejects unauthenticated users safely | P0 |
@@ -111,6 +111,24 @@ Scanned pages:
 | MS-V2-076 | Cart | `@regression @purchasing` | Both cart edit dialogs (drawer `사이즈 및 수량 수정`, cart page `사이즈 변경`) reject a one-per-sheet custom size and disable `업데이트` | P1 |
 | MS-V2-077 | Product | `@regression @purchasing` | A5 `배치 가이드` modal rejects a one-per-sheet custom size and disables `적용하기` | P2 |
 | MS-V2-078 | Product | `@regression @purchasing` | Rendered per-sheet count matches the A5 layout formula across the gate boundary, and the gate follows it (parameterized x11) | P1 |
+| MS-V2-079 | Auth | `@smoke @production @auth` | Register form exposes name, email, password, masking toggle, terms/privacy links, and submit | P0 |
+| MS-V2-080 | Auth | `@validation @production @auth` | Blank register submit is blocked with required-field validation and requests no account | P0 |
+| MS-V2-081 | Auth | `@validation @production @auth` | Malformed register email is rejected before any verification code is requested | P1 |
+| MS-V2-082 | Auth | `@validation @production @auth` | A password below the form's stated policy is rejected | P1 |
+| MS-V2-083 | Auth | `@validation @production @auth` | Registration is blocked until the terms checkbox is agreed, and the error clears when it is | P1 |
+| MS-V2-084 | Auth | `@regression @production @auth` | Register password visibility toggle masks and unmasks without exposing the value in the URL | P2 |
+| MS-V2-085 | Auth | `@regression @production @auth` | Login entry is reachable from register and restores the login form | P2 |
+| MS-V2-086 | Auth | `@regression @production @auth @credentialed` | Registering an already-registered email offers sign-in instead of creating a duplicate account | P1 |
+| MS-V2-087 | Auth | `@destructive @slow @auth` | A wrong email verification code is rejected and creates no account | P1 |
+| MS-V2-088 | Auth | `@destructive @slow @auth` | A correct verification code creates the account, signs the member in, and lands on profile onboarding | P0 |
+| MS-V2-089 | Auth | `@smoke @production @auth @credentialed` | Account profile exposes current/new/confirm password fields, submit, and recovery entry | P0 |
+| MS-V2-090 | Auth | `@validation @production @auth @credentialed` | `비밀번호 변경` stays disabled until all three password fields are filled | P1 |
+| MS-V2-091 | Auth | `@validation @production @auth @credentialed` | A mismatched password confirmation is rejected | P0 |
+| MS-V2-092 | Auth | `@validation @production @auth @credentialed` | A new password below the policy is rejected | P1 |
+| MS-V2-093 | Auth | `@validation @production @auth @credentialed` | A wrong current password is rejected without changing the credential | P0 |
+| MS-V2-094 | Auth | `@destructive @slow @auth` | A successful password change rotates the credential: the new password logs in and the old one no longer does | P0 |
+| MS-V2-095 | Auth | `@regression @production @auth` | A member-only account route is not reachable by an anonymous visitor | P0 |
+| MS-V2-096 | Auth | `@regression @production @auth` | Non-member mode swaps the password form for guest email + order-number lookup | P2 |
 
 ## Detailed Test Cases
 
@@ -322,7 +340,7 @@ Scanned pages:
 
 | Preconditions | Steps | Expected Result | Automation Notes |
 | --- | --- | --- | --- |
-| Authenticated seeded member session from `MS-V2-034`. | 1. Log in with `AUTH_TEST_EMAIL` and `AUTH_TEST_PASSWORD`.<br>2. Reload the page.<br>3. Navigate to home and a product page.<br>4. Assert member account state persists.<br>5. Open the account menu and click logout.<br>6. Assert the header returns to anonymous account state.<br>7. Attempt to open a member-only account page, if available.<br>8. Assert the user is redirected to login or shown an auth gate. | Login persists during normal browsing and logout fully clears the authenticated session. | Keep this isolated in a fresh browser context and clear storage after the test. |
+| `AUTH_TEST_EMAIL` and `AUTH_TEST_PASSWORD` are configured. | 1. Log in with the seeded credentials and assert the member menu.<br>2. Reload the page and assert the member menu survives a full document load.<br>3. Navigate to a category page and assert the member menu is still there.<br>4. Open `./account/profile` and assert the member-only page renders.<br>5. Log out and assert the header returns to its guest state. | Login persists across reload and navigation, reaches member-only routes, and logout fully clears it. | Now covers the reload/navigation persistence this case always specified — the earlier implementation only asserted login then logout. The member-only route in step 4 is the strongest available signal the session is genuinely live; MS-V2-095 asserts the anonymous half of the same boundary. |
 
 ### MS-V2-036 - Public Navigation Categories API
 
@@ -532,6 +550,138 @@ for all eight shipped presets and across the whole boundary region.
 | --- | --- | --- | --- |
 | Anonymous session on `./sheet-stickers/circle-sheet`. | 1. For each size in the boundary table above, enter it as a custom individual size.<br>2. Where the formula packs two or more: assert no error, assert `1시트 = 스티커 N개` equals the formula's count exactly, assert a visible price and `다음 단계` enabled.<br>3. Where the formula packs fewer than two: assert the minimum-two-per-sheet error, every quantity tier at `0원`, and `다음 단계` disabled. | The storefront's own arithmetic agrees with the layout formula on both sides of the gate, not merely on the shipped presets. | Parameterized from `sheetPackingBoundaryCases` in `tests/fixtures/sheet-packing.ts`; each case's expected count is cross-checked against `stickersPerSheet()` so the table cannot drift from the formula. Covers both gate axes — width (138 vs 139) and height (97 vs 98) — and the case where two columns rather than two rows satisfy the rule (`66x200`).<br><br>Note on rejected sizes: the counts fall back to the **last valid** configuration, which on a freshly loaded page is the default 소형 preset. Step 3 therefore asserts only the gate, while MS-V2-073 asserts the fallback values explicitly. |
 
+## Registration And Password Management
+
+The register form and the account profile's password section were mapped live against
+`development-1` on 2026-08-27. Two behaviours shape every case below:
+
+* **Registration is two-stage.** `계정 만들기` validates client-side, then
+  `POST /auth/register/verification` (201) opens a 4-digit code modal. The account does not exist
+  until that emailed code is confirmed via `POST /auth/register` — 201 on success, 200 with
+  `success: false` on a mismatch. Everything up to the code modal is non-destructive and safe to
+  run anywhere.
+* **Rejections arrive as HTTP 200.** Both `POST /auth/login` and `PUT /profile/password` answer
+  200 and carry the outcome in the body, so no test can assert on a 4xx. Assertions go through
+  the rendered field error instead.
+
+The forms also label their errors differently: the register form and the forgot-password dialog
+use the shared `ui-form-field-error-message` test id, while the login form uses per-field ids
+(`auth-login-member-email-error`, `auth-login-member-password-error`). Neither locator
+substitutes for the other.
+
+One more shared constraint: Nuxt serves these pages fully rendered roughly 1.2s before it binds
+their client-side handlers, so a click that lands early hits an inert form and silently does
+nothing. `waitForPasswordFormInteractive` in `tests/fixtures/hydration.ts` closes that window by
+round-tripping a password visibility toggle before any test interacts with the form.
+
+### MS-V2-079 - Register Form Controls
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session. | 1. Open `./auth/register`.<br>2. Assert the 회원가입 heading, name, email, and password fields are visible.<br>3. Assert the password field is masked and carries a visibility toggle.<br>4. Assert the terms and privacy links point at `/kr/terms-of-use` and `/kr/privacy-policy`.<br>5. Assert the marketing opt-in checkbox and the 계정 만들기 submit are present.<br>6. Assert the stated password policy copy is rendered. | The register page exposes every control needed to create an account, with its policy stated up front. | `RegisterPage` POM. Read-only — nothing is submitted. |
+
+### MS-V2-080 - Blank Register Validation
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session. | 1. Open `./auth/register`.<br>2. Submit with every field blank.<br>3. Assert 필수 항목입니다. is shown.<br>4. Assert the URL is still the register route.<br>5. Assert no verification-code modal opened. | A blank registration is stopped client-side and requests no account. | The register form reports blank fields with `필수 항목입니다.`, which differs from the login form's `필수 입력 항목입니다.` — `authCopy` keeps both. |
+
+### MS-V2-081 - Malformed Register Email
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session. | 1. Open `./auth/register`.<br>2. Fill a valid name and password with the email `not-an-email`.<br>3. Submit.<br>4. Assert 이메일 형식이 올바르지 않습니다. is shown.<br>5. Assert no verification-code modal opened. | A malformed address never reaches the verification endpoint. | Validation short-circuits on the first failing rule, so this case fills a valid password to be sure the email rule is what fires. |
+
+### MS-V2-082 - Register Password Policy
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session. | 1. Open `./auth/register`.<br>2. Fill a valid name and a unique email, with the password `abc`.<br>3. Agree to the terms and submit.<br>4. Assert 비밀번호가 요구 사항을 충족하지 않습니다. is shown.<br>5. Assert no verification-code modal opened. | The stated policy — at least 6 characters including an uppercase letter, digit, or special character — is actually enforced. | `abc` fails on both length and character class. The email is unique per run so a previously registered address cannot mask the password rule. |
+
+### MS-V2-083 - Terms Agreement Required
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session. | 1. Open `./auth/register`.<br>2. Fill valid name, unique email, and a policy-compliant password, leaving the terms checkbox unchecked.<br>3. Submit.<br>4. Assert the terms row is in its error state and its explainer control is shown.<br>5. Assert no verification-code modal opened.<br>6. Check the terms box and assert the error state clears. | An account cannot be requested without agreeing to the terms, and the error resolves once the shopper does. | The terms row has no inline `ui-form-field-error-message`; it flips the label's `data-state` to `error` and reveals a danger-toned tooltip button (`auth-register-terms-error`) whose only text is the screen-reader label 약관 오류 정보. Assert on the state and the control, not on visible copy. |
+
+### MS-V2-084 - Register Password Masking
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session. | 1. Open `./auth/register`.<br>2. Fill the password field with a dummy value.<br>3. Assert the input is masked.<br>4. Toggle visibility and assert it unmasks.<br>5. Toggle again and assert it re-masks.<br>6. Assert the value never appears in the URL. | Password entry on register behaves the same as on login. | Mirrors MS-V2-031/044. Note the toggle's test id here is `auth-register-password-toggle`, without the `-button` suffix the login page uses. |
+
+### MS-V2-085 - Login Entry From Register
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session. | 1. Open `./auth/register`.<br>2. Click 여기서 로그인하세요.<br>3. Assert the login route is shown.<br>4. Assert the member login controls are restored. | Registration and login are reachable from one another, closing the loop MS-V2-033 opens. | Read-only. |
+
+### MS-V2-086 - Existing Email Offers Sign-In
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| `AUTH_TEST_EMAIL` is configured for an already-registered member. | 1. Open `./auth/register`.<br>2. Fill the seeded member's email with a valid name and password, and agree to the terms.<br>3. Submit.<br>4. Assert the 이미 등록된 이메일입니다. modal opens with a masked password field, a 계속 button, and a forgot-password link.<br>5. Assert no verification-code modal opened. | A duplicate registration is converted into a sign-in prompt rather than a second account or a dead end. | The verification endpoint answers 200 with `email_already_taken`; the app opens `auth-email-registered-modal` in response. Non-destructive — the modal is asserted on but never completed, so no session is created. Skips when `AUTH_TEST_EMAIL` is unset. |
+
+### MS-V2-087 - Wrong Verification Code Rejected
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| `RUN_AUTH_DESTRUCTIVE_E2E=true` against a dev environment. | 1. Create a disposable mail.tm inbox.<br>2. Register with that address and wait for the code modal.<br>3. Read the emailed code, then submit a deliberately different one.<br>4. Assert the response status is not 201.<br>5. Assert 입력하신 인증번호가 일치하지 않습니다. is shown and the modal stays open. | A wrong code cannot create an account. | The mismatch is an HTTP 200 with `success: false`, so the assertion is `not.toBe(201)` plus the rendered message — a 4xx never arrives. The wrong code is derived from the real one so it can never collide with it. |
+
+### MS-V2-088 - Successful Registration
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| `RUN_AUTH_DESTRUCTIVE_E2E=true` against a dev environment. | 1. Create a disposable mail.tm inbox.<br>2. Register with that address and wait for the code modal.<br>3. Assert the verification email comes from `system@musticker.com`.<br>4. Submit the emailed code.<br>5. Assert the response is 201.<br>6. Assert the app lands on `/kr/auth/profile` with the welcome heading and the new member's email prefilled. | A correct code creates the account, signs the new member straight in, and hands off to profile onboarding. | Creates a real member on the target environment — gated behind `RUN_AUTH_DESTRUCTIVE_E2E`, never run against production. The mailbox is disposable, so the account is unreachable afterwards and needs no cleanup. |
+
+### MS-V2-089 - Password Section Controls
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Seeded member is logged in. | 1. Open `./account/profile`.<br>2. Assert the account shell and its profile tab are shown.<br>3. Assert current, new, and confirm password fields are visible and masked.<br>4. Assert 비밀번호 변경 and the forgot-password entry are visible.<br>5. Assert the password policy copy is rendered. | The change-password form is discoverable and states its rules. | `AccountProfilePage` POM. Read-only. |
+
+### MS-V2-090 - Change Password Requires Every Field
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Seeded member is logged in. | 1. Open `./account/profile`.<br>2. Assert 비밀번호 변경 is disabled.<br>3. Fill the current password; assert it is still disabled.<br>4. Fill the new password; assert it is still disabled.<br>5. Fill the confirmation; assert it becomes enabled. | The form cannot be submitted half-filled. | Unlike the login and register forms, this one gates on the button's disabled state rather than on submit-time validation. |
+
+### MS-V2-091 - Mismatched Confirmation Rejected
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Seeded member is logged in. | 1. Open `./account/profile`.<br>2. Enter the correct current password and a valid new password, with a different confirmation.<br>3. Submit.<br>4. Assert 비밀번호가 일치하지 않습니다. is shown. | A typo in the confirmation cannot silently change the password. | The request is still sent and answered 200; the rejection is only visible in the rendered error. The seeded member's password is unchanged by this case. |
+
+### MS-V2-092 - New Password Policy Enforced
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Seeded member is logged in. | 1. Open `./account/profile`.<br>2. Enter the correct current password with `abc` as both new password and confirmation.<br>3. Submit.<br>4. Assert 비밀번호가 설정 요구사항을 충족하지 않습니다. is shown. | The policy applies to changed passwords, not just new registrations. | Note the wording differs from the register form's 비밀번호가 요구 사항을 충족하지 않습니다.; `authCopy` keeps both. |
+
+### MS-V2-093 - Wrong Current Password Rejected
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Seeded member is logged in. | 1. Open `./account/profile`.<br>2. Enter a deliberately wrong current password with a valid new password and confirmation.<br>3. Submit.<br>4. Assert 비밀번호가 올바르지 않습니다. is shown. | Knowing the current password is required, so a hijacked session cannot lock the owner out. | Each failure mode has a distinct message, so this assertion cannot pass on a mismatch or policy failure by accident. |
+
+### MS-V2-094 - Password Change Rotates The Credential
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| `RUN_AUTH_DESTRUCTIVE_E2E=true` against a dev environment. | 1. Register a throwaway member through the full OTP flow.<br>2. Open `./account/profile` and change its password.<br>3. Assert the form clears with no error.<br>4. Clear cookies and log in with the new password; assert the member menu appears.<br>5. Clear cookies and attempt the old password; assert it is rejected and the user stays anonymous. | A successful change really does rotate the credential — the new password works and the old one stops working. | Registers its own account rather than touching the seeded member, whose password every other `@credentialed` test depends on. There is no success toast on this form: an accepted change is signalled only by the cleared fields, which is what step 3 asserts. |
+
+### MS-V2-095 - Member-Only Route Is Gated
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session. | 1. Navigate directly to `./account/profile`.<br>2. Assert the account profile section never renders.<br>3. Assert the browser does not remain on the account route. | Account pages are not reachable without a session. | Observed behaviour on development-1 is a redirect to the storefront home, not to the login form — the assertion is therefore "not on the account route and no account content", which holds whichever of the two the app chooses. |
+
+### MS-V2-096 - Non-Member Order Lookup
+
+| Preconditions | Steps | Expected Result | Automation Notes |
+| --- | --- | --- | --- |
+| Anonymous session. | 1. Open `./auth/login`.<br>2. Switch to 비회원 mode.<br>3. Assert the email and order-number fields and the lookup submit are visible.<br>4. Assert the member password field is gone. | Guest shoppers can look up an order without an account, and that mode offers no password entry. | Read-only — nothing is submitted, so no order lookup is performed. |
+
 ## Suggested Spec Organization
 
 - `tests/e2e/smoke/storefront-smoke.spec.ts`
@@ -586,4 +736,11 @@ npx.cmd playwright test tests/e2e/auth/login.spec.ts --grep "@credentialed" --pr
 $Env:RUN_PAYMENT_E2E = "true"
 $Env:SKIP_SEEDED_AUTH_SETUP = "true"
 npm.cmd run test:e2e:member-regression
+```
+
+```powershell
+# Registration OTP completion and the password rotation. Creates real accounts -- dev only.
+$Env:E2E_ENVIRONMENT = "development-1"
+$Env:RUN_AUTH_DESTRUCTIVE_E2E = "true"
+npm.cmd run test:destructive:auth
 ```

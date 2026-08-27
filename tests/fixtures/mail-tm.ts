@@ -3,6 +3,10 @@
 // No account/API key required -- accounts are created on demand per test run.
 const MAIL_TM_BASE_URL = 'https://api.mail.tm';
 
+// Connection blips clear quickly; the rate limit needs a longer, more patient backoff, so 429 gets
+// its own budget -- 5s, 10s, 15s, 20s, ~50s in total.
+const RATE_LIMIT_ATTEMPTS = 5;
+
 export type MailTmAccount = {
   address: string;
   token: string;
@@ -74,9 +78,11 @@ export function extractOtpCode(message: MailTmMessage): string {
   return otp;
 }
 
-// mail.tm is a free, no-SLA service; brief connection-level blips (not HTTP-level error
-// responses, which are real API errors and should surface immediately) are retried a few times
-// rather than failing the whole test outright.
+// mail.tm is a free, no-SLA service; brief connection-level blips are retried a few times rather
+// than failing the whole test outright. HTTP-level errors are real API errors and surface
+// immediately -- except 429, which is the shared rate limit rather than anything wrong with the
+// request. Several suites now mint a mailbox per test (registration, password rotation, guest
+// checkout), so a run can legitimately bump into it; those back off and retry instead of failing.
 async function mailTmFetch<T>(path: string, options: RequestInit = {}, attempt = 1): Promise<T> {
   let response: Response;
 
@@ -91,6 +97,11 @@ async function mailTmFetch<T>(path: string, options: RequestInit = {}, attempt =
     }
 
     await new Promise((resolve) => setTimeout(resolve, attempt * 1_000));
+    return mailTmFetch<T>(path, options, attempt + 1);
+  }
+
+  if (response.status === 429 && attempt < RATE_LIMIT_ATTEMPTS) {
+    await new Promise((resolve) => setTimeout(resolve, attempt * 5_000));
     return mailTmFetch<T>(path, options, attempt + 1);
   }
 

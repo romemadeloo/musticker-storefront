@@ -18,6 +18,7 @@ type GuardOptions = {
   allowGuestCheckoutBootstrap401: boolean;
   allowExpectedNotFound: boolean;
   allowSheetSizeValidationWarnings: boolean;
+  allowPostLogoutCart401: boolean;
 };
 
 function isExpectedGuestUserMe401(status: number, url: string): boolean {
@@ -33,6 +34,14 @@ function isExpectedGuestCheckoutBootstrap401(status: number, url: string): boole
 
 function isGuestCheckoutBootstrapUnauthorizedWarning(text: string): boolean {
   return text === 'Unauthorized action!';
+}
+
+// Logging out while a member cart is loaded races the cart store: a recalculation that was already
+// in flight lands after the session cookie is gone and comes back 401. The request is moot by then
+// -- the shopper is anonymous and the cart is re-fetched as a guest cart -- so it says nothing about
+// the logout under test. Only tests that deliberately log out opt in.
+function isPostLogoutCartUnauthorized(status: number, url: string): boolean {
+  return status === 401 && /\/sys\/kr\/cart\/(?:calculate|get)(?:\?|$)/i.test(url);
 }
 
 function isExpectedAuthFailure(status: number, url: string): boolean {
@@ -194,6 +203,7 @@ export const test = base.extend<GuardOptions>({
   allowGuestCheckoutBootstrap401: [false, { option: true }],
   allowExpectedNotFound: [false, { option: true }],
   allowSheetSizeValidationWarnings: [false, { option: true }],
+  allowPostLogoutCart401: [false, { option: true }],
 
   page: async (
     {
@@ -207,7 +217,8 @@ export const test = base.extend<GuardOptions>({
       allowTransientProductPageFailures,
       allowGuestCheckoutBootstrap401,
       allowExpectedNotFound,
-      allowSheetSizeValidationWarnings
+      allowSheetSizeValidationWarnings,
+      allowPostLogoutCart401
     },
     use
   ) => {
@@ -221,7 +232,8 @@ export const test = base.extend<GuardOptions>({
       allowTransientProductPageFailures,
       allowGuestCheckoutBootstrap401,
       allowExpectedNotFound,
-      allowSheetSizeValidationWarnings
+      allowSheetSizeValidationWarnings,
+      allowPostLogoutCart401
     };
     const consoleFailures: string[] = [];
     const responseFailures: string[] = [];
@@ -334,6 +346,10 @@ export const test = base.extend<GuardOptions>({
       }
 
       if (allowGuestCheckoutBootstrap401 && isExpectedGuestCheckoutBootstrap401(status, url)) {
+        return;
+      }
+
+      if (allowPostLogoutCart401 && isPostLogoutCartUnauthorized(status, url)) {
         return;
       }
 
