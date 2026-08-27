@@ -1,1 +1,1 @@
-{"id":"18775de73cef2fc8dbeca64926b39ca5","fullName":"pricing/price-interpolation.spec.ts:160:7","name":"MS-PRC-INT-paper-roll quantity 7500 interpolates between rungs 5000 and 10000","status":"passed","testResultsByEnv":{"default":"93ddefe3a4f69fd4fb145c95d1f52a8a"}}
+{"id":"18775de73cef2fc8dbeca64926b39ca5","fullName":"pricing/price-interpolation.spec.ts:160:7","name":"MS-PRC-INT-paper-roll quantity 7500 interpolates between rungs 5000 and 10000","status":"failed","testResultsByEnv":{"default":"0f3c0625c16a601384cb6c1cff11668e"}}
