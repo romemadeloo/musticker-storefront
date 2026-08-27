@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { gotoStorefront } from '../fixtures/navigation.js';
 import { aboutPage, ko } from '../fixtures/storefront-data.js';
 
 export class AboutV2Page {
@@ -12,7 +13,7 @@ export class AboutV2Page {
   }
 
   async goto(): Promise<void> {
-    await this.page.goto(appPath('./about'));
+    await gotoStorefront(this.page, appPath('./about'));
     await expect(this.page.getByRole('heading', { level: 1 }).first()).toBeVisible();
   }
 

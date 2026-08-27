@@ -1,11 +1,11 @@
 import { test as base, expect } from '@playwright/test';
 
-// Matches api.musticker.com plus every numbered/static dev API host from environments.ts
-// (dev-api, dev-2-api, dev-3-api, dev-4-api, dev-static-1-api, ...).
-const DEV_API_HOST = '(?:dev(?:-static)?(?:-\\d+)?-)?api\\.musticker\\.com';
-// Matches musticker.com plus every numbered/static dev storefront origin (dev., dev-2., dev-3.,
-// dev-4., dev-static-1., ...) in addition to www.
-const DEV_STOREFRONT_HOST = '(?:www|dev(?:-static)?(?:-\\d+)?)\\.musticker\\.com';
+import { DEV_API_HOST, DEV_STOREFRONT_HOST } from './hosts.js';
+import {
+  isThrottleBlockConsoleError,
+  isThrottleBlockResponse,
+  retriedThrottleBlockCount
+} from './navigation.js';
 
 type GuardOptions = {
   allowGuestUserMe401: boolean;
@@ -154,6 +154,34 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
 
   return false;
 }
+
+// The guard stores console failures as "[error] <text>" and response failures as "<status> <url>";
+// unwrap each back to the shape the navigation.ts predicates expect.
+function isThrottleBlockConsoleFailure(entry: string): boolean {
+  return isThrottleBlockConsoleError(entry.replace(/^\[(?:error|warning)\] /, ''));
+}
+
+function isThrottleBlockResponseFailure(entry: string): boolean {
+  const [, status, url] = entry.match(/^(\d{3}) (\S+)$/) ?? [];
+
+  return status && url ? isThrottleBlockResponse(Number(status), url) : false;
+}
+
+// Removes up to `limit` entries that the navigation retry already accounted for, keeping every
+// other failure untouched -- a blocked request nothing retried past must still fail the run.
+function dropForgiven(entries: string[], limit: number, isForgivable: (entry: string) => boolean): string[] {
+  let remaining = limit;
+
+  return entries.filter((entry) => {
+    if (remaining > 0 && isForgivable(entry)) {
+      remaining -= 1;
+      return false;
+    }
+
+    return true;
+  });
+}
+
 
 export const test = base.extend<GuardOptions>({
   allowGuestUserMe401: [false, { option: true }],
@@ -314,8 +342,23 @@ export const test = base.extend<GuardOptions>({
 
     await use(page);
 
-    expect.soft(consoleFailures, 'Unexpected browser console errors or warnings').toEqual([]);
-    expect.soft(responseFailures, 'Unexpected failed HTTP responses').toEqual([]);
+    // gotoStorefront() retries past WAF 403s, but the listeners above have already recorded each
+    // blocked attempt by the time it does. Forgive exactly as many as it navigated past -- a 403
+    // that nothing retried still fails the run.
+    const throttleBlocks = retriedThrottleBlockCount(page);
+
+    expect
+      .soft(
+        dropForgiven(consoleFailures, throttleBlocks, isThrottleBlockConsoleFailure),
+        'Unexpected browser console errors or warnings'
+      )
+      .toEqual([]);
+    expect
+      .soft(
+        dropForgiven(responseFailures, throttleBlocks, isThrottleBlockResponseFailure),
+        'Unexpected failed HTTP responses'
+      )
+      .toEqual([]);
   }
 });
 

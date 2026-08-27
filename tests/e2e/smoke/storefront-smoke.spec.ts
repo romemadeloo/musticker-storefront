@@ -1,5 +1,6 @@
 import { test, expect } from '../../fixtures/e2e-test.js';
 import { appPath } from '../../fixtures/env.js';
+import { gotoStorefront } from '../../fixtures/navigation.js';
 import { ko } from '../../fixtures/storefront-data.js';
 import { HomeV2Page } from '../../pom/home-page.js';
 
@@ -62,17 +63,17 @@ test.describe('storefront v2 smoke', { tag: ['@smoke', '@production'] }, () => {
     await home.expectFooterContent();
 
     await expect(page.getByRole('link', { name: ko.terms }).first()).toHaveAttribute('href', /\/kr\/terms-of-use/);
-    await page.goto(appPath('./terms-of-use'));
+    await gotoStorefront(page, appPath('./terms-of-use'));
     await expect(page).toHaveURL(/\/kr\/terms-of-use\/?$/);
 
     await home.goto();
     await expect(page.getByRole('link', { name: ko.privacy }).first()).toHaveAttribute('href', /\/kr\/privacy-policy/);
-    await page.goto(appPath('./privacy-policy'));
+    await gotoStorefront(page, appPath('./privacy-policy'));
     await expect(page).toHaveURL(/\/kr\/privacy-policy\/?$/);
 
     await home.goto();
     await expect(page.getByRole('link', { name: ko.faq }).first()).toHaveAttribute('href', /\/kr\/faq/);
-    await page.goto(appPath('./faq'));
+    await gotoStorefront(page, appPath('./faq'));
     await expect(page).toHaveURL(/\/kr\/faq\/?$/);
   });
 

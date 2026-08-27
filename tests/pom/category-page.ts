@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { gotoStorefront } from '../fixtures/navigation.js';
 
 export class CategoryV2Page {
   readonly page: Page;
@@ -11,7 +12,7 @@ export class CategoryV2Page {
   }
 
   async goto(path: string, heading: string): Promise<void> {
-    await this.page.goto(appPath(path));
+    await gotoStorefront(this.page, appPath(path));
     await expect(this.page.getByRole('heading', { name: heading, exact: true }).first()).toBeVisible();
   }
 

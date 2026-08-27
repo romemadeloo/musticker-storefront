@@ -1,5 +1,6 @@
 import { test } from '../../fixtures/e2e-test.js';
 import { appPath } from '../../fixtures/env.js';
+import { gotoStorefront } from '../../fixtures/navigation.js';
 import { ko, v2Products } from '../../fixtures/storefront-data.js';
 import { HeaderComponent } from '../../pom/header-component.js';
 import { InquiryV2Form } from '../../pom/inquiry-form.js';
@@ -15,7 +16,7 @@ test.describe('storefront v2 mobile critical path', { tag: ['@smoke', '@producti
   });
 
   test('MS-V2-022 home, search, cart, product config, and inquiry work on mobile', async ({ page }) => {
-    await page.goto(appPath());
+    await gotoStorefront(page, appPath());
     await page.getByRole('heading', { name: ko.homeHero }).waitFor({ state: 'visible' });
 
     const header = new HeaderComponent(page);
@@ -33,7 +34,7 @@ test.describe('storefront v2 mobile critical path', { tag: ['@smoke', '@producti
     await product.selectQuantity(data.quantity);
     await product.expectNextStepEnabled();
 
-    await page.goto(appPath());
+    await gotoStorefront(page, appPath());
     const inquiry = new InquiryV2Form(page);
     await inquiry.open();
     await inquiry.expectVisible();

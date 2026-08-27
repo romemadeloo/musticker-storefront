@@ -1,5 +1,6 @@
 import { test, expect } from '../../fixtures/e2e-test.js';
 import { appPath } from '../../fixtures/env.js';
+import { gotoStorefront } from '../../fixtures/navigation.js';
 import { ko } from '../../fixtures/storefront-data.js';
 
 const unknownRoute = 'this-page-does-not-exist-e2e-check';
@@ -15,7 +16,7 @@ test.describe('storefront v2 error handling', { tag: ['@regression', '@productio
   // redirect silently to the homepage with a 200. They now return a real 404 and render a dedicated
   // not-found page, so this asserts that page and its way back home rather than a redirect.
   test('MS-V2-043 unknown route serves the 404 page with a working way back home', async ({ page }) => {
-    const response = await page.goto(appPath(`./${unknownRoute}`));
+    const response = await gotoStorefront(page, appPath(`./${unknownRoute}`));
 
     expect(response?.status(), 'unknown route should return a not-found status').toBe(404);
     await expect(page.getByRole('heading', { name: ko.notFoundHeading })).toBeVisible();

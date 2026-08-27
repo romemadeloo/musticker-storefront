@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { gotoStorefront } from '../fixtures/navigation.js';
 
 export class LoginPage {
   readonly page: Page;
@@ -43,7 +44,7 @@ export class LoginPage {
       this.page.waitForResponse((response) => response.url().includes('/sys/kr/inquiry/types'), { timeout: 10_000 })
     ]);
 
-    await this.page.goto(appPath('./auth/login'));
+    await gotoStorefront(this.page, appPath('./auth/login'));
     await this.page.waitForFunction(() => Boolean((document.querySelector('#__nuxt') as Element & { __vue_app__?: unknown })?.__vue_app__));
     await appBootstrap;
     await expect(this.root).toBeVisible();

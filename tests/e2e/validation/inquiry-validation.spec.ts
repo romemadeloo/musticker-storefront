@@ -1,13 +1,14 @@
 import { test, expect } from '../../fixtures/e2e-test.js';
 import { ko } from '../../fixtures/storefront-data.js';
 import { appPath } from '../../fixtures/env.js';
+import { gotoStorefront } from '../../fixtures/navigation.js';
 import { InquiryV2Form } from '../../pom/inquiry-form.js';
 
 test.describe('storefront v2 inquiry validation', { tag: ['@validation', '@production'] }, () => {
   test.use({ allowGuestUserMe401: true, allowExpectedAuthFailures: true, allowKnownNuxtPayloadFailures: true });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(appPath());
+    await gotoStorefront(page, appPath());
   });
 
   test('MS-V2-017 inquiry form validates blank and invalid email submissions', async ({ page }) => {

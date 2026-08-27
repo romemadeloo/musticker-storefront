@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { gotoStorefront } from '../fixtures/navigation.js';
 import { ko } from '../fixtures/storefront-data.js';
 import { HeaderComponent } from './header-component.js';
 
@@ -15,7 +16,7 @@ export class HomeV2Page {
   }
 
   async goto(): Promise<void> {
-    await this.page.goto(appPath());
+    await gotoStorefront(this.page, appPath());
     await this.header.expectVisible();
   }
 

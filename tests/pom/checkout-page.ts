@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { gotoStorefront } from '../fixtures/navigation.js';
 import { ko } from '../fixtures/storefront-data.js';
 
 export class CheckoutV2Page {
@@ -14,7 +15,7 @@ export class CheckoutV2Page {
   }
 
   async goto(): Promise<void> {
-    await this.page.goto(appPath('./checkout'));
+    await gotoStorefront(this.page, appPath('./checkout'));
     await expect(this.page.locator('body')).toContainText(ko.secureCheckout);
   }
 

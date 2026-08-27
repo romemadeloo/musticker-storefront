@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { gotoStorefront } from '../fixtures/navigation.js';
 import { ko } from '../fixtures/storefront-data.js';
 import { enterCartDialogCustomSize } from './cart-size-dialog.js';
 
@@ -15,7 +16,7 @@ export class CartV2Page {
   }
 
   async goto(): Promise<void> {
-    await this.page.goto(appPath('./cart'));
+    await gotoStorefront(this.page, appPath('./cart'));
     await expect(this.page.getByRole('heading', { name: '내 장바구니' })).toBeVisible();
   }
 

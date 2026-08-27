@@ -1,5 +1,6 @@
 import { test, expect } from '../../fixtures/e2e-test.js';
 import { appPath } from '../../fixtures/env.js';
+import { gotoStorefront } from '../../fixtures/navigation.js';
 import { ko } from '../../fixtures/storefront-data.js';
 import { HeaderComponent } from '../../pom/header-component.js';
 
@@ -7,7 +8,7 @@ test.describe('storefront v2 accessibility smoke', { tag: ['@regression', '@prod
   test.use({ allowGuestUserMe401: true, allowKnownNuxtPayloadFailures: true });
 
   test('MS-V2-023 core controls are named and keyboard reachable', async ({ page }) => {
-    await page.goto(appPath());
+    await gotoStorefront(page, appPath());
 
     await expect(page.getByTestId('app-header-search-button')).toBeVisible();
     await expect(page.getByTestId('app-header-cart-button')).toBeVisible();

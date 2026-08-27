@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { gotoStorefront } from '../fixtures/navigation.js';
 import { ko } from '../fixtures/storefront-data.js';
 
 const wonAmountPattern = /[\d,]+\uc6d0/u;
@@ -19,13 +20,13 @@ export class ProductV2Page {
   }
 
   async goto(path: string, heading: string): Promise<void> {
-    await this.page.goto(appPath(path));
+    await gotoStorefront(this.page, appPath(path));
     await expect(this.page.getByRole('heading', { name: heading, exact: true }).first()).toBeVisible();
     await expect(this.optionsPanel).toBeVisible();
   }
 
   async expectCatalogEntryRenders(path: string): Promise<void> {
-    await this.page.goto(appPath(path));
+    await gotoStorefront(this.page, appPath(path));
     await expect(this.page).toHaveURL(new RegExp(`${escapeRegExp(path.replace(/^\.\//, ''))}/?$`));
     await expect(this.page.getByRole('heading', { level: 1 }).first()).toBeVisible();
     await expect(this.optionsPanel).toBeVisible();
