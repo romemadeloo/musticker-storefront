@@ -35,9 +35,13 @@ Scanned pages:
 - Use Playwright web-first assertions and avoid `page.waitForTimeout()`.
 - Use Playwright `request` for direct API contract checks. Keep production API tests read-only unless explicitly tagged `@destructive`.
 - Use `BASE_URL=https://www.musticker.com/kr` for production-safe runs.
-- Tag tests for selective execution: `@smoke`, `@regression`, `@production`, `@mobile`, `@auth`, `@api`, `@purchasing`, `@validation`, `@destructive`, `@slow`.
+- Tag tests for selective execution: `@smoke`, `@regression`, `@production`, `@mobile`, `@auth`, `@api`, `@pricing`, `@purchasing`, `@validation`, `@a11y`, `@credentialed`, `@visual`, `@destructive`, `@slow`.
 - Do not create orders, submit payments, or mutate durable production data unless the test is explicitly tagged `@destructive` and guarded by environment variables.
 - Keep credentialed authentication checks optional and skip them unless `AUTH_TEST_EMAIL` and `AUTH_TEST_PASSWORD` are provided.
+- A test that needs a member session but is not *about* signing in takes one from the API with `test.use({ asMember: true })` rather than driving the login form. Only the tests whose subject is authentication itself (`MS-V2-034`, `MS-V2-035`, `MS-V2-094`, `MS-V2-104`) go through the form.
+- Any test that creates or mutates real data must restore what it can before it ends, and must record anything it cannot (accounts, via `recordCreatedAccount`) so the run's global teardown can clean up.
+- A known, tracked product defect is recorded as data with a note explaining it -- `KNOWN_STOREFRONT_VIOLATIONS` in `tests/fixtures/axe.ts`, `KNOWN_FALLING_PRICE_INTERVALS` in `price-interpolation.spec.ts` -- not suppressed by weakening an assertion. New occurrences must still fail.
+- A test whose value depends on a precondition (a member existing on the environment under test, a fixture quantity falling on one side of a threshold) asserts that precondition explicitly, so a misconfigured run fails loudly instead of passing while proving nothing.
 
 ## Recommended Test Data
 
@@ -104,7 +108,7 @@ Scanned pages:
 | MS-V2-056 | Cart | `@regression @production @purchasing` | Full cart page "사이즈 변경" dialog exposes material + individual size only (no quantity) and updates price | P1 |
 | MS-V2-057 | Cart | `@regression @production @purchasing` | Full cart page row-level quantity select updates price without a separate confirm step | P1 |
 | MS-V2-058 | Product | `@regression @production` | Sheet sticker size-guide illustrations expose meaningful, localized alt text (parameterized x5) — currently failing on development-3, documents a live defect | P1 |
-| MS-V2-059 | Product | `@regression @production` | Sheet sticker per-unit price is always a whole-won amount, even for custom sizes at bulk tiers — currently failing on development-3, documents a live defect | P2 |
+| ~~MS-V2-059~~ | Product | — | ~~Sheet sticker per-unit price is always a whole-won amount~~ **Withdrawn 2026-08-13**: a fractional per-unit readout (e.g. `8.582원`) was confirmed with Korean staff to be expected pricing behavior, not a defect. Not automated, and must not be re-added. | — |
 | MS-V2-073 | Product | `@regression @purchasing` | Custom individual size that fits only one sticker per sheet is rejected: error message, every quantity tier at 0원, `다음 단계` disabled (parameterized x5) | P0 |
 | MS-V2-074 | Product | `@regression @purchasing` | The 138x97 gate is exact on circle sheet — 138x97 orderable, 138x98 rejected | P1 |
 | MS-V2-075 | Product | `@regression @purchasing` | Sheet sticker preset sizes match the shape-family table and every preset fits at least two stickers per sheet (parameterized x5) | P1 |
@@ -129,6 +133,33 @@ Scanned pages:
 | MS-V2-094 | Auth | `@destructive @slow @auth` | A successful password change rotates the credential: the new password logs in and the old one no longer does | P0 |
 | MS-V2-095 | Auth | `@regression @production @auth` | A member-only account route is not reachable by an anonymous visitor | P0 |
 | MS-V2-096 | Auth | `@regression @production @auth` | Non-member mode swaps the password form for guest email + order-number lookup | P2 |
+| MS-V2-060 | Product | `@regression @production @purchasing` | Plain die-cut shape stickers under /kr/stickers support size and quantity selection through to cart (parameterized x8) | P1 |
+| MS-V2-061 | Product | `@regression @production @purchasing` | Plain die-cut roll stickers under /kr/roll-stickers support size and quantity selection through to cart (parameterized x7) | P1 |
+| MS-V2-062 | Product | `@regression @production @purchasing` | Circle sticker custom individual size recalculates the price | P1 |
+| MS-V2-063 | Product | `@regression @production @purchasing` | Circle roll sticker custom individual size recalculates the price | P1 |
+| MS-V2-064 | Product | `@regression @production @purchasing` | Circle sticker bulk quantity tiers surface a discount that smaller tiers do not | P2 |
+| MS-V2-065 | Product | `@regression @production @purchasing` | Circle roll sticker bulk quantity tiers surface a discount that smaller tiers do not | P2 |
+| MS-V2-070 | Product | `@regression @production @purchasing` | Custom sheet sticker supports material, sheet size, and quantity selection through to cart | P1 |
+| MS-V2-071 | Product | `@regression @production @purchasing` | Lettering sticker supports color, custom text, and quantity selection through to cart | P1 |
+| MS-V2-072 | Product | `@regression @production @purchasing` | Full-color lettering (transfer) sticker supports color, size, and quantity selection through to cart | P1 |
+| MS-V2-097 | Money path | `@regression @production @purchasing` | The quoted tier price survives product page -> cart drawer -> cart page -> checkout 소계 unchanged, and the checkout summary adds up (소계 + 배송비 - 할인 = 합계) | P0 |
+| MS-V2-098 | Money path | `@regression @production @purchasing` | An order below the 5만원 free-shipping threshold is charged a shipping fee | P1 |
+| MS-V2-099 | Money path | `@regression @production @purchasing` | An order at or above the 5만원 free-shipping threshold ships free and its total equals its subtotal | P1 |
+| MS-V2-100 | Cart | `@regression @production @purchasing` | Removing the only line item leaves a usable empty cart in the drawer, the header badge, and the cart page | P0 |
+| MS-V2-101 | Cart | `@regression @production @purchasing` | Two distinct products become two lines whose prices sum to the cart total | P0 |
+| MS-V2-102 | Cart | `@smoke @regression @production @purchasing` | A guest cart survives a full document reload with its line price intact | P0 |
+| MS-V2-103 | Cart | `@regression @production @purchasing` | The cart page confirms a removal before acting; cancelling is a no-op, confirming empties the cart | P1 |
+| MS-V2-104 | Cart | `@regression @purchasing @credentialed @destructive @slow` | A guest cart is merged additively into the member cart on login, and the test restores the member's cart afterwards | P0 |
+| MS-V2-105 | Cart | `@regression @production` | An empty cart page offers featured and discover product links rather than a dead end | P2 |
+| MS-V2-106 | Accessibility | `@regression @a11y @production` | Home, sticker category, product, FAQ, login, and empty cart have no WCAG 2.1 AA critical/serious violations beyond the recorded baseline (parameterized x6) | P1 |
+| MS-V2-107 | Orders | `@smoke @regression @production @auth @credentialed` | Order history lists the member's orders, each with a distinct order number and an order date | P0 |
+| MS-V2-108 | Orders | `@regression @production @auth @credentialed` | Selecting an order routes to /kr/account/orders/<id> and opens that order's invoice, not the placeholder | P0 |
+| MS-V2-109 | Orders | `@regression @production @auth @credentialed` | The 진행 중 / 이전 내역 segmented control switches the list to a disjoint set and reports state via aria-pressed | P1 |
+| MS-V2-110 | Orders | `@regression @production @auth @credentialed` | Order search narrows the list to the searched order on submit, and clearing it restores the full list | P1 |
+| MS-V2-111 | Orders | `@regression @production @auth @credentialed` | Order history search, date, filter, and segment controls are present and named | P2 |
+| MS-V2-112 | Auth | `@auth @production @validation` | Guest order lookup refuses an unknown order number and leaves the visitor anonymous | P1 |
+| MS-V2-113 | Auth | `@auth @production @validation` | Blank guest order lookup marks both fields required and never calls the lookup endpoint | P1 |
+| MS-V2-114 | Auth | `@auth @production @validation @credentialed` | Guest order lookup refuses a registered and an unregistered address identically, so it is not an account-existence oracle | P0 |
 
 ## Detailed Test Cases
 
@@ -450,7 +481,13 @@ Scanned pages:
 | --- | --- | --- | --- |
 | Anonymous session. | 1. For each of the five shape variants, navigate to the product page.<br>2. Read the `alt` attribute of each of the four `.mini-feature-image` size-guide illustrations (소형/중형/대형/초대형 use-case icons).<br>3. Assert no `alt` text is a raw untranslated i18n key (`^product\.sizes\.`) and none looks like an unrelated sheet/paper-size label (`^A\d+\s`, `^\d+x\d+$`). | Size-guide illustrations have meaningful, localized alt text. | **Currently fails on development-3 for all five shapes** — two distinct defects found while verifying this suite on 2026-08-13:<br><br>- `circle-sheet`, `oval-sheet`, `rectangle-sheet`: `alt` renders the raw, untranslated i18n key, e.g. `product.sizes.small40x40.label`.<br>- `square-sheet`, `rounded-sheet`: `alt` renders unrelated content — paper/sheet size labels (`A6 105x148`, `A5 148x210`, `A4 210x297`, `72x170`) instead of the actual use-case description, suggesting the wrong translation data source is wired up for these two products specifically.<br><br>This test is left asserting correct behavior (not `test.fixme`'d) so it keeps failing loudly until product/eng fixes the underlying i18n/content wiring. |
 
-### MS-V2-059 - Per-Unit Price Is Always Whole Won (Known Defect)
+### ~~MS-V2-059 - Per-Unit Price Is Always Whole Won~~ (Withdrawn 2026-08-13)
+
+> **Withdrawn.** A fractional per-unit readout (e.g. `(1매당 8.582원)`) was confirmed with Korean
+> staff on 2026-08-13 to be expected and acceptable pricing behavior, not a defect. No test asserts
+> whole-won per-unit prices, and none should be re-added -- see the note at the top of
+> `tests/e2e/purchasing/sheet-sticker-configurator.spec.ts`. The original write-up is kept below
+> for provenance.
 
 | Preconditions | Steps | Expected Result | Automation Notes |
 | --- | --- | --- | --- |

@@ -1,7 +1,9 @@
 import { test, expect } from '../../fixtures/e2e-test.js';
 import { env } from '../../fixtures/env.js';
 import { createMailTmAccount, extractOtpCode, waitForMailTmMessage } from '../../fixtures/mail-tm.js';
+import { SKIP_WITHOUT_MEMBER_CREDENTIALS, hasMemberCredentials } from '../../fixtures/member-auth.js';
 import { authCopy, throwawayAccount } from '../../fixtures/storefront-data.js';
+import { recordCreatedAccount } from '../../fixtures/test-data-ledger.js';
 import { AccountProfilePage } from '../../pom/account-profile-page.js';
 import { HeaderComponent } from '../../pom/header-component.js';
 import { LoginPage } from '../../pom/login-page.js';
@@ -26,16 +28,14 @@ test.describe('storefront change password', { tag: ['@auth', '@production'] }, (
   test.use({ allowGuestUserMe401: true, allowExpectedAuthFailures: true, allowKnownNuxtPayloadFailures: true });
 
   test.describe('seeded member', { tag: ['@credentialed'] }, () => {
-    test.skip(!env.AUTH_TEST_EMAIL || !env.AUTH_TEST_PASSWORD, 'Set AUTH_TEST_EMAIL and AUTH_TEST_PASSWORD to run.');
+    // The session is seeded from the API instead of driven through the login form: none of these
+    // five tests is about logging in, and the form route cost ~15s each and made every one of them
+    // fail whenever login hiccuped. MS-V2-034/035 still cover the form itself.
+    test.use({ asMember: true });
+    test.skip(!hasMemberCredentials(), SKIP_WITHOUT_MEMBER_CREDENTIALS);
 
     test.beforeEach(async ({ page }) => {
-      const login = new LoginPage(page);
-
-      await login.goto();
-      await login.loginWithCredentials(env.AUTH_TEST_EMAIL!, env.AUTH_TEST_PASSWORD!);
-
-      const profile = new AccountProfilePage(page);
-      await profile.goto();
+      await new AccountProfilePage(page).goto();
     });
 
     test('MS-V2-089 account profile exposes the password change controls @smoke', async ({ page }) => {
@@ -121,6 +121,7 @@ test.describe('storefront change password', { tag: ['@auth', '@production'] }, (
     const otpEmail = await waitForMailTmMessage(mailbox, (message) => /인증/.test(message.subject));
     const registered = await register.submitVerificationCode(extractOtpCode(otpEmail));
     expect(registered.status()).toBe(201);
+    recordCreatedAccount({ email: mailbox.address, createdBy: 'MS-V2-094' });
     await expect(page).toHaveURL(/\/kr\/auth\/profile\/?$/);
 
     const profile = new AccountProfilePage(page);

@@ -2,8 +2,23 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { parseWon } from '../fixtures/money.js';
 import { gotoStorefront } from '../fixtures/navigation.js';
-import { ko } from '../fixtures/storefront-data.js';
+import { checkoutSummaryLabels, freeShippingThresholdWon, ko } from '../fixtures/storefront-data.js';
+
+/**
+ * The order-summary block, as numbers. Discounts are reported as the positive amount deducted, not
+ * as the negative the page renders, so the identity below reads the way the receipt does.
+ */
+export type OrderSummary = {
+  subtotal: number;
+  shippingFee: number;
+  /** Points + coupon discounts combined, as a positive deduction. */
+  discounts: number;
+  total: number;
+  /** Every row in render order, for failure messages and for spotting a new row appearing. */
+  rows: ReadonlyArray<{ label: string; amount: number }>;
+};
 
 export class CheckoutV2Page {
   readonly page: Page;
@@ -17,6 +32,92 @@ export class CheckoutV2Page {
   async goto(): Promise<void> {
     await gotoStorefront(this.page, appPath('./checkout'));
     await expect(this.page.locator('body')).toContainText(ko.secureCheckout);
+  }
+
+  /**
+   * Reads the order summary once the async shipping-cost recalculation has settled.
+   *
+   * The shipping-fee and total rows render as `.ui-skeleton` placeholders while that call is in
+   * flight, so reading immediately yields a partial summary that does not add up. Verified against
+   * development-1 on 2026-08-27: 소계 18,700원 + 배송비 3,000원 = 합계 21,700원.
+   */
+  async captureOrderSummary(): Promise<OrderSummary> {
+    const lines = this.page.locator('.checkout-summary-line');
+
+    await expect(lines.first()).toBeVisible();
+    await expect(this.page.locator('.checkout-summary-line .ui-skeleton')).toHaveCount(0, { timeout: 30_000 });
+
+    const rows: Array<{ label: string; amount: number }> = [];
+    const lineCount = await lines.count();
+
+    for (let index = 0; index < lineCount; index += 1) {
+      const line = lines.nth(index);
+      // The 배송비 label carries a tooltip trigger button; its accessible name is not part of the
+      // label's own text, so innerText is still just the label.
+      const label = (await line.locator('.checkout-summary-line-label').innerText()).trim();
+      rows.push({ label, amount: parseWon(await line.locator('.checkout-summary-line-value').innerText()) });
+    }
+
+    const amountOf = (label: string): number => {
+      const row = rows.find((candidate) => candidate.label === label);
+
+      if (!row) {
+        throw new Error(
+          `Checkout summary has no "${label}" row. Rows present: ${rows.map((r) => r.label).join(', ')}.`
+        );
+      }
+
+      return row.amount;
+    };
+
+    const pointsDiscount = amountOf(checkoutSummaryLabels.pointsDiscount);
+    const couponDiscount = amountOf(checkoutSummaryLabels.couponDiscount);
+
+    return {
+      subtotal: amountOf(checkoutSummaryLabels.subtotal),
+      shippingFee: amountOf(checkoutSummaryLabels.shipping),
+      // Rendered negative; reported here as the positive deduction.
+      discounts: -(pointsDiscount + couponDiscount),
+      total: amountOf(checkoutSummaryLabels.total),
+      rows
+    };
+  }
+
+  /**
+   * The receipt has to add up. This is the one assertion that catches a summary which shows plausible
+   * individual figures whose total is wrong -- the failure mode no per-row check can see.
+   */
+  async expectSummaryReconciles(): Promise<OrderSummary> {
+    const summary = await this.captureOrderSummary();
+
+    expect(
+      summary.subtotal + summary.shippingFee - summary.discounts,
+      `Checkout summary must add up. Rows: ${summary.rows.map((row) => `${row.label}=${row.amount}`).join(', ')}`
+    ).toBe(summary.total);
+
+    return summary;
+  }
+
+  /**
+   * Asserts the shipping fee matches the 5만원 이상 무료배송 promise the product pages make: free at or
+   * above the threshold, charged below it.
+   */
+  async expectShippingFeeFollowsThreshold(): Promise<OrderSummary> {
+    const summary = await this.expectSummaryReconciles();
+
+    if (summary.subtotal >= freeShippingThresholdWon) {
+      expect(
+        summary.shippingFee,
+        `A ${summary.subtotal}원 order is at or above the ${freeShippingThresholdWon}원 free-shipping threshold and must ship free`
+      ).toBe(0);
+    } else {
+      expect(
+        summary.shippingFee,
+        `A ${summary.subtotal}원 order is below the ${freeShippingThresholdWon}원 free-shipping threshold and must be charged shipping`
+      ).toBeGreaterThan(0);
+    }
+
+    return summary;
   }
 
   async expectCheckoutFormRenders(): Promise<void> {

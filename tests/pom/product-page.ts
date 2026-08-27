@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { parseWon } from '../fixtures/money.js';
 import { gotoStorefront } from '../fixtures/navigation.js';
 import { ko } from '../fixtures/storefront-data.js';
 
@@ -102,6 +103,36 @@ export class ProductV2Page {
     const canvas = this.page.getByTestId('product-category-vinyl-designer-textarea');
     await canvas.click();
     await this.page.keyboard.type(text);
+  }
+
+  /**
+   * The price the chosen quantity tier advertises, as a number.
+   *
+   * This is the figure the shopper is quoted and the one that must survive into the cart and the
+   * checkout summary unchanged -- it is already the discounted price, not the struck-through one
+   * (verified on development-1: the 30개 tier reads 18,700원 against a 19,800원 list price, and
+   * 18,700원 is what the cart line and the checkout 소계 then show).
+   *
+   * Waits out the bootstrap pricing round-trip, during which every tier reads 0원.
+   */
+  async captureQuantityTierPrice(quantity: number): Promise<number> {
+    const price = this.quantityTier(quantity).locator('.qty-pill-price');
+
+    await expect(price).toBeVisible({ timeout: 20_000 });
+    await expect(price, 'quantity tier is still unpriced -- the pricing call has not landed').not.toHaveText('0원', {
+      timeout: 20_000
+    });
+
+    return parseWon(await price.innerText());
+  }
+
+  private quantityTier(quantity: number): Locator {
+    const quantityLabel = new RegExp(
+      `^${quantity.toLocaleString('en-US')}\\s*(?:\\S+)?\\s*${wonAmountPattern.source}`,
+      'u'
+    );
+
+    return this.optionsPanel.getByRole('button', { name: quantityLabel }).first();
   }
 
   async expectVisiblePrice(): Promise<void> {

@@ -28,6 +28,7 @@ on:
           - purchasing
           - pricing
           - validation
+          - a11y
           - visual
           - destructive
           - custom-grep
@@ -48,7 +49,14 @@ on:
         default: ''
         type: string
       run_payment_e2e:
-        description: Enable destructive checkout gates.
+        description: Enable the destructive checkout test (MS-V2-025). Dev environments only.
+        required: true
+        default: false
+        type: boolean
+      run_auth_destructive_e2e:
+        description: >-
+          Enable the account-creating and state-mutating auth tests (MS-V2-087/088/094, MS-V2-104).
+          Dev environments only -- each run registers a real member.
         required: true
         default: false
         type: boolean
@@ -61,10 +69,22 @@ env:
   E2E_ENVIRONMENT: ${{ inputs.environment }}
   E2E_BROWSER_PROJECT: ${{ inputs.browser_project }}
   RUN_PAYMENT_E2E: ${{ inputs.run_payment_e2e }}
-  # Only wired for production: each development-* environment has its own user database, so a
-  # shared seeded account would risk real login failures rather than a clean skip elsewhere.
-  AUTH_TEST_EMAIL: ${{ inputs.environment == 'production' && secrets.AUTH_TEST_EMAIL || '' }}
-  AUTH_TEST_PASSWORD: ${{ inputs.environment == 'production' && secrets.AUTH_TEST_PASSWORD || '' }}
+  # Was never wired up before: choosing the destructive suite ran MS-V2-025 and silently *skipped*
+  # every account-creating auth test, because their gate is this variable rather than RUN_PAYMENT_E2E.
+  # Forced off against production, where those tests must never run whatever the dispatcher ticks.
+  RUN_AUTH_DESTRUCTIVE_E2E: ${{ inputs.environment != 'production' && inputs.run_auth_destructive_e2e || false }}
+  # Each environment has its own user database, so production and the development-* servers need
+  # separate accounts. DEV_AUTH_TEST_* is shared across all of the development-* servers: they are
+  # refreshed from the same seed data, so one account exists on all of them. Leave either pair unset
+  # and the @credentialed tests skip themselves, exactly as before.
+  #
+  # Without a dev pair the credentialed *and* the account-mutating destructive tests (MS-V2-104)
+  # could never run anywhere: production has the credentials but forbids destructive runs, and the
+  # dev servers allowed them but had no credentials.
+  AUTH_TEST_EMAIL: >-
+    ${{ inputs.environment == 'production' && secrets.AUTH_TEST_EMAIL || secrets.DEV_AUTH_TEST_EMAIL }}
+  AUTH_TEST_PASSWORD: >-
+    ${{ inputs.environment == 'production' && secrets.AUTH_TEST_PASSWORD || secrets.DEV_AUTH_TEST_PASSWORD }}
 
 jobs:
   playwright:
@@ -147,14 +167,28 @@ jobs:
             validation)
               grep='@validation'
               ;;
+            a11y)
+              grep='@a11y'
+              ;;
             visual)
               grep='@visual'
               ;;
             destructive)
-              if [ "${{ inputs.run_payment_e2e }}" != "true" ]; then
-                echo "run_payment_e2e must be true for destructive." >&2
+              # Both gates are independent: run_payment_e2e unlocks the checkout test, and
+              # run_auth_destructive_e2e unlocks the account-creating auth tests. With neither on,
+              # every test in the selection skips itself and the run reports a misleading green.
+              if [ "$RUN_PAYMENT_E2E" != "true" ] && [ "$RUN_AUTH_DESTRUCTIVE_E2E" != "true" ]; then
+                echo "The destructive suite needs run_payment_e2e and/or run_auth_destructive_e2e enabled;" >&2
+                echo "with both off every destructive test skips and the run proves nothing." >&2
                 exit 1
               fi
+
+              if [ "$E2E_ENVIRONMENT" = "production" ]; then
+                echo "The destructive suite must not run against production: it places real orders and" >&2
+                echo "registers real members. Pick a development-* environment." >&2
+                exit 1
+              fi
+
               grep='@destructive'
               ;;
             custom-grep)

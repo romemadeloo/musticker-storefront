@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
-import { authCopy } from '../fixtures/storefront-data.js';
+import { authCopy, guestOrderLookupCopy } from '../fixtures/storefront-data.js';
 import { waitForPasswordFormInteractive } from '../fixtures/hydration.js';
 import { gotoStorefront } from '../fixtures/navigation.js';
 
@@ -29,6 +29,8 @@ export class LoginPage {
   readonly nonMemberEmailInput: Locator;
   readonly nonMemberOrderNumberInput: Locator;
   readonly nonMemberSubmitButton: Locator;
+  readonly nonMemberEmailError: Locator;
+  readonly nonMemberOrderNumberError: Locator;
 
   readonly forgotPasswordEmailInput: Locator;
   readonly forgotPasswordSubmitButton: Locator;
@@ -60,6 +62,9 @@ export class LoginPage {
     this.nonMemberEmailInput = page.getByTestId('auth-login-non-member-email-input-control');
     this.nonMemberOrderNumberInput = page.getByTestId('auth-login-non-member-order-number-input-control');
     this.nonMemberSubmitButton = page.getByTestId('auth-login-submit-non-member-button');
+    // Guest lookup labels each field's error individually, the same way the member form does.
+    this.nonMemberEmailError = page.getByTestId('auth-login-non-member-email-error');
+    this.nonMemberOrderNumberError = page.getByTestId('auth-login-non-member-order-number-error');
 
     this.forgotPasswordEmailInput = page.getByTestId('auth-login-forgot-password-email-input-control');
     this.forgotPasswordSubmitButton = page.getByTestId('auth-login-forgot-password-submit-button');
@@ -202,6 +207,62 @@ export class LoginPage {
     await expect(this.nonMemberOrderNumberInput).toBeVisible();
     await expect(this.nonMemberSubmitButton).toBeVisible();
     await expect(this.memberForm).toHaveCount(0);
+  }
+
+  /**
+   * Submits the guest order lookup and waits for the attempt to settle.
+   *
+   * `POST /sys/kr/auth/login/guest/verification` answers HTTP 200 for an unknown order and carries
+   * the refusal in the body, so the outcome is read off the rendered error rather than the status --
+   * the same shape as the member login endpoint.
+   */
+  async submitGuestOrderLookup(email: string, orderNumber: string): Promise<void> {
+    const lookupAttempt = this.page.waitForResponse(
+      (response) =>
+        response.url().includes('/sys/kr/auth/login/guest/verification') && response.request().method() === 'POST',
+      { timeout: 30_000 }
+    );
+
+    await this.nonMemberEmailInput.fill(email);
+    await this.nonMemberOrderNumberInput.fill(orderNumber);
+    await this.nonMemberSubmitButton.click({ force: true });
+    await lookupAttempt;
+  }
+
+  /** The message the guest lookup rejected the attempt with, once one is rendered. */
+  async captureGuestOrderLookupRefusal(): Promise<string> {
+    const error = this.nonMemberEmailError.or(this.nonMemberOrderNumberError).first();
+    await expect(error).toBeVisible({ timeout: 20_000 });
+
+    return (await error.innerText()).trim();
+  }
+
+  /**
+   * Asserts blank guest lookup is refused locally: both fields are marked required and -- the part
+   * that matters -- nothing is sent to the lookup endpoint.
+   */
+  async expectBlankGuestOrderLookupRejected(): Promise<void> {
+    const lookupRequests: string[] = [];
+    const recordLookup = (request: import('@playwright/test').Request): void => {
+      if (request.method() === 'POST' && request.url().includes('/sys/kr/auth/login/guest/verification')) {
+        lookupRequests.push(request.url());
+      }
+    };
+
+    this.page.on('request', recordLookup);
+
+    try {
+      await this.nonMemberEmailInput.fill('');
+      await this.nonMemberOrderNumberInput.fill('');
+      await this.nonMemberSubmitButton.click({ force: true });
+
+      await expect(this.nonMemberEmailError).toHaveText(guestOrderLookupCopy.requiredField);
+      await expect(this.nonMemberOrderNumberError).toHaveText(guestOrderLookupCopy.requiredField);
+    } finally {
+      this.page.off('request', recordLookup);
+    }
+
+    expect(lookupRequests, 'guest lookup must validate before contacting the endpoint').toEqual([]);
   }
 
   async openRegister(): Promise<void> {

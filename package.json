@@ -28,6 +28,9 @@
     "test:pricing:dev1": "cross-env E2E_ENVIRONMENT=development-1 playwright test tests/e2e/pricing --workers=4 --retries=2",
     "test:pricing:prod": "cross-env E2E_ENVIRONMENT=production playwright test tests/e2e/pricing --workers=8 --retries=0",
     "test:visual": "cross-env RUN_VISUAL_E2E=true playwright test --grep @visual",
+    "test:visual:update": "cross-env RUN_VISUAL_E2E=true playwright test --grep @visual --update-snapshots",
+    "test:a11y": "playwright test --grep @a11y",
+    "test:flake": "playwright test --grep @smoke --grep-invert \"@visual|@destructive\" --repeat-each=3 --retries=0",
     "test:destructive": "cross-env RUN_PAYMENT_E2E=true RUN_AUTH_DESTRUCTIVE_E2E=true playwright test --grep @destructive",
     "test:destructive:auth": "cross-env RUN_AUTH_DESTRUCTIVE_E2E=true playwright test tests/e2e/auth --grep @destructive",
     "test:ci": "playwright test --grep-invert \"@slow|@destructive|@payment|@visual\"",
@@ -38,11 +41,13 @@
     "lint": "eslint ."
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.56.0",
     "@types/node": "^24.0.0",
     "allure": "^3.14.3",
     "allure-playwright": "^3.9.0",
+    "axe-core": "^4.13.0",
     "cross-env": "^7.0.3",
     "dotenv": "^17.0.0",
     "eslint": "^10.3.0",

@@ -10,6 +10,7 @@ export class HeaderComponent {
   readonly logo: Locator;
   readonly searchButton: Locator;
   readonly cartButton: Locator;
+  readonly cartCount: Locator;
   readonly accountButton: Locator;
 
   constructor(page: Page) {
@@ -18,6 +19,7 @@ export class HeaderComponent {
     this.logo = this.root.getByRole('link', { name: 'Musticker' });
     this.searchButton = page.getByTestId('app-header-search-button');
     this.cartButton = page.getByTestId('app-header-cart-button');
+    this.cartCount = page.getByTestId('app-header-cart-count');
     this.accountButton = page.getByTestId('app-header-account-toggle-button');
   }
 
@@ -27,6 +29,19 @@ export class HeaderComponent {
     await expect(this.searchButton).toBeVisible();
     await expect(this.cartButton).toBeVisible();
     await expect(this.accountButton).toBeVisible();
+  }
+
+  /**
+   * The badge on the cart button. It is an independent read of the cart's size from the drawer's own
+   * line items, so the two disagreeing is itself a defect worth catching.
+   */
+  async expectCartCount(expected: number): Promise<void> {
+    if (expected === 0) {
+      await expect(this.cartCount).toHaveCount(0, { timeout: 15_000 });
+      return;
+    }
+
+    await expect(this.cartCount).toHaveText(String(expected), { timeout: 15_000 });
   }
 
   async goHome(): Promise<void> {

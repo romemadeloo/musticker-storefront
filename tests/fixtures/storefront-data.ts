@@ -64,6 +64,55 @@ export const ko = {
   orderCompletedHeading: '\uc8fc\ubb38\uc774 \uc644\ub8cc\ub418\uc5c8\uc2b5\ub2c8\ub2e4!'
 } as const;
 
+// The order-summary row labels on /kr/checkout, captured live from development-1 on 2026-08-27.
+// Keyed off the label text because the rows carry no test ids -- only `.checkout-summary-line` with
+// a `-label`/`-value` pair, and `.is-total` on the last one.
+export const checkoutSummaryLabels = {
+  subtotal: '소계',
+  shipping: '배송비',
+  pointsDiscount: '포인트 할인',
+  couponDiscount: '쿠폰 할인',
+  total: '합계'
+} as const;
+
+// The storefront promises 5만원 이상 무료배송 on every product page (asserted by MS-V2-013). Verified
+// live on development-1 on 2026-08-27: a 32,500원 subtotal is charged 3,000원, a 106,000원 subtotal
+// is charged 0원.
+export const freeShippingThresholdWon = 50_000;
+
+// Cart copy shared by the preview drawer and the full cart page.
+export const cartCopy = {
+  pageHeading: '내 장바구니',
+  summaryHeading: '주문 요약',
+  removeItem: '상품 삭제',
+  emptyDrawer: '현재 장바구니가 비어 있습니다.',
+  checkoutFromCart: '주문하기',
+  // The full cart page confirms every removal through a modal rather than deleting straight away.
+  removeConfirmHeading: '장바구니에서 이 상품을 삭제하시겠습니까?'
+} as const;
+
+// Order history (/kr/account/orders), captured live from development-1 on 2026-08-27. The page is a
+// master/detail: `.order-list .order-item` cards on the left, `.orders-main` invoice on the right.
+export const orderHistoryCopy = {
+  heading: '주문 현황',
+  inProgressTab: '진행 중',
+  pastTab: '이전 내역',
+  noSelectionPrompt: '주문을 선택해 주세요',
+  // Order numbers are `AO-<yymmdd><seq>` plus an environment suffix on the dev servers
+  // (`AO-2608260005-dev`); production omits the suffix.
+  orderNumberPattern: /AO-[\w-]+/,
+  // Rows every order invoice carries, whatever its payment state.
+  invoiceLabels: ['상품 금액', '배송비', '총계'] as const
+} as const;
+
+// Guest order lookup (the 비회원 mode of /kr/auth/login), verified on development-1 on 2026-08-27.
+// `POST /sys/kr/auth/login/guest/verification` answers HTTP 200 for an unknown order and carries the
+// refusal in the body, surfaced on the order-number field.
+export const guestOrderLookupCopy = {
+  unknownOrder: '존재하지 않는 주문입니다.',
+  requiredField: '필수 입력 항목입니다.'
+} as const;
+
 // Shopper-facing copy for the authentication surfaces (login, register, and the account profile's
 // password section), captured live from development-1 on 2026-08-27. Kept as literal Korean rather
 // than escapes so a copy change stays greppable against what the app actually renders.

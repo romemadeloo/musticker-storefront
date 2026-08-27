@@ -1,11 +1,36 @@
 import { test as base, expect } from '@playwright/test';
 
 import { DEV_API_HOST, DEV_STOREFRONT_HOST } from './hosts.js';
+import { hasMemberCredentials, seedMemberStorageState } from './member-auth.js';
+import type { MemberStorageState } from './member-auth.js';
 import {
   isThrottleBlockConsoleError,
   isThrottleBlockResponse,
   retriedThrottleBlockCount
 } from './navigation.js';
+
+type SessionOptions = {
+  /**
+   * Starts the test already signed in as the seeded member, by seeding the browser context with a
+   * session obtained from the API rather than driving the login form (see member-auth.ts).
+   *
+   * Opt in per file with `test.use({ asMember: true })`, and guard the file with
+   * `test.skip(!hasMemberCredentials(), SKIP_WITHOUT_MEMBER_CREDENTIALS)` -- with no credentials
+   * configured this falls back to an anonymous context rather than failing, so a test that assumes
+   * a member session must skip itself.
+   */
+  asMember: boolean;
+};
+
+type SessionWorkerFixtures = {
+  /**
+   * Authenticates at most once per worker, on first use. Exposed as a getter rather than as the
+   * state itself so that anonymous runs -- the overwhelming majority -- never make the call: the
+   * `storageState` override below depends on this fixture for every test, and a plain value fixture
+   * would therefore log in on every worker whether or not anything asked to be a member.
+   */
+  memberAuthState: () => Promise<MemberStorageState>;
+};
 
 type GuardOptions = {
   allowGuestUserMe401: boolean;
@@ -192,7 +217,32 @@ function dropForgiven(entries: string[], limit: number, isForgivable: (entry: st
 }
 
 
-export const test = base.extend<GuardOptions>({
+export const test = base.extend<GuardOptions & SessionOptions, SessionWorkerFixtures>({
+  asMember: [false, { option: true }],
+
+  memberAuthState: [
+    // Playwright reads a fixture's dependencies off its destructuring pattern and rejects a plain
+    // parameter name, so the empty pattern is required even though nothing is destructured.
+    async ({}, use) => {
+      let seeded: MemberStorageState | undefined;
+
+      await use(async () => {
+        seeded ??= await seedMemberStorageState();
+        return seeded;
+      });
+    },
+    { scope: 'worker' }
+  ],
+
+  storageState: async ({ asMember, memberAuthState, storageState }, use) => {
+    if (!asMember || !hasMemberCredentials()) {
+      await use(storageState);
+      return;
+    }
+
+    await use(await memberAuthState());
+  },
+
   allowGuestUserMe401: [false, { option: true }],
   allowKnownPriceWarnings: [true, { option: true }],
   allowExpectedAuthFailures: [false, { option: true }],

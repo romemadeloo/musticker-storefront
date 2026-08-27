@@ -24,13 +24,13 @@ env:
   E2E_ENVIRONMENT: ${{ github.ref_name }}
   E2E_BROWSER_PROJECT: chromium-desktop
   RUN_PAYMENT_E2E: 'false'
-  # Only wired for production for now: each development-* branch points at a separate server
-  # with its own user database, so reusing one shared seeded account across all of them would
-  # risk real (not skipped) login failures rather than the intended "skip if unset" behavior.
-  # Set <BRANCH>_AUTH_TEST_EMAIL/PASSWORD secrets and extend this if per-environment credentialed
-  # coverage is needed later.
-  AUTH_TEST_EMAIL: ${{ github.ref_name == 'production' && secrets.AUTH_TEST_EMAIL || '' }}
-  AUTH_TEST_PASSWORD: ${{ github.ref_name == 'production' && secrets.AUTH_TEST_PASSWORD || '' }}
+  # production uses its own seeded member; every development-* branch shares DEV_AUTH_TEST_*, since
+  # those servers are refreshed from the same seed data. Either pair being unset makes the
+  # @credentialed tests skip rather than fail, so an unconfigured branch still runs green.
+  AUTH_TEST_EMAIL: >-
+    ${{ github.ref_name == 'production' && secrets.AUTH_TEST_EMAIL || secrets.DEV_AUTH_TEST_EMAIL }}
+  AUTH_TEST_PASSWORD: >-
+    ${{ github.ref_name == 'production' && secrets.AUTH_TEST_PASSWORD || secrets.DEV_AUTH_TEST_PASSWORD }}
 
 jobs:
   smoke:

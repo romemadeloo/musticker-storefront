@@ -1,0 +1,149 @@
+name: Visual regression
+
+# `@visual` coverage existed but could never run: RUN_VISUAL_E2E appeared in no workflow, and the six
+# committed baselines are `*-chromium-desktop-win32.png`, generated on a maintainer's Windows machine.
+# Playwright names snapshots per platform, so an Ubuntu runner would not find them -- it would report
+# every page as a missing snapshot, write the Linux PNGs it just captured, and fail.
+#
+# This workflow fixes the platform half of that. It runs inside the pinned Playwright container so
+# rendering is reproducible run to run (a bare ubuntu-latest runner's font set drifts and would flap),
+# and it has an explicit mode for generating baselines:
+#
+#   1. Dispatch it with update_baselines = true. It captures Linux baselines and uploads them.
+#   2. Download the artifact, commit the `*-linux.png` files next to the existing win32 ones.
+#   3. From then on, scheduled runs compare against them and fail on a real visual change.
+#
+# Until step 2 has happened the scheduled run fails with "snapshot doesn't exist" -- which is honest.
+# The alternative, silently accepting whatever the run captured, would report visual coverage that
+# cannot detect anything.
+
+on:
+  schedule:
+    # 05:00 Asia/Manila every day, after the production full suite.
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Storefront environment to snapshot.
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - development-static
+          - development-1
+          - development-2
+          - development-3
+          - development-4
+      update_baselines:
+        description: >-
+          Capture new baselines instead of comparing against the committed ones, and upload them for
+          review. Never commits anything itself.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-regression-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ALLURE_RESULTS_DIR: allure-results
+  E2E_BROWSER_PROJECT: chromium-desktop
+  E2E_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+  RUN_PAYMENT_E2E: 'false'
+  RUN_VISUAL_E2E: 'true'
+
+jobs:
+  visual:
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.update_baselines && 'Capture baselines' || 'Compare snapshots' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # Pinned to the installed @playwright/test version. Bump both together: a container newer than
+    # the library (or vice versa) shifts font rendering and quietly invalidates every baseline. The
+    # "Verify container matches Playwright" step below fails the run if they ever drift apart, which
+    # they will -- the dependency is declared with a caret, so npm ci can float it.
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+      options: --user 1001
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          cache: npm
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify container matches Playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          installed="$(node -e "console.log(require('@playwright/test/package.json').version)")"
+          # The container stamps its own version here.
+          container="${PLAYWRIGHT_VERSION:-unknown}"
+
+          echo "Installed @playwright/test: $installed"
+          echo "Container image version:    $container"
+
+          if [ "$container" = "unknown" ]; then
+            echo "::warning::The container did not report PLAYWRIGHT_VERSION; skipping the match check."
+            exit 0
+          fi
+
+          if [ "$installed" != "$container" ]; then
+            echo "The Playwright container ($container) does not match the installed library ($installed)." >&2
+            echo "Baselines captured under one will not match the other. Update the container image tag" >&2
+            echo "in .github/workflows/visual-regression.yml to v$installed-noble and recapture." >&2
+            exit 1
+          fi
+
+      - name: Compare visual snapshots
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.update_baselines) }}
+        run: npm run test:visual
+
+      - name: Capture new baselines
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.update_baselines }}
+        run: npm run test:visual:update
+
+      - name: Upload captured baselines
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.update_baselines }}
+        uses: actions/upload-artifact@v7
+        with:
+          if-no-files-found: error
+          name: visual-baselines-linux
+          path: tests/e2e/**/*-snapshots/**
+          retention-days: 30
+
+      - name: Upload Playwright and Allure artifacts
+        id: test_artifacts
+        if: ${{ always() }}
+        uses: ./.github/actions/playwright-artifacts
+        with:
+          artifact_name: visual-regression-playwright-results
+          retention_days: 14
+
+      - name: Explain a missing-baseline failure
+        if: ${{ failure() && !(github.event_name == 'workflow_dispatch' && inputs.update_baselines) }}
+        shell: bash
+        run: |
+          {
+            echo "### Visual regression failed"
+            echo ""
+            echo "If the failures read \`snapshot doesn't exist\`, Linux baselines have not been"
+            echo "committed yet. Dispatch this workflow with **update_baselines = true**, download the"
+            echo "\`visual-baselines-linux\` artifact, and commit the \`*-linux.png\` files under"
+            echo "\`tests/e2e/regression/visual.spec.ts-snapshots/\`."
+            echo ""
+            echo "Otherwise the storefront's appearance changed. Review the diff images in the"
+            echo "Playwright report before updating any baseline."
+          } >> "$GITHUB_STEP_SUMMARY"

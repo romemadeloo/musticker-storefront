@@ -2,6 +2,7 @@ import { test, expect } from '../../fixtures/e2e-test.js';
 import { env } from '../../fixtures/env.js';
 import { createMailTmAccount, extractOtpCode, waitForMailTmMessage } from '../../fixtures/mail-tm.js';
 import { authCopy, throwawayAccount } from '../../fixtures/storefront-data.js';
+import { recordCreatedAccount } from '../../fixtures/test-data-ledger.js';
 import { LoginPage } from '../../pom/login-page.js';
 import { RegisterPage } from '../../pom/register-page.js';
 
@@ -190,6 +191,9 @@ test.describe('storefront registration', { tag: ['@auth', '@production'] }, () =
 
       const response = await register.submitVerificationCode(extractOtpCode(otpEmail));
       expect(response.status()).toBe(201);
+      // Books the new member for deletion by the global teardown, so a RUN_AUTH_DESTRUCTIVE_E2E run
+      // stops growing the target server's user table by one row each time.
+      recordCreatedAccount({ email: mailbox.address, createdBy: 'MS-V2-088' });
 
       // Registration signs the new member straight in and hands off to profile onboarding.
       await expect(page).toHaveURL(/\/kr\/auth\/profile\/?$/);
