@@ -57,7 +57,12 @@ function isExpectedGuestCheckoutBootstrap401(status: number, url: string): boole
   return status === 401 && /\/sys\/kr\/(?:user-address|user-point\/points|coupon\/applicable|address\/validate)(?:\?|$)/i.test(url);
 }
 
-function isGuestCheckoutBootstrapUnauthorizedWarning(text: string): boolean {
+// The app logs this warning alongside any 401 it handles, so it accompanies both of the 401s
+// forgiven below: the guest-checkout bootstrap calls and the post-logout cart recalculation. It
+// carries no URL, so it cannot be attributed to one or the other -- each caller that forgives the
+// response has to forgive the warning too, or the request is forgiven and its console echo still
+// fails the run.
+function isUnauthorizedActionWarning(text: string): boolean {
   return text === 'Unauthorized action!';
 }
 
@@ -150,7 +155,10 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
     return true;
   }
 
-  if (options.allowGuestCheckoutBootstrap401 && isGuestCheckoutBootstrapUnauthorizedWarning(text)) {
+  if (
+    (options.allowGuestCheckoutBootstrap401 || options.allowPostLogoutCart401) &&
+    isUnauthorizedActionWarning(text)
+  ) {
     return true;
   }
 
