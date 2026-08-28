@@ -1,1 +1,1 @@
-{"id":"6ee4ff24872f1c48217ba460a971eb94","fullName":"api/public-api.spec.ts:23:3","name":"MS-V2-038 anonymous user session API rejects unauthenticated users safely","status":"passed","testResultsByEnv":{"default":"3bac8d4d7c5e6421861aa576ab6fab77"}}
+{"id":"6ee4ff24872f1c48217ba460a971eb94","fullName":"api/public-api.spec.ts:23:3","name":"MS-V2-038 anonymous user session API rejects unauthenticated users safely","status":"passed","testResultsByEnv":{"default":"4cba9a635fd5f366e7a1007cc6c76f22"}}
