@@ -110,10 +110,11 @@ test.describe('storefront authentication', { tag: ['@auth', '@production'] }, ()
   });
 
   test.describe('session lifecycle', () => {
-    // Logging out with a member cart loaded races the cart store: a recalculation already in flight
-    // lands after the session cookie is gone and answers 401. It is moot by then -- the cart is
-    // re-fetched as a guest cart -- so this is the one test that forgives it.
-    test.use({ allowPostLogoutCart401: true });
+    // Logging out races the member-scoped reads the page had already started -- a cart
+    // recalculation, and the account overview this test's own visit to /account/profile kicked off.
+    // Either can land after the session cookie is gone and answer 401; both are moot by then, so
+    // this is the one test that forgives them.
+    test.use({ allowPostLogout401: true });
 
     test('MS-V2-035 session persists across reload and navigation, and logout clears it @credentialed', async ({
       page

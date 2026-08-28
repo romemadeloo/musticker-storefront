@@ -44,7 +44,7 @@ type GuardOptions = {
   allowGuestCheckoutBootstrap401: boolean;
   allowExpectedNotFound: boolean;
   allowSheetSizeValidationWarnings: boolean;
-  allowPostLogoutCart401: boolean;
+  allowPostLogout401: boolean;
 };
 
 function isExpectedGuestUserMe401(status: number, url: string): boolean {
@@ -59,7 +59,7 @@ function isExpectedGuestCheckoutBootstrap401(status: number, url: string): boole
 }
 
 // The app logs this warning alongside any 401 it handles, so it accompanies both of the 401s
-// forgiven below: the guest-checkout bootstrap calls and the post-logout cart recalculation. It
+// forgiven below: the guest-checkout bootstrap calls and the post-logout member-data reads. It
 // carries no URL, so it cannot be attributed to one or the other -- each caller that forgives the
 // response has to forgive the warning too, or the request is forgiven and its console echo still
 // fails the run.
@@ -67,12 +67,13 @@ function isUnauthorizedActionWarning(text: string): boolean {
   return text === 'Unauthorized action!';
 }
 
-// Logging out while a member cart is loaded races the cart store: a recalculation that was already
-// in flight lands after the session cookie is gone and comes back 401. The request is moot by then
-// -- the shopper is anonymous and the cart is re-fetched as a guest cart -- so it says nothing about
-// the logout under test. Only tests that deliberately log out opt in.
-function isPostLogoutCartUnauthorized(status: number, url: string): boolean {
-  return status === 401 && /\/sys\/kr\/cart\/(?:calculate|get)(?:\?|$)/i.test(url);
+// Logging out races the member-scoped reads the page had already started: a cart recalculation or
+// an account-overview fetch that was in flight lands after the session cookie is gone and comes
+// back 401. Those responses are moot by then -- the shopper is anonymous, the cart is re-fetched as
+// a guest cart and the account view is left behind -- so they say nothing about the logout under
+// test. Only tests that deliberately log out opt in.
+function isPostLogoutMemberDataUnauthorized(status: number, url: string): boolean {
+  return status === 401 && /\/sys\/kr\/(?:cart\/(?:calculate|get)|profile\/overview)(?:\?|$)/i.test(url);
 }
 
 function isExpectedAuthFailure(status: number, url: string): boolean {
@@ -157,7 +158,7 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
   }
 
   if (
-    (options.allowGuestCheckoutBootstrap401 || options.allowPostLogoutCart401) &&
+    (options.allowGuestCheckoutBootstrap401 || options.allowPostLogout401) &&
     isUnauthorizedActionWarning(text)
   ) {
     return true;
@@ -262,7 +263,7 @@ export const test = base.extend<GuardOptions & SessionOptions, SessionWorkerFixt
   allowGuestCheckoutBootstrap401: [false, { option: true }],
   allowExpectedNotFound: [false, { option: true }],
   allowSheetSizeValidationWarnings: [false, { option: true }],
-  allowPostLogoutCart401: [false, { option: true }],
+  allowPostLogout401: [false, { option: true }],
 
   page: async (
     {
@@ -277,7 +278,7 @@ export const test = base.extend<GuardOptions & SessionOptions, SessionWorkerFixt
       allowGuestCheckoutBootstrap401,
       allowExpectedNotFound,
       allowSheetSizeValidationWarnings,
-      allowPostLogoutCart401
+      allowPostLogout401
     },
     use
   ) => {
@@ -292,7 +293,7 @@ export const test = base.extend<GuardOptions & SessionOptions, SessionWorkerFixt
       allowGuestCheckoutBootstrap401,
       allowExpectedNotFound,
       allowSheetSizeValidationWarnings,
-      allowPostLogoutCart401
+      allowPostLogout401
     };
     const consoleFailures: string[] = [];
     const responseFailures: string[] = [];
@@ -408,7 +409,7 @@ export const test = base.extend<GuardOptions & SessionOptions, SessionWorkerFixt
         return;
       }
 
-      if (allowPostLogoutCart401 && isPostLogoutCartUnauthorized(status, url)) {
+      if (allowPostLogout401 && isPostLogoutMemberDataUnauthorized(status, url)) {
         return;
       }
 
