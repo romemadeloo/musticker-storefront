@@ -1,5 +1,6 @@
 import type { Page, Response } from '@playwright/test';
 
+import { internalOriginKey } from './env.js';
 import { DEV_STOREFRONT_HOST } from './hosts.js';
 
 // The storefront sits behind a WAF that rate-limits our single CI egress IP under full-suite load:
@@ -17,6 +18,16 @@ import { DEV_STOREFRONT_HOST } from './hosts.js';
 // combined with Playwright's own retries, covers a window several times longer than any observed
 // so far.
 const throttleRetryDelaysMs = [2_000, 4_000, 8_000, 15_000];
+
+// A block does not always hit the document. Observed on production 2026-08-28: the document
+// answered 200 while every _nuxt chunk and stylesheet behind it came back 403, so the shell arrived,
+// Nuxt never hydrated, and the caller failed on a missing heading -- the same misdiagnosis this
+// helper exists to prevent, one layer down. That shape gets no retry from the document check alone.
+//
+// Three rather than one: a lone 403 on some individual asset is a real finding and must not be
+// relabelled as throttling. A block refuses everything at once -- 45+ assets in the run that
+// prompted this.
+const subresourceBlockThreshold = 3;
 
 const storefrontUrlPattern = new RegExp(`^https://${DEV_STOREFRONT_HOST}/`, 'i');
 
@@ -55,45 +66,100 @@ export async function gotoStorefront(
   path: string,
   options?: Parameters<Page['goto']>[1]
 ): Promise<Response | null> {
-  let response = await page.goto(path, options);
-  let attempts = 1;
+  let blockedSubresources = 0;
 
-  for (const delayMs of throttleRetryDelaysMs) {
-    if (!isBlocked(response)) {
-      return response;
+  const countBlockedSubresource = (response: Response): void => {
+    if (
+      response.request().resourceType() !== 'document' &&
+      isThrottleBlockResponse(response.status(), response.url())
+    ) {
+      blockedSubresources += 1;
+    }
+  };
+
+  page.on('response', countBlockedSubresource);
+
+  try {
+    let response = await page.goto(path, options);
+    let attempts = 1;
+
+    for (const delayMs of throttleRetryDelaysMs) {
+      if (!isAttemptBlocked(response, blockedSubresources)) {
+        return response;
+      }
+
+      countThrottleBlocks(page, blockedRequestCount(response, blockedSubresources));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+      blockedSubresources = 0;
+      response = await page.goto(path, options);
+      attempts += 1;
     }
 
-    countThrottleBlock(page);
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
-    response = await page.goto(path, options);
-    attempts += 1;
+    if (isAttemptBlocked(response, blockedSubresources)) {
+      // Counted as well, so the guard reports this one failure rather than trailing it with its own
+      // soft assertions about the same blocked requests.
+      countThrottleBlocks(page, blockedRequestCount(response, blockedSubresources));
+
+      throw new Error(describeExhaustedRetries(response, path, attempts, blockedSubresources));
+    }
+
+    return response;
+  } finally {
+    page.off('response', countBlockedSubresource);
   }
+}
 
-  if (isBlocked(response)) {
-    // Counted as well, so the guard reports this one failure rather than trailing it with its own
-    // soft assertions about the same blocked requests.
-    countThrottleBlock(page);
+function describeExhaustedRetries(
+  response: Response | null,
+  path: string,
+  attempts: number,
+  blockedSubresources: number
+): string {
+  const totalWaitSeconds = throttleRetryDelaysMs.reduce((sum, delay) => sum + delay, 0) / 1_000;
+  const key = internalOriginKey();
 
-    const totalWaitSeconds = throttleRetryDelaysMs.reduce((sum, delay) => sum + delay, 0) / 1_000;
+  return [
+    `Storefront returned 403 Forbidden for ${response?.url() ?? path} on all ${attempts} attempts ` +
+      `over ~${totalWaitSeconds}s.`,
+    isBlocked(response)
+      ? 'The document request itself was refused.'
+      : `The document answered ${response?.status() ?? '(no response)'} but ${blockedSubresources} of ` +
+        'its assets were refused, so Nuxt never hydrated and the page stayed an empty shell.',
+    'This is WAF/rate-limit throttling of the CI egress IP, not a broken page: the same URL',
+    'normally answers 200 on a manual re-check.',
+    '',
+    // Which of the two failure modes this is decides who can fix it, and the answer is not
+    // otherwise visible in a published report -- an unset secret sends no header and looks exactly
+    // like a rejected one.
+    key
+      ? 'An x-internal-origin key WAS sent for this run and the WAF refused anyway, so the key is ' +
+        'not being accepted. That is a question for whoever owns the WAF rule, not a test fix.'
+      : 'No x-internal-origin key was sent for this run, so the WAF exemption was never in play. ' +
+        'Check that INTERNAL_ORIGIN_KEY (production) or DEV_INTERNAL_ORIGIN_KEY (development-*) is ' +
+        'set for this job; env.ts picks by target environment.',
+    '',
+    'Failing that, widen throttleRetryDelaysMs in tests/fixtures/navigation.ts if the block windows',
+    'have grown.'
+  ].join('\n');
+}
 
-    throw new Error(
-      [
-        `Storefront returned 403 Forbidden for ${response?.url() ?? path} on all ${attempts} attempts ` +
-          `over ~${totalWaitSeconds}s.`,
-        'This is WAF/rate-limit throttling of the CI egress IP, not a broken page: the same URL',
-        'normally answers 200 on a manual re-check. Re-run, or widen throttleRetryDelaysMs in',
-        'tests/fixtures/navigation.ts if the block windows have grown.'
-      ].join('\n')
-    );
-  }
+// A 200 is only trustworthy if the assets under it were not being refused at the same time. See the
+// note on subresourceBlockThreshold.
+function isAttemptBlocked(response: Response | null, blockedSubresources: number): boolean {
+  return isBlocked(response) || blockedSubresources >= subresourceBlockThreshold;
+}
 
-  return response;
+// How many refusals this attempt produced, which is how many entries the guard has to forgive: one
+// for a blocked document, plus one per refused asset.
+function blockedRequestCount(response: Response | null, blockedSubresources: number): number {
+  return (isBlocked(response) ? 1 : 0) + blockedSubresources;
 }
 
 function isBlocked(response: Response | null): boolean {
   return Boolean(response && isThrottleBlockResponse(response.status(), response.url()));
 }
 
-function countThrottleBlock(page: Page): void {
-  retriedThrottleBlocks.set(page, retriedThrottleBlockCount(page) + 1);
+function countThrottleBlocks(page: Page, count: number): void {
+  retriedThrottleBlocks.set(page, retriedThrottleBlockCount(page) + count);
 }
