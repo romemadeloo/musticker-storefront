@@ -27,12 +27,11 @@ import { ProductV2Page } from '../../pom/product-page.js';
 //
 // Verified live against development-1 (dev.musticker.com) on 2026-08-26.
 //
-// NOT tagged @production. Production still serves the older, wider preset tables, where seven
-// presets across these five products pack a single sticker per sheet and remain orderable -- the
-// exact defect this rule closes. MS-V2-075 will fail there by design until those tables are
-// promoted; add @production to this describe block at that point.
+// Tagged @production as of 2026-08-28: the narrowed preset tables have been promoted, so the seven
+// single-sticker presets that used to keep MS-V2-075 red on production are gone and all 24 tests
+// here pass against www.musticker.com.
 test.describe('storefront v2 sheet sticker size rules (minimum two stickers per sheet)', {
-  tag: ['@regression', '@purchasing']
+  tag: ['@regression', '@production', '@purchasing']
 }, () => {
   test.use({
     // Every test here deliberately trips the size rule, which the storefront logs as a warning.

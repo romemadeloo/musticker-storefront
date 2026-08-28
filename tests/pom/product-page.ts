@@ -66,8 +66,26 @@ export class ProductV2Page {
     await this.optionsPanel.getByRole('button', { name: quantityLabel }).first().click();
   }
 
+  // The two custom-size fields, addressed by class and reading order rather than by placeholder.
+  //
+  // Production and development-1 label them differently: development-1 puts the axis in the
+  // placeholder (가로 / 세로) with no visible caption, while production moved the axis out to a
+  // visible 너비 / 높이 caption beside the field and gives *both* inputs the same "예: 30"
+  // placeholder. So getByPlaceholder('가로') matches nothing on production, and matching the
+  // production placeholder would be ambiguous. `.custom-size-input` carries across both, and both
+  // render width before height, so order is what actually distinguishes them. The placeholder
+  // union is kept first so the locator still reads as width/height on development-1.
+  private customSizeInput(axis: 'width' | 'height'): Locator {
+    const inputs = this.optionsPanel.locator('.custom-size-input');
+
+    return axis === 'width'
+      ? this.optionsPanel.getByPlaceholder('가로').or(inputs.first()).first()
+      : this.optionsPanel.getByPlaceholder('세로').or(inputs.nth(1)).first();
+  }
+
   async selectCustomIndividualSize(widthMm: number, heightMm: number): Promise<void> {
-    const widthInput = this.optionsPanel.getByPlaceholder('가로');
+    const widthInput = this.customSizeInput('width');
+    const heightInput = this.customSizeInput('height');
 
     // Clicking the custom-size pill before Vue has hydrated silently does nothing (and a blind
     // retry can toggle a row that mounted late straight back off). A priced quantity tier is the
@@ -86,15 +104,24 @@ export class ProductV2Page {
         break;
       }
 
-      await this.optionsPanel.getByRole('button', { name: ko.customSize }).first().click();
+      // The pill replaces itself with the size row, so once it is gone the row is already on its
+      // way in and there is nothing left to click. Re-clicking here is what turned a missed input
+      // into a hang: `click()` inherits the *test* timeout, so waiting for a control that will
+      // never come back burned the whole remaining budget instead of failing this step.
+      const pill = this.optionsPanel.getByRole('button', { name: ko.customSize }).first();
+
+      if (await pill.isVisible().catch(() => false)) {
+        await pill.click({ timeout: 5_000 }).catch(() => undefined);
+      }
+
       await widthInput.waitFor({ state: 'visible', timeout: 4_000 }).catch(() => undefined);
     }
 
     await expect(widthInput, 'custom individual size inputs never mounted').toBeVisible();
 
     await widthInput.fill(String(widthMm));
-    await this.optionsPanel.getByPlaceholder('세로').fill(String(heightMm));
-    await this.optionsPanel.getByPlaceholder('세로').blur();
+    await heightInput.fill(String(heightMm));
+    await heightInput.blur();
   }
 
   // vinyl-lettering's design surface is a contenteditable canvas, not an input/textarea, and
