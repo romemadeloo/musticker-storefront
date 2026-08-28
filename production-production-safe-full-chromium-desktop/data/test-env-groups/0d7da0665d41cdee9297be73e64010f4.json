@@ -1,1 +1,1 @@
-{"id":"0d7da0665d41cdee9297be73e64010f4","fullName":"auth/login.spec.ts:118:5","name":"MS-V2-035 session persists across reload and navigation, and logout clears it @credentialed","status":"passed","testResultsByEnv":{"default":"81fe7f1b0f14dd928520d213648fa096"}}
+{"id":"0d7da0665d41cdee9297be73e64010f4","fullName":"auth/login.spec.ts:118:5","name":"MS-V2-035 session persists across reload and navigation, and logout clears it @credentialed","status":"failed","testResultsByEnv":{"default":"f9a0de6ec0c7a24659ead4fa69996a72"}}
