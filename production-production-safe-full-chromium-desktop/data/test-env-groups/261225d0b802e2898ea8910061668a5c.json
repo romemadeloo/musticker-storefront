@@ -1,1 +1,1 @@
-{"id":"261225d0b802e2898ea8910061668a5c","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-clear-roll lowest grid row 225 (15x15) prices from the CSV","status":"failed","testResultsByEnv":{"default":"24bb163ef5bebfe1d46adaebabc15de1"}}
+{"id":"261225d0b802e2898ea8910061668a5c","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-clear-roll lowest grid row 225 (15x15) prices from the CSV","status":"passed","testResultsByEnv":{"default":"7af001d5b1b3e72255dafe4b5a774db2"}}

@@ -1,1 +1,1 @@
-{"id":"0524dfdc2df011d0d6c3fdee8bec40f2","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-die-cut-sticker area 625 (25x25) matches stickers/die-cut-sticker.csv","status":"failed","testResultsByEnv":{"default":"4c5f6c5f215c62df0d27f3e6e3a78c7e"}}
+{"id":"0524dfdc2df011d0d6c3fdee8bec40f2","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-die-cut-sticker area 625 (25x25) matches stickers/die-cut-sticker.csv","status":"passed","testResultsByEnv":{"default":"a35520a565664e20110da8a20734a89e"}}

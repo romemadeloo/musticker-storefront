@@ -1,1 +1,1 @@
-{"id":"04dd61fcda397808ad950967d7e7b472","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-oval-roll lowest grid row 225 (15x15) prices from the CSV","status":"failed","testResultsByEnv":{"default":"b81d46d6de769035e8d9b42cc9634ef1"}}
+{"id":"04dd61fcda397808ad950967d7e7b472","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-oval-roll lowest grid row 225 (15x15) prices from the CSV","status":"passed","testResultsByEnv":{"default":"2a2f4e31f89e77eb3015af371671354f"}}

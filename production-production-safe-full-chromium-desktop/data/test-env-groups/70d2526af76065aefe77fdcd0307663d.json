@@ -1,1 +1,1 @@
-{"id":"70d2526af76065aefe77fdcd0307663d","fullName":"smoke/storefront-smoke.spec.ts:42:3","name":"MS-V2-004 empty cart opens without broken state","status":"passed","testResultsByEnv":{"default":"3012bb3c7ffcff75043bce5a0ea94853"}}
+{"id":"70d2526af76065aefe77fdcd0307663d","fullName":"smoke/storefront-smoke.spec.ts:42:3","name":"MS-V2-004 empty cart opens without broken state","status":"passed","testResultsByEnv":{"default":"89b78c0fa0a9fec7f350bd34ed522864"}}

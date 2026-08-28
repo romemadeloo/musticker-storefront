@@ -1,1 +1,1 @@
-{"id":"caa6c1c0aa7b559d0479556464fa2490","fullName":"pricing/price-interpolation.spec.ts:191:7","name":"MS-PRC-INT-clear-roll area 225 prices the same as 15x15 and 9x25","status":"failed","testResultsByEnv":{"default":"8ca74c2a673619b17bba3027c06afe59"}}
+{"id":"caa6c1c0aa7b559d0479556464fa2490","fullName":"pricing/price-interpolation.spec.ts:191:7","name":"MS-PRC-INT-clear-roll area 225 prices the same as 15x15 and 9x25","status":"passed","testResultsByEnv":{"default":"a8918851ad09f94d3e0935dedfccc6f3"}}
