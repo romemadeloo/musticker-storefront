@@ -1,1 +1,1 @@
-{"id":"f7e4b8a84fa5a0f9b432297c4bccec49","fullName":"purchasing/money-path.spec.ts:31:3","name":"MS-V2-097 the quoted price survives product page, cart, and checkout unchanged","status":"passed","testResultsByEnv":{"default":"2a2d1353f592975f99755b62a2696c11"}}
+{"id":"f7e4b8a84fa5a0f9b432297c4bccec49","fullName":"purchasing/money-path.spec.ts:31:3","name":"MS-V2-097 the quoted price survives product page, cart, and checkout unchanged","status":"failed","testResultsByEnv":{"default":"04b4a7169affebc2f413c2858a7f6753"}}

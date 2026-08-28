@@ -1,1 +1,1 @@
-{"id":"736347b5dcb6e2294ed4962584c6334b","fullName":"api/public-api.spec.ts:17:3","name":"MS-V2-037 inquiry types API returns selectable inquiry metadata","status":"passed","testResultsByEnv":{"default":"15b5066e8230530f048d9aecb314bf32"}}
+{"id":"736347b5dcb6e2294ed4962584c6334b","fullName":"api/public-api.spec.ts:17:3","name":"MS-V2-037 inquiry types API returns selectable inquiry metadata","status":"passed","testResultsByEnv":{"default":"3ef9ec673d96655ab8c00b5b02566ade"}}
