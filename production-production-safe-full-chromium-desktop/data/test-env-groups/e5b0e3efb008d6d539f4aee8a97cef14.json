@@ -1,1 +1,1 @@
-{"id":"e5b0e3efb008d6d539f4aee8a97cef14","fullName":"regression/axe-accessibility.spec.ts:60:5","name":"MS-V2-106 sticker category has no new WCAG AA violations","status":"passed","testResultsByEnv":{"default":"e04a4b9f5ee6d675a5f4e5af2832c546"}}
+{"id":"e5b0e3efb008d6d539f4aee8a97cef14","fullName":"regression/axe-accessibility.spec.ts:60:5","name":"MS-V2-106 sticker category has no new WCAG AA violations","status":"failed","testResultsByEnv":{"default":"e54ba52ef7995c08213903941c31e2cb"}}
