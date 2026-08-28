@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { request } from '@playwright/test';
 import type { APIRequestContext } from '@playwright/test';
 
-import { apiPath, env } from './env.js';
+import { apiPath, env, internalOriginKey } from './env.js';
+import { INTERNAL_ORIGIN_HEADER } from './internal-origin.js';
 
 export type MemberStorageState = Awaited<ReturnType<APIRequestContext['storageState']>>;
 
@@ -42,8 +43,12 @@ export async function seedMemberStorageState(): Promise<MemberStorageState> {
   }
 
   const storefrontOrigin = new URL(env.BASE_URL).origin;
+  const originKey = internalOriginKey();
   const api = await request.newContext({
+    // Safe to set context-wide here, unlike on a browser context: this context only ever talks
+    // to the musticker API, so the key cannot reach a third-party host.
     extraHTTPHeaders: {
+      ...(originKey ? { [INTERNAL_ORIGIN_HEADER]: originKey } : {}),
       origin: storefrontOrigin,
       referer: `${env.BASE_URL.replace(/\/$/, '')}/auth/login`
     }

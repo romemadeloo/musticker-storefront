@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import 'dotenv/config';
 import type { ReporterDescription } from '@playwright/test';
 
-import { env } from './tests/fixtures/env.js';
+import { env, internalOriginKey } from './tests/fixtures/env.js';
 
 const ciReporters: ReporterDescription[] = [
   ['list'],
@@ -115,7 +115,12 @@ export default defineConfig({
     headless: process.env.HEADED !== 'true',
     locale: 'ko-KR',
     timezoneId: 'Asia/Seoul',
-    trace: 'on-first-retry',
+    // Traces record full request headers, and this repository is public: its CI artifacts
+    // (test-results/, blob-report/) are downloadable without authentication. A run carrying the
+    // internal-origin key must not leave that key inside a trace, so tracing is off exactly when
+    // the key is in play. Runs without it -- every local and dev-environment run -- keep traces.
+    // Screenshots, videos and error-context carry no request headers and stay on either way.
+    trace: internalOriginKey() ? 'off' : 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
   },

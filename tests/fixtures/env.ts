@@ -7,7 +7,13 @@ export const env = {
   BASE_URL: process.env.BASE_URL ?? selectedEnvironment?.baseUrl ?? 'https://www.musticker.com/kr',
   API_BASE_URL: process.env.API_BASE_URL ?? selectedEnvironment?.apiBaseUrl,
   AUTH_TEST_EMAIL: process.env.AUTH_TEST_EMAIL,
-  AUTH_TEST_PASSWORD: process.env.AUTH_TEST_PASSWORD
+  AUTH_TEST_PASSWORD: process.env.AUTH_TEST_PASSWORD,
+  // WAF exemption keys issued by the site owner -- production and the development-* servers sit
+  // behind separate WAFs with separate keys. Read these through internalOriginKey() rather than
+  // directly; see the note there. Sent as the x-internal-origin header on first-party requests
+  // only -- tests/fixtures/internal-origin.ts.
+  INTERNAL_ORIGIN_KEY: process.env.INTERNAL_ORIGIN_KEY,
+  DEV_INTERNAL_ORIGIN_KEY: process.env.DEV_INTERNAL_ORIGIN_KEY
 };
 
 // Which named environment this run is pointed at, for fixtures that hold per-environment data (the
@@ -19,6 +25,44 @@ export const env = {
 // treat that as unknown rather than assuming production: env-specific expectations cannot be
 // asserted against a server we have no recorded data for.
 export const activeEnvironment: EnvironmentName | undefined = resolveActiveEnvironmentName();
+
+/**
+ * Which of the two internal-origin keys belongs to a given environment, by variable name.
+ *
+ * Split out as a pure function because it is the part that can quietly be wrong: handing the
+ * production key to a dev server would put a production credential on a less-guarded host, and
+ * nothing about the resulting run would look unusual. tests/e2e/security/ asserts this mapping.
+ *
+ * Undefined means "send no key" -- the honest answer for an unrecognised BASE_URL, where guessing
+ * production would be the dangerous guess.
+ */
+export function internalOriginKeyVarFor(
+  environment: EnvironmentName | undefined
+): 'INTERNAL_ORIGIN_KEY' | 'DEV_INTERNAL_ORIGIN_KEY' | undefined {
+  if (environment === 'production') {
+    return 'INTERNAL_ORIGIN_KEY';
+  }
+
+  return environment?.startsWith('development-') ? 'DEV_INTERNAL_ORIGIN_KEY' : undefined;
+}
+
+/**
+ * The internal-origin key for the environment this run is pointed at, or undefined when there is
+ * none to send.
+ *
+ * Resolved here rather than by a ternary in each workflow, which is how the AUTH_TEST and
+ * DEV_AUTH_TEST secrets are selected, so that which key goes to which host is decided in one place
+ * that is tested. A stale production key sitting in a local .env therefore cannot reach a dev
+ * server.
+ *
+ * Runs that resolve to no key fall back to the 403 retry ladder in navigation.ts, exactly as they
+ * did before any key existed.
+ */
+export function internalOriginKey(): string | undefined {
+  const variable = internalOriginKeyVarFor(activeEnvironment);
+
+  return variable ? env[variable] : undefined;
+}
 
 export function appPath(relativePath = ''): string {
   const base = new URL(env.BASE_URL);

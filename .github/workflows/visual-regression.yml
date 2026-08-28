@@ -52,6 +52,15 @@ concurrency:
 
 env:
   ALLURE_RESULTS_DIR: allure-results
+  # WAF exemption for the CI egress IP, issued by the site owner. Without it the storefront answers
+  # bare 403s under full-suite load -- on documents and on their subresources. Absent or empty is
+  # supported: tests/fixtures/internal-origin.ts becomes a no-op and the retry ladder in
+  # navigation.ts carries the run instead.
+  #
+  # Both tiers are passed unconditionally rather than picked with a ternary here: env.ts chooses by
+  # target environment, so a run can never be handed the key for a host it is not pointed at.
+  INTERNAL_ORIGIN_KEY: ${{ secrets.INTERNAL_ORIGIN_KEY }}
+  DEV_INTERNAL_ORIGIN_KEY: ${{ secrets.DEV_INTERNAL_ORIGIN_KEY }}
   E2E_BROWSER_PROJECT: chromium-desktop
   E2E_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
   RUN_PAYMENT_E2E: 'false'

@@ -1,6 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 
 import { DEV_API_HOST, DEV_STOREFRONT_HOST } from './hosts.js';
+import { applyInternalOriginHeader } from './internal-origin.js';
 import { hasMemberCredentials, seedMemberStorageState } from './member-auth.js';
 import type { MemberStorageState } from './member-auth.js';
 import {
@@ -414,6 +415,7 @@ export const test = base.extend<GuardOptions & SessionOptions, SessionWorkerFixt
       responseFailures.push(`${status} ${url}`);
     });
 
+    await applyInternalOriginHeader(page);
     await use(page);
 
     // gotoStorefront() retries past WAF 403s, but the listeners above have already recorded each
