@@ -1,1 +1,1 @@
-{"id":"da75dde241369ea5536acf08c5b8d760","fullName":"smoke/storefront-smoke.spec.ts:33:3","name":"MS-V2-003 header search opens and finds hologram sticker content","status":"passed","testResultsByEnv":{"default":"ca3d04b99ffb0ee5c6c20a12f20e5585"}}
+{"id":"da75dde241369ea5536acf08c5b8d760","fullName":"smoke/storefront-smoke.spec.ts:33:3","name":"MS-V2-003 header search opens and finds hologram sticker content","status":"passed","testResultsByEnv":{"default":"25ccb30c2abf35caa26867c821a09b62"}}
