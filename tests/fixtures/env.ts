@@ -12,8 +12,11 @@ export const env = {
   // behind separate WAFs with separate keys. Read these through internalOriginKey() rather than
   // directly; see the note there. Sent as the x-internal-origin header on first-party requests
   // only -- tests/fixtures/internal-origin.ts.
-  INTERNAL_ORIGIN_KEY: process.env.INTERNAL_ORIGIN_KEY,
-  DEV_INTERNAL_ORIGIN_KEY: process.env.DEV_INTERNAL_ORIGIN_KEY
+  // Trimmed because these arrive by copy-paste into a secrets UI, where a trailing newline or
+  // space is easy to include and impossible to see. An HTTP header value carries that whitespace
+  // verbatim, so an otherwise-correct key gets refused and looks exactly like a wrong one.
+  INTERNAL_ORIGIN_KEY: process.env.INTERNAL_ORIGIN_KEY?.trim(),
+  DEV_INTERNAL_ORIGIN_KEY: process.env.DEV_INTERNAL_ORIGIN_KEY?.trim()
 };
 
 // Which named environment this run is pointed at, for fixtures that hold per-environment data (the
