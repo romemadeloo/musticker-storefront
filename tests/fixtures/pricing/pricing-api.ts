@@ -8,7 +8,7 @@
 //
 // `debug=1` adds meta.schema, which carries the stored table row and the interpolation trace. The
 // storefront only forwards debug when its own ?debug=1 is set, but the API honours it either way.
-import type { APIRequestContext } from '@playwright/test';
+import type { APIRequestContext, APIResponse } from '@playwright/test';
 
 import { apiPath } from '../env.js';
 
@@ -99,6 +99,51 @@ export function describeQuotation(slug: string, params: QuotationParams): string
   return `${slug} ${params.width}x${params.height}${quantity}`;
 }
 
+// The pricing API sits behind the same WAF as the storefront (see navigation.ts): under full-suite
+// load it rate-limits our single CI egress IP and answers with a bare 403 for contiguous windows
+// lasting ~35s or more, while the identical query returns 200 on a manual re-check moments later.
+// One 46s window cost a production run 26 pricing tests, either side of which the same endpoint
+// served thousands of passing calls.
+//
+// Playwright's own `retries: 2` cannot ride that out. Its three attempts run back-to-back, 1-3s
+// apart, so all of them land inside the same block window. Re-requesting with a growing delay does.
+//
+// This endpoint takes no auth and answers validation errors with HTTP 200 + success:false (see the
+// note at the top of this file), so a 403 here is always the blocker rather than a real refusal.
+const throttleRetryDelaysMs = [2_000, 4_000, 8_000, 15_000];
+
+// The ladder above spends ~29s over five attempts, which fits inside the 60s per-test timeout.
+// Budgeting that per test rather than per call keeps it fitting: a test that quotes several
+// products in a loop (product-table-mapping.spec.ts walks a whole shared-table group) would
+// otherwise stack one full ladder per call and time out instead of reporting the throttling.
+// Keyed on the `request` fixture, which Playwright builds fresh for each test.
+const throttleWaitBudgetMs = throttleRetryDelaysMs.reduce((sum, delay) => sum + delay, 0);
+const spentThrottleWaitMs = new WeakMap<APIRequestContext, number>();
+
+function isThrottleBlocked(response: APIResponse): boolean {
+  return response.status() === 403;
+}
+
+// Reserves the next delay in the ladder against the test's budget, or returns undefined once this
+// call has run out of rungs or the test has run out of budget.
+function claimThrottleDelay(request: APIRequestContext, rung: number): number | undefined {
+  const delayMs = throttleRetryDelaysMs[rung];
+
+  if (delayMs === undefined) {
+    return undefined;
+  }
+
+  const spentMs = spentThrottleWaitMs.get(request) ?? 0;
+
+  if (spentMs + delayMs > throttleWaitBudgetMs) {
+    return undefined;
+  }
+
+  spentThrottleWaitMs.set(request, spentMs + delayMs);
+
+  return delayMs;
+}
+
 export async function fetchQuotation(
   request: APIRequestContext,
   slug: string,
@@ -126,7 +171,39 @@ export async function fetchQuotation(
   }
 
   const described = describeQuotation(slug, params);
-  const response = await request.get(apiPath(`/sys/kr/pricing/quotation/${slug}`), { params: query });
+  const path = apiPath(`/sys/kr/pricing/quotation/${slug}`);
+
+  let response = await request.get(path, { params: query });
+  let attempts = 1;
+  let waitedMs = 0;
+
+  while (isThrottleBlocked(response)) {
+    const delayMs = claimThrottleDelay(request, attempts - 1);
+
+    if (delayMs === undefined) {
+      break;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+    waitedMs += delayMs;
+    response = await request.get(path, { params: query });
+    attempts += 1;
+  }
+
+  // Reported as the throttling it is rather than as a bare "HTTP 403", so an exhausted retry budget
+  // does not read like a pricing regression.
+  if (isThrottleBlocked(response)) {
+    throw new Error(
+      [
+        `${described}: pricing API returned 403 Forbidden for ${response.url()} on all ${attempts} ` +
+          `attempt${attempts === 1 ? '' : 's'} over ~${Math.round(waitedMs / 1_000)}s.`,
+        'This is WAF/rate-limit throttling of the CI egress IP, not a broken endpoint: the same',
+        'query normally answers 200 on a manual re-check. Re-run, or widen throttleRetryDelaysMs in',
+        'tests/fixtures/pricing/pricing-api.ts if the block windows have grown.'
+      ].join('\n')
+    );
+  }
 
   if (!response.ok()) {
     throw new Error(`${described}: HTTP ${response.status()} from ${response.url()}`);
