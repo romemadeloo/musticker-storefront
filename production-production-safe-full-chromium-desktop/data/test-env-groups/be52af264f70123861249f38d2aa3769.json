@@ -1,1 +1,1 @@
-{"id":"be52af264f70123861249f38d2aa3769","fullName":"purchasing/sheet-sticker-size-rules.spec.ts:68:3","name":"MS-V2-074 circle sheet sticker: the 138x97 gate is exact","status":"passed","testResultsByEnv":{"default":"f2fb9f0d3b5b07c4bb08617d0f14f2b6"}}
+{"id":"be52af264f70123861249f38d2aa3769","fullName":"purchasing/sheet-sticker-size-rules.spec.ts:68:3","name":"MS-V2-074 circle sheet sticker: the 138x97 gate is exact","status":"failed","testResultsByEnv":{"default":"9191a86a2429458460974185aa46d7f2"}}
