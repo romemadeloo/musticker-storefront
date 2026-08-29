@@ -1,1 +1,1 @@
-{"id":"ad2aa52ca89b206de543ee2f283f8b6a","fullName":"regression/axe-accessibility.spec.ts:60:5","name":"MS-V2-106 die-cut sticker product has no new WCAG AA violations","status":"failed","testResultsByEnv":{"default":"f91c795d996108cf3988dbebba1c7078"}}
+{"id":"ad2aa52ca89b206de543ee2f283f8b6a","fullName":"regression/axe-accessibility.spec.ts:60:5","name":"MS-V2-106 die-cut sticker product has no new WCAG AA violations","status":"passed","testResultsByEnv":{"default":"3ec13f92e9e09b26721ebb8aa1117518"}}
