@@ -1,1 +1,1 @@
-{"id":"0fe870f702ad22ad4c5ba22c56ddc863","fullName":"account/order-history.spec.ts:56:3","name":"MS-V2-108 selecting an order opens that order, not a placeholder","status":"passed","testResultsByEnv":{"default":"7adab0b2ad7b1cdc260865486677a8c4"}}
+{"id":"0fe870f702ad22ad4c5ba22c56ddc863","fullName":"account/order-history.spec.ts:56:3","name":"MS-V2-108 selecting an order opens that order, not a placeholder","status":"failed","testResultsByEnv":{"default":"960e51e35bca4f36b1e6535ecc894c7f"}}
