@@ -32,13 +32,14 @@ on:
       shards:
         description: How many parallel shards to split the suite across.
         required: true
-        default: '4'
+        default: '8'
         type: choice
         options:
           - '1'
           - '2'
           - '4'
           - '6'
+          - '8'
 
 permissions:
   contents: read
@@ -63,6 +64,12 @@ env:
   # target environment, so a run can never be handed the key for a host it is not pointed at.
   INTERNAL_ORIGIN_KEY: ${{ secrets.INTERNAL_ORIGIN_KEY }}
   DEV_INTERNAL_ORIGIN_KEY: ${{ secrets.DEV_INTERNAL_ORIGIN_KEY }}
+  # One browser per runner, against eight shards rather than the previous four. The WAF counts
+  # requests per egress IP and a runner has exactly one, so two workers on four runners is twice the
+  # per-IP rate of one worker on eight -- for the same eight browsers and the same wall clock. Run
+  # 121 lost four tests to two ~100s IP bans, both of them on a single runner while the other three
+  # shards went untouched, which is the shape this splits up.
+  PW_WORKERS: '1'
   PW_BLOB_REPORT: 'true'
 
 jobs:
@@ -108,7 +115,7 @@ jobs:
         id: plan
         shell: bash
         env:
-          REQUESTED_SHARDS: ${{ github.event_name == 'workflow_dispatch' && inputs.shards || '4' }}
+          REQUESTED_SHARDS: ${{ github.event_name == 'workflow_dispatch' && inputs.shards || '8' }}
           REQUESTED_SUITE: ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}
         run: |
           set -euo pipefail

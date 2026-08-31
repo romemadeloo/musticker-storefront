@@ -94,6 +94,31 @@ function selectedProjects(): typeof allProjects {
   return [project];
 }
 
+/**
+ * How many browsers one runner drives at a time.
+ *
+ * Overridable because the right answer is a property of the target, not of CI. The production
+ * storefront's WAF rate-limits per egress IP and a shard's workers all share one, so the
+ * production suite runs a single worker per runner and buys its parallelism back in shards --
+ * more runners, more IPs, the same wall clock at half the request rate any one IP produces.
+ * Everything else keeps two, which is what the dev environments have always tolerated.
+ */
+function resolveWorkers(): number {
+  const requested = process.env.PW_WORKERS?.trim();
+
+  if (!requested) {
+    return process.env.CI ? 2 : 1;
+  }
+
+  const workers = Number(requested);
+
+  if (!Number.isInteger(workers) || workers < 1) {
+    throw new Error(`Unsupported PW_WORKERS "${requested}". Use a positive integer.`);
+  }
+
+  return workers;
+}
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 60_000,
@@ -106,7 +131,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,
-  workers: process.env.CI ? 2 : 1,
+  workers: resolveWorkers(),
   reporter: reportersForShardedRun(reportersWithAllure(process.env.CI ? ciReporters : localReporters)),
   // Deletes the throwaway members MS-V2-087/088/094 register. A no-op for every other run.
   globalTeardown: './tests/setup/global-teardown.ts',

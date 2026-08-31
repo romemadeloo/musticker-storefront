@@ -161,11 +161,17 @@ accepting whatever a run captured would report coverage that cannot detect anyth
 
 ## Sharding
 
-`nightly-regression.yml` and `production-full-suite.yml` split the suite across shards (4 by default,
-selectable on dispatch). Each shard sets `PW_BLOB_REPORT=true` and uploads its `blob-report` plus its
-`allure-results`; a merge job
+`nightly-regression.yml` and `production-full-suite.yml` split the suite across shards (8 by default
+for production, 4 for the nightly run; both selectable on dispatch). Each shard sets
+`PW_BLOB_REPORT=true` and uploads its `blob-report` plus its `allure-results`; a merge job
 ([`.github/actions/merge-shard-reports`](.github/actions/merge-shard-reports)) recombines them into
 the single HTML/JUnit/Allure artifact the publish step expects.
 
 Unsharded, the nightly job pushed over 2,000 tests through two workers inside one 90-minute budget,
 so a slow night timed out instead of reporting.
+
+How the same concurrency is spread matters against production. Its WAF rate-limits per egress IP and
+a runner has exactly one, so `production-full-suite.yml` sets `PW_WORKERS=1` and doubles the shard
+count instead: eight runners driving one browser each produce half the per-IP request rate of four
+runners driving two, for the same eight browsers and the same wall clock. `PW_WORKERS` overrides
+`workers` in `playwright.config.ts` for any run; unset, CI keeps two and a local run keeps one.

@@ -2,6 +2,7 @@ import type { Page, Response } from '@playwright/test';
 
 import { internalOriginKey } from './env.js';
 import { DEV_STOREFRONT_HOST } from './hosts.js';
+import { INTERNAL_ORIGIN_HEADER } from './internal-origin.js';
 
 // The storefront sits behind a WAF that rate-limits our single CI egress IP under full-suite load:
 // the document request comes back as a bare nginx 403 Forbidden page instead of the app, in
@@ -67,6 +68,9 @@ export async function gotoStorefront(
   options?: Parameters<Page['goto']>[1]
 ): Promise<Response | null> {
   let blockedSubresources = 0;
+  // Kept alongside the count so an exhausted ladder can report what the refusal actually looked like
+  // on the wire, in the shape where the document answered 200 and its assets did not.
+  let lastBlockedSubresource: Response | null = null;
 
   const countBlockedSubresource = (response: Response): void => {
     if (
@@ -74,6 +78,7 @@ export async function gotoStorefront(
       isThrottleBlockResponse(response.status(), response.url())
     ) {
       blockedSubresources += 1;
+      lastBlockedSubresource = response;
     }
   };
 
@@ -92,6 +97,7 @@ export async function gotoStorefront(
       await new Promise((resolve) => setTimeout(resolve, delayMs));
 
       blockedSubresources = 0;
+      lastBlockedSubresource = null;
       response = await page.goto(path, options);
       attempts += 1;
     }
@@ -101,7 +107,15 @@ export async function gotoStorefront(
       // soft assertions about the same blocked requests.
       countThrottleBlocks(page, blockedRequestCount(response, blockedSubresources));
 
-      throw new Error(describeExhaustedRetries(response, path, attempts, blockedSubresources));
+      throw new Error(
+        await describeExhaustedRetries(
+          response,
+          path,
+          attempts,
+          blockedSubresources,
+          lastBlockedSubresource
+        )
+      );
     }
 
     return response;
@@ -110,14 +124,16 @@ export async function gotoStorefront(
   }
 }
 
-function describeExhaustedRetries(
+async function describeExhaustedRetries(
   response: Response | null,
   path: string,
   attempts: number,
-  blockedSubresources: number
-): string {
+  blockedSubresources: number,
+  lastBlockedSubresource: Response | null
+): Promise<string> {
   const totalWaitSeconds = throttleRetryDelaysMs.reduce((sum, delay) => sum + delay, 0) / 1_000;
   const key = internalOriginKey();
+  const refused = isBlocked(response) ? response : lastBlockedSubresource;
 
   return [
     `Storefront returned 403 Forbidden for ${response?.url() ?? path} on all ${attempts} attempts ` +
@@ -129,12 +145,17 @@ function describeExhaustedRetries(
     'This is WAF/rate-limit throttling of the CI egress IP, not a broken page: the same URL',
     'normally answers 200 on a manual re-check.',
     '',
-    // Which of the two failure modes this is decides who can fix it, and the answer is not
-    // otherwise visible in a published report -- an unset secret sends no header and looks exactly
-    // like a rejected one.
+    ...(await describeRefusal(refused)),
+    '',
+    // Which of the failure modes this is decides who can fix it, and the answer is not otherwise
+    // visible in a published report: traces are off whenever the key is in play, precisely so the
+    // key cannot leak into one, so the lines above are this run's only account of what went out.
     key
-      ? 'An x-internal-origin key WAS sent for this run and the WAF refused anyway, so the key is ' +
-        'not being accepted. That is a question for whoever owns the WAF rule, not a test fix.'
+      ? 'An x-internal-origin key was configured for this run. If the header reached the refused ' +
+        'request above and it was refused anyway, the exemption is not being honoured, and that is ' +
+        'a question for whoever owns the rule rather than a test fix. If the header was absent, it ' +
+        'never reached the wire and the fault is ours: see applyInternalOriginHeader in ' +
+        'tests/fixtures/internal-origin.ts.'
       : 'No x-internal-origin key was sent for this run, so the WAF exemption was never in play. ' +
         'Check that INTERNAL_ORIGIN_KEY (production) or DEV_INTERNAL_ORIGIN_KEY (development-*) is ' +
         'set for this job; env.ts picks by target environment.',
@@ -142,6 +163,78 @@ function describeExhaustedRetries(
     'Failing that, widen throttleRetryDelaysMs in tests/fixtures/navigation.ts if the block windows',
     'have grown.'
   ].join('\n');
+}
+
+// Response headers that name the box which refused us. A bare origin nginx, a CDN edge and a WAF
+// appliance all answer 403 with a body worth nothing, and only these separate them -- which is what
+// decides whether the x-internal-origin exemption was ever evaluated at all.
+const refusalHeaderNames = [
+  'server',
+  'via',
+  'cf-ray',
+  'cf-mitigated',
+  'x-cache',
+  'x-amz-cf-id',
+  'x-amzn-requestid',
+  'x-amzn-errortype',
+  'retry-after'
+];
+
+/**
+ * What the refused request and its refusal actually looked like on the wire.
+ *
+ * The key branch above can only report whether a key existed in this process. A header that never
+ * left, a key the blocker has never been told about, and a key it deliberately rejects are
+ * indistinguishable from that alone, and they have three different owners -- so the report has to
+ * say whether the refused request carried the header, and who answered it.
+ *
+ * The value is never printed. This repository is public and its Allure reports are published to
+ * Pages; presence and length are enough to catch an unsent, truncated or whitespace-padded secret
+ * while disclosing nothing about a correct one.
+ */
+async function describeRefusal(refused: Response | null): Promise<string[]> {
+  if (!refused) {
+    return ['No refused response was captured, so nothing about the block itself can be reported.'];
+  }
+
+  const headers = refused.headers();
+  const named = refusalHeaderNames
+    .filter((name) => headers[name])
+    .map((name) => `${name}: ${headers[name]}`);
+
+  return [
+    `Refused ${refused.status()} ${refused.url()}`,
+    `  x-internal-origin on that request: ${await describeSentOriginHeader(refused)}`,
+    `  answered by: ${named.length > 0 ? named.join(', ') : '(no identifying response headers)'}`,
+    `  body: ${await describeRefusalBody(refused)}`
+  ];
+}
+
+async function describeSentOriginHeader(refused: Response): Promise<string> {
+  try {
+    const value = (await refused.request().allHeaders())[INTERNAL_ORIGIN_HEADER];
+
+    return value ? `present (${value.length} chars)` : 'absent';
+  } catch {
+    return 'unknown (request headers unavailable)';
+  }
+}
+
+// A refusal page is either a two-word nginx stub or a full branded HTML document. Its <title> is the
+// one line that identifies either, so prefer it and fall back to the first non-empty line.
+async function describeRefusalBody(refused: Response): Promise<string> {
+  try {
+    const body = await refused.text();
+    const title = body.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim();
+    const firstLine = body
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line.length > 0);
+
+    return (title || firstLine || '(empty)').slice(0, 160);
+  } catch {
+    return '(unavailable)';
+  }
 }
 
 // A 200 is only trustworthy if the assets under it were not being refused at the same time. See the
