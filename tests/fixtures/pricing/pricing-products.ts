@@ -109,7 +109,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   {
     slug: 'kiss-cut-sticker',
     pricingName: /^Kiss Cut\b/,
-    pricingIds: { production: 45, 'development-1': 47, 'development-static-2': 23 },
+    pricingIds: { production: 44, 'development-1': 47, 'development-static-2': 23 },
     normalizedNr: 100,
     csv: 'stickers/kiss-cut-sticker.csv',
     csvSources: CSV_SOURCES
