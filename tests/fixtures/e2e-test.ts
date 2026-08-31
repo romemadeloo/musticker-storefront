@@ -180,9 +180,14 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
   }
 
   // The storefront logs `Size error: <the shopper-facing message>` whenever the minimum-two-per-
-  // sheet rule rejects an individual size. Tests that exercise that rule opt in; everywhere else an
-  // unexpected size rejection should still fail the run.
-  if (options.allowSheetSizeValidationWarnings && /^Size error:/.test(text)) {
+  // sheet rule rejects an individual size, and the pricing engine sometimes logs its own echo of the
+  // same state -- a rejected size has no orderable quantity to price. Both are the deliberate output
+  // of these tests. Tests that exercise the rule opt in; everywhere else an unexpected size
+  // rejection should still fail the run.
+  if (
+    options.allowSheetSizeValidationWarnings &&
+    (/^Size error:/.test(text) || text === 'There are missing data that is required in pricing.')
+  ) {
     return true;
   }
 

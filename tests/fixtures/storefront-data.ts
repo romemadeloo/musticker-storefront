@@ -26,8 +26,13 @@ export const ko = {
   sizeGuideOpen: '배치 가이드 보기',
   sizeGuideCustomSize: '직접 입력',
   sizeGuideApply: '적용하기',
-  minimumTwoPerSheetError:
-    '더 작은 사이즈를 입력해 주세요. 한 시트에 최소 2개의 스티커가 들어가야 합니다.',
+  // The storefront shows one of two rejection lines for this rule. When only the height is over, an
+  // axis-specific line names the offending axis and the exact limit (`...들어가도록 세로 길이를 97mm
+  // 이하로 입력해 주세요.`, deployed to production 2026-08-31); when the width exceeds the work area,
+  // the original generic line still appears (`더 작은 사이즈를 입력해 주세요. 한 시트에 최소 2개의
+  // 스티커가 들어가야 합니다.`). Matched on the clause the two share, so either satisfies the rule
+  // being announced at all -- which is what every caller here is asserting.
+  minimumTwoPerSheetError: /한 시트에 최소 2개의 스티커/,
   minimumSizeError: '가로 또는 세로 크기는 최소 10×10mm 이상이어야 합니다.',
   customQuantity: '\uc6d0\ud558\ub294 \uc218\ub7c9 \uc785\ub825',
   medium75: '\uc911\ud615 75x75',
@@ -360,10 +365,6 @@ const oblongShapeSizePresets = [
 // there is deliberately no separate max-work-area message, see MS-V2-073.
 export const blockedCustomSize = { widthMm: 123, heightMm: 123 } as const;
 
-// The product page opens on the 소형 preset at the 5시트 tier, and a rejected size intentionally
-// leaves both count readouts showing that default rather than the entered size's counts.
-const defaultSheetQuantity = 5;
-
 type SizePreset = { readonly label: string; readonly dimensions: string };
 
 function presetDimensions(preset: SizePreset): { widthMm: number; heightMm: number } {
@@ -378,10 +379,6 @@ export function presetStickersPerSheet(preset: SizePreset): number {
   const { widthMm, heightMm } = presetDimensions(preset);
 
   return stickersPerSheet(widthMm, heightMm);
-}
-
-export function defaultStickersPerSheet(product: { sizePresets: readonly SizePreset[] }): number {
-  return presetStickersPerSheet(product.sizePresets[0]);
 }
 
 export const sheetStickerConfiguratorProducts = [
@@ -411,10 +408,6 @@ export const sheetStickerConfiguratorProducts = [
     sizePresets: roundShapeSizePresets
   }
 ] as const;
-
-export function defaultTotalStickers(product: { sizePresets: readonly SizePreset[] }): number {
-  return defaultStickersPerSheet(product) * defaultSheetQuantity;
-}
 
 // The minimum-two-per-sheet gate, expressed through the layout formula in sheet-packing.ts. The
 // storefront's documented gate is 138x97: the widest a single column can be, at the tallest two

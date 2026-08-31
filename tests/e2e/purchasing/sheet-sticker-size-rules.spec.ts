@@ -3,8 +3,6 @@ import { expect } from '@playwright/test';
 import { test } from '../../fixtures/e2e-test.js';
 import {
   blockedCustomSize,
-  defaultStickersPerSheet,
-  defaultTotalStickers,
   ko,
   presetStickersPerSheet,
   sheetSizeBoundary,
@@ -58,10 +56,11 @@ test.describe('storefront v2 sheet sticker size rules (minimum two stickers per 
       // max-work-area line -- confirmed intended, so its absence is asserted, not tolerated.
       await product.expectNoMaxWorkAreaMessage();
 
-      // Also intended: while the size is rejected the two count readouts fall back to the page's
-      // default 소형 preset at the 5시트 tier instead of reporting the entered size's counts.
-      await product.expectStickersPerSheet(defaultStickersPerSheet(data));
-      await product.expectTotalStickers(defaultTotalStickers(data));
+      // The readouts report the rejected size itself: it packs one sticker per sheet, and none of
+      // them are orderable, so the total reads zero. Until 2026-08-31 both fell back to the page's
+      // default 소형 preset instead, which said nothing about what had just been entered.
+      await product.expectStickersPerSheet(stickersPerSheet(blockedCustomSize.widthMm, blockedCustomSize.heightMm));
+      await product.expectTotalStickers(0);
     });
   }
 
@@ -103,7 +102,7 @@ test.describe('storefront v2 sheet sticker size rules (minimum two stickers per 
         return;
       }
 
-      // Rejected sizes leave the counts showing the page default, so only the gate is asserted here.
+      // MS-V2-073 covers what the readouts show for a rejected size; only the gate is asserted here.
       await product.expectMinimumTwoPerSheetError();
       await product.expectAllQuantityTiersZeroPriced();
       await product.expectNextStepDisabled();
