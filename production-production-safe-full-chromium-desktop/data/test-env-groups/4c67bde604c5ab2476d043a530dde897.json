@@ -1,1 +1,1 @@
-{"id":"4c67bde604c5ab2476d043a530dde897","fullName":"purchasing/sticker-catalog-configurator.spec.ts:57:3","name":"MS-V2-062 circle sticker: custom individual size recalculates the price","status":"passed","testResultsByEnv":{"default":"7d01b01a851e5c54b268067a979c2b1c"}}
+{"id":"4c67bde604c5ab2476d043a530dde897","fullName":"purchasing/sticker-catalog-configurator.spec.ts:57:3","name":"MS-V2-062 circle sticker: custom individual size recalculates the price","status":"passed","testResultsByEnv":{"default":"b7db925f11cabc9c5ab85278366b49d7"}}
