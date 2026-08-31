@@ -110,36 +110,53 @@ export function describeQuotation(slug: string, params: QuotationParams): string
 //
 // This endpoint takes no auth and answers validation errors with HTTP 200 + success:false (see the
 // note at the top of this file), so a 403 here is always the blocker rather than a real refusal.
-const throttleRetryDelaysMs = [2_000, 4_000, 8_000, 15_000];
+//
+// The same ladder carries gateway 5xx, which comes from a different owner in the same shape: an
+// idempotent GET that answers 200 on a re-check moments later. Observed on production 2026-08-31,
+// where a single 502 on rectangle-roll 130x130 qty=15 failed a test whose assertion never ran --
+// the identical query answered 200 in under half a second, three times, immediately afterwards.
+const retryDelaysMs = [2_000, 4_000, 8_000, 15_000];
 
 // The ladder above spends ~29s over five attempts, which fits inside the 60s per-test timeout.
 // Budgeting that per test rather than per call keeps it fitting: a test that quotes several
 // products in a loop (product-table-mapping.spec.ts walks a whole shared-table group) would
 // otherwise stack one full ladder per call and time out instead of reporting the throttling.
 // Keyed on the `request` fixture, which Playwright builds fresh for each test.
-const throttleWaitBudgetMs = throttleRetryDelaysMs.reduce((sum, delay) => sum + delay, 0);
-const spentThrottleWaitMs = new WeakMap<APIRequestContext, number>();
+const retryWaitBudgetMs = retryDelaysMs.reduce((sum, delay) => sum + delay, 0);
+const spentRetryWaitMs = new WeakMap<APIRequestContext, number>();
 
 function isThrottleBlocked(response: APIResponse): boolean {
   return response.status() === 403;
 }
 
+// The gateway in front of the pricing app reporting that it could not get an answer out of it.
+//
+// 500 is deliberately absent: a gateway reports its own failures with 502/503/504, so a 500 arrives
+// from the pricing app itself and is a finding rather than a blip.
+function isTransientUpstreamFailure(response: APIResponse): boolean {
+  return [502, 503, 504].includes(response.status());
+}
+
+function isRetryable(response: APIResponse): boolean {
+  return isThrottleBlocked(response) || isTransientUpstreamFailure(response);
+}
+
 // Reserves the next delay in the ladder against the test's budget, or returns undefined once this
 // call has run out of rungs or the test has run out of budget.
-function claimThrottleDelay(request: APIRequestContext, rung: number): number | undefined {
-  const delayMs = throttleRetryDelaysMs[rung];
+function claimRetryDelay(request: APIRequestContext, rung: number): number | undefined {
+  const delayMs = retryDelaysMs[rung];
 
   if (delayMs === undefined) {
     return undefined;
   }
 
-  const spentMs = spentThrottleWaitMs.get(request) ?? 0;
+  const spentMs = spentRetryWaitMs.get(request) ?? 0;
 
-  if (spentMs + delayMs > throttleWaitBudgetMs) {
+  if (spentMs + delayMs > retryWaitBudgetMs) {
     return undefined;
   }
 
-  spentThrottleWaitMs.set(request, spentMs + delayMs);
+  spentRetryWaitMs.set(request, spentMs + delayMs);
 
   return delayMs;
 }
@@ -177,8 +194,8 @@ export async function fetchQuotation(
   let attempts = 1;
   let waitedMs = 0;
 
-  while (isThrottleBlocked(response)) {
-    const delayMs = claimThrottleDelay(request, attempts - 1);
+  while (isRetryable(response)) {
+    const delayMs = claimRetryDelay(request, attempts - 1);
 
     if (delayMs === undefined) {
       break;
@@ -199,8 +216,22 @@ export async function fetchQuotation(
         `${described}: pricing API returned 403 Forbidden for ${response.url()} on all ${attempts} ` +
           `attempt${attempts === 1 ? '' : 's'} over ~${Math.round(waitedMs / 1_000)}s.`,
         'This is WAF/rate-limit throttling of the CI egress IP, not a broken endpoint: the same',
-        'query normally answers 200 on a manual re-check. Re-run, or widen throttleRetryDelaysMs in',
+        'query normally answers 200 on a manual re-check. Re-run, or widen retryDelaysMs in',
         'tests/fixtures/pricing/pricing-api.ts if the block windows have grown.'
+      ].join('\n')
+    );
+  }
+
+  // Likewise separated from a bare "HTTP 502": nothing here was asserted, so this is an availability
+  // problem to raise with whoever owns the API rather than a pricing regression to investigate.
+  if (isTransientUpstreamFailure(response)) {
+    throw new Error(
+      [
+        `${described}: pricing API returned HTTP ${response.status()} from ${response.url()} on all ` +
+          `${attempts} attempt${attempts === 1 ? '' : 's'} over ~${Math.round(waitedMs / 1_000)}s.`,
+        'That is the gateway in front of the pricing app, not the app rejecting the query. A single',
+        'one of these is a blip the ladder above absorbs; sustained across the whole ladder it is an',
+        'API availability problem worth raising rather than re-running.'
       ].join('\n')
     );
   }
