@@ -16,6 +16,13 @@ import { AccountOrdersPage } from '../../pom/account-orders-page.js';
 //
 // Read-only throughout -- nothing here places, alters, or cancels an order -- so it runs against
 // production alongside the rest of the credentialed suite.
+//
+// Which segment holds the orders is NOT fixed, and these tests must not assume it. 진행 중 lists only
+// orders still in flight, so it empties as orders complete, and the two environments sat on opposite
+// sides of that on 2026-08-31: the dev member had 61 orders in 진행 중, while production's had all 12
+// of its orders aged into 이전 내역 and 진행 중 correctly showing 모든 주문을 확인하셨습니다!.
+// Anything needing cards goes through openSegmentWithOrders() and skips when the member holds no
+// orders in either segment.
 test.describe('storefront v2 order history', { tag: ['@regression', '@production', '@auth', '@credentialed'] }, () => {
   test.use({
     asMember: true,
@@ -30,7 +37,8 @@ test.describe('storefront v2 order history', { tag: ['@regression', '@production
     const orders = new AccountOrdersPage(page);
 
     await orders.goto();
-    const cardCount = await orders.waitForOrders();
+    const { count: cardCount } = await orders.openSegmentWithOrders();
+    test.skip(cardCount === 0, 'MS-V2-107 needs a member holding at least one order in either segment.');
 
     // Every card has to identify its order -- a card a shopper cannot trace back to an order number
     // is not usable, and captureOrderNumbers() fails the test naming the offending card.
@@ -57,7 +65,8 @@ test.describe('storefront v2 order history', { tag: ['@regression', '@production
     const orders = new AccountOrdersPage(page);
 
     await orders.goto();
-    await orders.waitForOrders();
+    const { count } = await orders.openSegmentWithOrders();
+    test.skip(count === 0, 'MS-V2-108 needs a member holding at least one order to open.');
 
     // The detail pane starts as a prompt, so "the invoice is showing" is a real state change.
     await orders.expectNoOrderSelected();
@@ -70,13 +79,21 @@ test.describe('storefront v2 order history', { tag: ['@regression', '@production
     const orders = new AccountOrdersPage(page);
 
     await orders.goto();
-    await orders.waitForOrders();
+    await orders.waitForListSettled();
     await orders.expectSelectedSegment('inProgress');
 
+    // Either segment may legitimately be empty, so both lists are read as they come -- what has to
+    // hold is that the control filters, which an empty segment demonstrates as well as a full one.
     const inProgress = await orders.captureOrderNumbers();
 
     await orders.switchTo('past');
+    await orders.waitForListSettled();
     const past = await orders.captureOrderNumbers();
+
+    test.skip(
+      inProgress.length + past.length === 0,
+      'MS-V2-109 needs a member holding at least one order; with both segments empty there is nothing to filter.'
+    );
 
     // The two lists have to be genuinely different sets, not the same list relabelled.
     const overlap = past.filter((orderNumber) => inProgress.includes(orderNumber));
@@ -86,6 +103,7 @@ test.describe('storefront v2 order history', { tag: ['@regression', '@production
     ).toEqual([]);
 
     await orders.switchTo('inProgress');
+    await orders.waitForListSettled();
     expect(await orders.captureOrderNumbers(), 'switching back must restore the in-progress list').toEqual(inProgress);
   });
 
@@ -93,7 +111,7 @@ test.describe('storefront v2 order history', { tag: ['@regression', '@production
     const orders = new AccountOrdersPage(page);
 
     await orders.goto();
-    const totalBefore = await orders.waitForOrders();
+    const { count: totalBefore } = await orders.openSegmentWithOrders();
     test.skip(totalBefore < 2, 'MS-V2-110 needs a member with at least two orders to prove the list narrowed.');
 
     const [firstOrderNumber] = await orders.captureOrderNumbers();
