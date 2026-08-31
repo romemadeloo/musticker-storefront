@@ -1,1 +1,1 @@
-{"id":"d711a5fdad2e1b305ffb6659060a4808","fullName":"pricing/product-table-mapping.spec.ts:95:5","name":"MS-PRC-MAP CSVs for pricing table 44 agree with each other","status":"passed","testResultsByEnv":{"default":"013194edb1ba4a0ba1fd823b5e815d45"}}
+{"id":"d711a5fdad2e1b305ffb6659060a4808","fullName":"pricing/product-table-mapping.spec.ts:95:5","name":"MS-PRC-MAP CSVs for pricing table 44 agree with each other","status":"failed","testResultsByEnv":{"default":"53d9a437e35e0f2bd57a2a89140eefb8"}}

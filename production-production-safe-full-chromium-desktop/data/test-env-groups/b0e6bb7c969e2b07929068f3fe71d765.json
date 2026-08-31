@@ -1,1 +1,1 @@
-{"id":"b0e6bb7c969e2b07929068f3fe71d765","fullName":"discovery/catalog-crawl.spec.ts:13:5","name":"MS-V2-040 catalog page renders without error: ./stickers/hologram-sticker","status":"passed","testResultsByEnv":{"default":"ce5654f0447d39ae131052dac79089bf"}}
+{"id":"b0e6bb7c969e2b07929068f3fe71d765","fullName":"discovery/catalog-crawl.spec.ts:13:5","name":"MS-V2-040 catalog page renders without error: ./stickers/hologram-sticker","status":"passed","testResultsByEnv":{"default":"79e8f20ed477b6ed3345e90021de6597"}}
