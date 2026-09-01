@@ -5,6 +5,11 @@ import { ProductV2Page } from '../../pom/product-page.js';
 test.describe('storefront v2 product configuration', { tag: ['@regression', '@production', '@purchasing'] }, () => {
   test.use({
     allowGuestUserMe401: true,
+    // MS-V2-012 opens the custom size and quantity inputs without filling them in, which is the
+    // state under test: the storefront tries to re-quote and warns that the configuration is not
+    // priceable yet. The tests here that do complete a configuration still assert a visible price,
+    // so a product that genuinely cannot be priced is caught by those instead.
+    allowIncompletePricingWarnings: true,
     allowKnownNuxtPayloadFailures: true,
     allowTransientCartCreateFailures: true,
     allowTransientApiCorsFailures: true,

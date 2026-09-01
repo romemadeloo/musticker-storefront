@@ -347,6 +347,13 @@ export class ProductV2Page {
   }
 
   async expectCustomControlsOpen(): Promise<void> {
+    // The option panel is server-rendered, so it is visible well before the storefront has finished
+    // with it: after hydration the app applies a default size and then a default quantity, each of
+    // which re-renders the grids. A click that lands in that window is either swallowed or has the
+    // input it just opened torn down by the re-render, so wait for the defaults to settle -- the
+    // next-step button enables only once both have been applied -- before reaching for the controls.
+    await expect(this.nextStepButton()).toBeEnabled();
+
     const customSizeButton = this.optionsPanel.getByRole('button', { name: ko.customSize }).first();
     await expect(customSizeButton).toBeVisible();
     await customSizeButton.click();

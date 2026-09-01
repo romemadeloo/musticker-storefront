@@ -36,6 +36,7 @@ type SessionWorkerFixtures = {
 type GuardOptions = {
   allowGuestUserMe401: boolean;
   allowKnownPriceWarnings: boolean;
+  allowIncompletePricingWarnings: boolean;
   allowExpectedAuthFailures: boolean;
   allowKnownNuxtPayloadFailures: boolean;
   allowTransientCartCreateFailures: boolean;
@@ -94,6 +95,16 @@ function isSupersededPricingRequest(text: string): boolean {
       `Pricing request failed! FetchError: \\[GET\\] "https://${DEV_API_HOST}/.*/pricing/quotation/[^"]+": <no response> Canceled due to newer request\\.`
     ).test(text) || text === 'Pricing request failed! AbortError: The user aborted a request.'
   );
+}
+
+// The storefront re-quotes whenever a configuration control changes, and logs this warning when the
+// configuration it is handed cannot be priced yet. The custom size and quantity controls open
+// empty, so merely opening one schedules a quote that cannot be computed; the warning lands roughly
+// 200ms later -- usually after the test that caused it has finished, which is the only reason it is
+// not seen on every run. Tests that deliberately leave a configuration incomplete opt in; anywhere
+// else a configuration that should price and does not must still fail the run.
+function isIncompletePricingWarning(text: string): boolean {
+  return text === 'There are missing data that is required in pricing.';
 }
 
 function isCartCreateCorsFailure(text: string): boolean {
@@ -179,15 +190,20 @@ function isKnownConsoleMessage(text: string, options: GuardOptions): boolean {
     return true;
   }
 
-  // The storefront logs `Size error: <the shopper-facing message>` whenever the minimum-two-per-
-  // sheet rule rejects an individual size, and the pricing engine sometimes logs its own echo of the
-  // same state -- a rejected size has no orderable quantity to price. Both are the deliberate output
-  // of these tests. Tests that exercise the rule opt in; everywhere else an unexpected size
-  // rejection should still fail the run.
+  // A rejected sheet size has no orderable quantity to price, so the pricing engine echoes it as the
+  // same incomplete-configuration warning that the custom controls produce.
   if (
-    options.allowSheetSizeValidationWarnings &&
-    (/^Size error:/.test(text) || text === 'There are missing data that is required in pricing.')
+    (options.allowIncompletePricingWarnings || options.allowSheetSizeValidationWarnings) &&
+    isIncompletePricingWarning(text)
   ) {
+    return true;
+  }
+
+  // The storefront logs `Size error: <the shopper-facing message>` whenever the minimum-two-per-
+  // sheet rule rejects an individual size. That is the deliberate output of these tests. Tests that
+  // exercise the rule opt in; everywhere else an unexpected size rejection should still fail the
+  // run.
+  if (options.allowSheetSizeValidationWarnings && /^Size error:/.test(text)) {
     return true;
   }
 
@@ -260,6 +276,7 @@ export const test = base.extend<GuardOptions & SessionOptions, SessionWorkerFixt
 
   allowGuestUserMe401: [false, { option: true }],
   allowKnownPriceWarnings: [true, { option: true }],
+  allowIncompletePricingWarnings: [false, { option: true }],
   allowExpectedAuthFailures: [false, { option: true }],
   allowKnownNuxtPayloadFailures: [false, { option: true }],
   allowTransientCartCreateFailures: [false, { option: true }],
@@ -275,6 +292,7 @@ export const test = base.extend<GuardOptions & SessionOptions, SessionWorkerFixt
       page,
       allowGuestUserMe401,
       allowKnownPriceWarnings,
+      allowIncompletePricingWarnings,
       allowExpectedAuthFailures,
       allowKnownNuxtPayloadFailures,
       allowTransientCartCreateFailures,
@@ -290,6 +308,7 @@ export const test = base.extend<GuardOptions & SessionOptions, SessionWorkerFixt
     const guardOptions = {
       allowGuestUserMe401,
       allowKnownPriceWarnings,
+      allowIncompletePricingWarnings,
       allowExpectedAuthFailures,
       allowKnownNuxtPayloadFailures,
       allowTransientCartCreateFailures,
