@@ -1,1 +1,1 @@
-{"id":"96b4c43d50af34829709ae5dc18fa9e3","fullName":"auth/login.spec.ts:147:3","name":"MS-V2-095 a member-only route is not reachable anonymously","status":"failed","testResultsByEnv":{"default":"2e2cba3ab2a2193c46f55c8c4662cf61"}}
+{"id":"96b4c43d50af34829709ae5dc18fa9e3","fullName":"auth/login.spec.ts:147:3","name":"MS-V2-095 a member-only route is not reachable anonymously","status":"passed","testResultsByEnv":{"default":"c6a1a7409aea35fcdb7b9b03fab1cc2b"}}
