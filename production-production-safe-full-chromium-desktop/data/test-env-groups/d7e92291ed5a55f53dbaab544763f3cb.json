@@ -1,1 +1,1 @@
-{"id":"d7e92291ed5a55f53dbaab544763f3cb","fullName":"discovery/catalog-crawl.spec.ts:13:5","name":"MS-V2-040 catalog page renders without error: ./stickers/clear-sticker","status":"passed","testResultsByEnv":{"default":"8f0691883fce537f511ae48e82b27168"}}
+{"id":"d7e92291ed5a55f53dbaab544763f3cb","fullName":"discovery/catalog-crawl.spec.ts:13:5","name":"MS-V2-040 catalog page renders without error: ./stickers/clear-sticker","status":"passed","testResultsByEnv":{"default":"6b9bebb2a44fac0f800eb380bebce978"}}
