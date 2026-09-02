@@ -10,7 +10,7 @@
 import { test, expect } from '@playwright/test';
 
 import { appPath } from '../../fixtures/env.js';
-import { gotoStorefront } from '../../fixtures/navigation.js';
+import { gotoStorefront, throttleRetryAttempts } from '../../fixtures/navigation.js';
 
 // The shell the WAF lets through: a 200 document whose assets are then refused.
 const shellHtml = `<!doctype html>
@@ -40,8 +40,14 @@ test.describe('WAF throttle detection', { tag: ['@security'] }, () => {
     );
 
     // The point of detecting it at all: the navigation is retried rather than handed back as a
-    // healthy 200. Five attempts is the full ladder.
-    expect(documentRequests, 'a subresource block must be retried, not accepted as a 200').toBe(5);
+    // healthy 200. This walks the full ladder, so it also sleeps every rung -- ~54s of the 60s
+    // per-test timeout, and it only fits because waitOutBlock hands the slept time back to the
+    // deadline. Verified by running it with `--timeout=20000`, which still passes; drop the
+    // extension and it fails at 20s. Asserted against the ladder's own length so widening it stays
+    // a one-line change in navigation.ts.
+    expect(documentRequests, 'a subresource block must be retried, not accepted as a 200').toBe(
+      throttleRetryAttempts
+    );
   });
 
   test('MS-WAF-002 a clean page is returned untouched', async ({ page }) => {

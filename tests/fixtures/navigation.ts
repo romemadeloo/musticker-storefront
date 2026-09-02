@@ -1,3 +1,4 @@
+import { test } from '@playwright/test';
 import type { Page, Response } from '@playwright/test';
 
 import { internalOriginKey } from './env.js';
@@ -15,10 +16,23 @@ import { INTERNAL_ORIGIN_HEADER } from './internal-origin.js';
 // which says nothing about the real cause. Navigating through this helper instead re-requests the
 // page with a growing delay before the caller ever asserts on content.
 //
-// The delays below spend ~29s over five attempts, which fits inside the 60s per-test timeout and,
-// combined with Playwright's own retries, covers a window several times longer than any observed
-// so far.
-const throttleRetryDelaysMs = [2_000, 4_000, 8_000, 15_000];
+// The delays below spend ~54s over six attempts. Combined with Playwright's own retries that is
+// ~168s of coverage, against a longest-observed window of ~100s (production run #99, 2026-09-01:
+// both MS-V2-078 circle-sheet cases died on /kr/sheet-stickers/circle-sheet between 20:43:14 and
+// 20:44:51 UTC, bracketed by passes on the identical URL six seconds before and immediately after).
+// The previous ladder spent ~29s, so its three Playwright attempts covered ~96s and fell a few
+// seconds short of that window -- the whole failure.
+//
+// The wait does not come out of the caller's assertion budget; see waitOutBlock. Without that, a
+// ladder this long would hand a navigation that recovers on the last rung about five seconds to
+// assert in, and the 60s per-test timeout would start failing tests that the throttling only
+// delayed.
+const throttleRetryDelaysMs = [2_000, 4_000, 8_000, 15_000, 25_000];
+
+// One initial request plus one per rung. Exported so the hermetic coverage in
+// tests/e2e/security/throttle-detection.spec.ts counts what the ladder actually does rather than
+// restating a number that has now changed twice.
+export const throttleRetryAttempts = throttleRetryDelaysMs.length + 1;
 
 // A block does not always hit the document. Observed on production 2026-08-28: the document
 // answered 200 while every _nuxt chunk and stylesheet behind it came back 403, so the shell arrived,
@@ -94,7 +108,7 @@ export async function gotoStorefront(
       }
 
       countThrottleBlocks(page, blockedRequestCount(response, blockedSubresources));
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      await waitOutBlock(delayMs);
 
       blockedSubresources = 0;
       lastBlockedSubresource = null;
@@ -122,6 +136,31 @@ export async function gotoStorefront(
   } finally {
     page.off('response', countBlockedSubresource);
   }
+}
+
+/**
+ * Sleeps out a block window without spending the caller's assertion budget.
+ *
+ * Time lost to the WAF is not the test's doing, so it is added back to the deadline: a navigation
+ * that recovers on the last rung must hand its caller the same time to assert in as one that
+ * recovered on the first. A test that then genuinely hangs still fails on its own timeout, only
+ * later by however long it actually waited here.
+ *
+ * `test.info()` throws when nothing is running -- a global setup driving a page object, say -- and
+ * a zero timeout means the run has them disabled. Neither is a reason to skip the wait.
+ */
+async function waitOutBlock(delayMs: number): Promise<void> {
+  try {
+    const info = test.info();
+
+    if (info.timeout > 0) {
+      info.setTimeout(info.timeout + delayMs);
+    }
+  } catch {
+    // No running test whose deadline could be extended.
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 async function describeExhaustedRetries(
