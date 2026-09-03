@@ -3,6 +3,11 @@ node_modules/
 .env
 test-results/
 playwright-report/
+blob-report/
 allure-results/
 allure-report/
 .playwright-mcp/
+.markdown-file
+.claude
+.tmp-allure-report-storage/
+ops/allure-report-storage/.env

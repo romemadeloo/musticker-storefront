@@ -3,8 +3,7 @@ name: Production full suite
 on:
   push:
     branches:
-      - main
-      - production-mode-test-suite
+      - production
   schedule:
     # 04:00 Asia/Manila every day.
     - cron: '0 20 * * *'
@@ -18,6 +17,7 @@ on:
         options:
           - production-safe-full
           - smoke
+          - auth
       browser_project:
         description: Browser project to run.
         required: true
@@ -29,6 +29,17 @@ on:
           - webkit-desktop
           - chromium-mobile
           - all-desktop
+      shards:
+        description: How many parallel shards to split the suite across.
+        required: true
+        default: '8'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '4'
+          - '6'
+          - '8'
 
 permissions:
   contents: read
@@ -40,13 +51,26 @@ concurrency:
 env:
   ALLURE_RESULTS_DIR: allure-results
   BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
-  BYPASS_ARTWORK_UPLOAD: 'false'
   E2E_BROWSER_PROJECT: ${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}
-  RUN_ORDER_ALL_PRODUCTS_E2E: 'false'
   RUN_PAYMENT_E2E: 'false'
-  SKIP_SEEDED_AUTH_SETUP: 'true'
-  TEST_USER_EMAIL: ${{ secrets.PRODUCTION_TEST_USER_EMAIL }}
-  TEST_USER_PASSWORD: ${{ secrets.PRODUCTION_TEST_USER_PASSWORD }}
+  AUTH_TEST_EMAIL: ${{ secrets.AUTH_TEST_EMAIL }}
+  AUTH_TEST_PASSWORD: ${{ secrets.AUTH_TEST_PASSWORD }}
+  # WAF exemption for the CI egress IP, issued by the site owner. Without it the storefront answers
+  # bare 403s under full-suite load -- on documents and on their subresources. Absent or empty is
+  # supported: tests/fixtures/internal-origin.ts becomes a no-op and the retry ladder in
+  # navigation.ts carries the run instead.
+  #
+  # Both tiers are passed unconditionally rather than picked with a ternary here: env.ts chooses by
+  # target environment, so a run can never be handed the key for a host it is not pointed at.
+  INTERNAL_ORIGIN_KEY: ${{ secrets.INTERNAL_ORIGIN_KEY }}
+  DEV_INTERNAL_ORIGIN_KEY: ${{ secrets.DEV_INTERNAL_ORIGIN_KEY }}
+  # One browser per runner, against eight shards rather than the previous four. The WAF counts
+  # requests per egress IP and a runner has exactly one, so two workers on four runners is twice the
+  # per-IP rate of one worker on eight -- for the same eight browsers and the same wall clock. Run
+  # 121 lost four tests to two ~100s IP bans, both of them on a single runner while the other three
+  # shards went untouched, which is the shape this splits up.
+  PW_WORKERS: '1'
+  PW_BLOB_REPORT: 'true'
 
 jobs:
   static-quality:
@@ -76,13 +100,46 @@ jobs:
       - name: List Playwright tests
         run: npm run test:e2e:list
 
-  production-tests:
-    name: ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }} on ${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}
-    runs-on: ubuntu-latest
+  plan:
+    name: Plan shards
     needs: static-quality
-    timeout-minutes: 90
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
-      allure_results_found: ${{ steps.test_artifacts.outputs.allure_results_found }}
+      shards: ${{ steps.plan.outputs.shards }}
+      total: ${{ steps.plan.outputs.total }}
+      suite: ${{ steps.plan.outputs.suite }}
+
+    steps:
+      - name: Resolve shard count and suite
+        id: plan
+        shell: bash
+        env:
+          REQUESTED_SHARDS: ${{ github.event_name == 'workflow_dispatch' && inputs.shards || '8' }}
+          REQUESTED_SUITE: ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}
+        run: |
+          set -euo pipefail
+
+          total="$REQUESTED_SHARDS"
+
+          if ! [[ "$total" =~ ^[1-9][0-9]?$ ]]; then
+            echo "Invalid shard count: $total" >&2
+            exit 1
+          fi
+
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          echo "shards=[$(seq -s, 1 "$total")]" >> "$GITHUB_OUTPUT"
+          echo "suite=$REQUESTED_SUITE" >> "$GITHUB_OUTPUT"
+
+  production-tests:
+    name: ${{ needs.plan.outputs.suite }} shard ${{ matrix.shard }}/${{ needs.plan.outputs.total }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
 
     steps:
       - name: Checkout
@@ -100,8 +157,10 @@ jobs:
       - name: Install selected Playwright browsers
         shell: bash
         run: |
+          set -euo pipefail
+
           case "$E2E_BROWSER_PROJECT" in
-            chromium-desktop)
+            chromium-desktop|chromium-mobile)
               npx playwright install --with-deps chromium
               ;;
             firefox-desktop)
@@ -109,9 +168,6 @@ jobs:
               ;;
             webkit-desktop)
               npx playwright install --with-deps webkit
-              ;;
-            chromium-mobile)
-              npx playwright install --with-deps chromium
               ;;
             all-desktop)
               npx playwright install --with-deps chromium firefox webkit
@@ -122,21 +178,23 @@ jobs:
               ;;
           esac
 
-      - name: Run production suite
+      - name: Run production suite shard
         shell: bash
         env:
-          SUITE: ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}
+          SHARD: ${{ matrix.shard }}/${{ needs.plan.outputs.total }}
+          SUITE: ${{ needs.plan.outputs.suite }}
         run: |
           set -euo pipefail
 
-          production_excludes='@payment|@slow|@api|@setup|@destructive'
-
           case "$SUITE" in
             smoke)
-              npx playwright test --grep '@smoke' --grep-invert "$production_excludes"
+              npm run test:prod:smoke -- --shard="$SHARD"
+              ;;
+            auth)
+              npm run test:prod:auth -- --shard="$SHARD"
               ;;
             production-safe-full)
-              npx playwright test --grep-invert "$production_excludes"
+              npm run test:prod:full -- --shard="$SHARD"
               ;;
             *)
               echo "Unsupported production suite: $SUITE" >&2
@@ -144,18 +202,43 @@ jobs:
               ;;
           esac
 
-      - name: Collect Playwright and Allure artifacts
-        id: test_artifacts
+      - name: Upload shard results
         if: ${{ always() }}
-        uses: ./.github/actions/playwright-artifacts
+        uses: actions/upload-artifact@v7
         with:
-          artifact_name: production-${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}-${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          name: production-suite-shard-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: |
+            blob-report/
+            allure-results/
+            test-results/
+          retention-days: 14
+
+  merge-reports:
+    name: Merge shard reports
+    needs: [plan, production-tests]
+    if: ${{ always() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      allure_results_found: ${{ steps.merge.outputs.allure_results_found }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Merge shard reports
+        id: merge
+        uses: ./.github/actions/merge-shard-reports
+        with:
+          artifact_name: production-${{ needs.plan.outputs.suite }}-${{ github.run_attempt }}
           retention_days: 14
+          shard_artifact_pattern: production-suite-shard-*-${{ github.run_attempt }}
 
   allure-report:
     name: Publish Allure report with history
-    needs: production-tests
-    if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs['production-tests'].outputs.allure_results_found == 'true' }}
+    needs: [plan, merge-reports]
+    if: ${{ always() && github.ref == 'refs/heads/production' && needs.merge-reports.outputs.allure_results_found == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -178,6 +261,9 @@ jobs:
         id: publish_allure
         uses: ./.github/actions/publish-allure-report
         with:
-          artifact_name: production-${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}-${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}-${{ github.run_attempt }}
-          report_name: Production ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }} on ${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}
-          report_slug: production-${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'production-safe-full' }}-${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}
+          allure_service_access_token: ${{ secrets.ALLURE_SERVICE_ACCESS_TOKEN }}
+          artifact_name: production-${{ needs.plan.outputs.suite }}-${{ github.run_attempt }}
+          report_name: Production ${{ needs.plan.outputs.suite }} on ${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}
+          # Keeps the browser in the slug: a firefox-desktop dispatch must not overwrite the
+          # chromium-desktop report already published on Pages.
+          report_slug: production-${{ needs.plan.outputs.suite }}-${{ github.event_name == 'workflow_dispatch' && inputs.browser_project || 'chromium-desktop' }}

@@ -31,6 +31,10 @@ inputs:
     description: Whether to try the repository Pages root /history path when no persisted history exists.
     required: false
     default: 'false'
+  allure_service_access_token:
+    description: Optional Allure Report Storage access token. When set, Allure 3 publishes to Storage during report generation.
+    required: false
+    default: ''
 
 outputs:
   page_url:
@@ -55,12 +59,6 @@ runs:
       with:
         name: ${{ inputs.artifact_name }}
         path: .allure-artifact
-
-    - name: Set up Java for Allure
-      uses: actions/setup-java@v5
-      with:
-        distribution: temurin
-        java-version: 21
 
     - name: Prepare Pages worktree
       shell: bash
@@ -148,13 +146,18 @@ runs:
     - name: Generate Allure report
       shell: bash
       env:
+        ALLURE_HISTORY_PATH: ${{ inputs.pages_dir }}/${{ inputs.report_slug }}-history.jsonl
+        ALLURE_PUBLISH: ${{ inputs.allure_service_access_token != '' && 'true' || 'false' }}
+        ALLURE_REPORT_DIR: ${{ inputs.pages_dir }}/${{ inputs.report_slug }}
+        ALLURE_REPORT_NAME: ${{ inputs.report_name }}
+        ALLURE_SERVICE_ACCESS_TOKEN: ${{ inputs.allure_service_access_token }}
         PAGES_DIR: ${{ inputs.pages_dir }}
         REPORT_SLUG: ${{ inputs.report_slug }}
       run: |
         set -euo pipefail
 
         rm -rf "$PAGES_DIR/$REPORT_SLUG"
-        npx allure generate .allure-artifact/allure-results --clean -o "$PAGES_DIR/$REPORT_SLUG"
+        npx allure generate .allure-artifact/allure-results
         touch "$PAGES_DIR/.nojekyll"
 
     - name: Update Pages index

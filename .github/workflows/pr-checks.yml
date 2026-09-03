@@ -3,8 +3,12 @@ name: PR checks
 on:
   pull_request:
     branches:
-      - develop
-      - main
+      - production
+      - development-static
+      - development-1
+      - development-2
+      - development-3
+      - development-4
 
 permissions:
   contents: read
@@ -16,12 +20,17 @@ concurrency:
 env:
   ALLURE_RESULTS_DIR: allure-results
   BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
+  # WAF exemption for the CI egress IP, issued by the site owner. Without it the storefront answers
+  # bare 403s under full-suite load -- on documents and on their subresources. Absent or empty is
+  # supported: tests/fixtures/internal-origin.ts becomes a no-op and the retry ladder in
+  # navigation.ts carries the run instead.
+  #
+  # Both tiers are passed unconditionally rather than picked with a ternary here: env.ts chooses by
+  # target environment, so a run can never be handed the key for a host it is not pointed at.
+  INTERNAL_ORIGIN_KEY: ${{ secrets.INTERNAL_ORIGIN_KEY }}
+  DEV_INTERNAL_ORIGIN_KEY: ${{ secrets.DEV_INTERNAL_ORIGIN_KEY }}
   E2E_BROWSER_PROJECT: chromium-desktop
   RUN_PAYMENT_E2E: 'false'
-  RUN_ORDER_ALL_PRODUCTS_E2E: 'false'
-  SKIP_SEEDED_AUTH_SETUP: 'true'
-  TEST_USER_EMAIL: ${{ secrets.PRODUCTION_TEST_USER_EMAIL }}
-  TEST_USER_PASSWORD: ${{ secrets.PRODUCTION_TEST_USER_PASSWORD }}
 
 jobs:
   lint-typecheck-smoke:
@@ -54,7 +63,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run smoke tests
-        run: npx playwright test --grep "@smoke" --grep-invert "@payment|@slow|@api|@setup|@destructive"
+        run: npm run test:prod:smoke
 
       - name: Collect Playwright and Allure artifacts
         id: test_artifacts
@@ -67,7 +76,7 @@ jobs:
   allure-report:
     name: Publish Allure report with history
     needs: lint-typecheck-smoke
-    if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs['lint-typecheck-smoke'].outputs.allure_results_found == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ always() && github.base_ref == 'production' && needs['lint-typecheck-smoke'].outputs.allure_results_found == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -90,6 +99,7 @@ jobs:
         id: publish_allure
         uses: ./.github/actions/publish-allure-report
         with:
+          allure_service_access_token: ${{ secrets.ALLURE_SERVICE_ACCESS_TOKEN }}
           artifact_name: pr-checks-playwright-results
           report_name: PR checks
           report_slug: pr-checks

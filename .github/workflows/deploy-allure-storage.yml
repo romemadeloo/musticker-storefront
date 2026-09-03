@@ -1,0 +1,227 @@
+name: Deploy Allure Report Storage
+
+on:
+  workflow_dispatch:
+    inputs:
+      public_url:
+        description: Public HTTPS URL for the Storage service, for example https://allure.example.com.
+        required: true
+        type: string
+      deploy_path:
+        description: Directory on the Docker host where compose.yaml and .env will be stored.
+        required: true
+        default: /opt/allure-report-storage
+        type: string
+      main_branch:
+        description: Main branch name to register in Storage.
+        required: true
+        default: production
+        type: string
+      port:
+        description: Host port exposed by Docker Compose.
+        required: true
+        default: '3000'
+        type: string
+      retention_max_reports_per_branch:
+        description: Optional max completed reports to keep per branch. Leave blank to disable.
+        required: false
+        default: ''
+        type: string
+      retention_max_report_age_days:
+        description: Optional max report age in days. Leave blank to disable.
+        required: false
+        default: ''
+        type: string
+      save_repo_secret:
+        description: Save the minted report token as ALLURE_SERVICE_ACCESS_TOKEN using ALLURE_STORAGE_REPO_ADMIN_TOKEN.
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-allure-report-storage
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Storage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Validate required secrets
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.ALLURE_STORAGE_SSH_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.ALLURE_STORAGE_SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.ALLURE_STORAGE_SSH_USER }}
+          STORAGE_ACCESS_TOKEN: ${{ secrets.ALLURE_STORAGE_ACCESS_TOKEN }}
+          STORAGE_SECRET: ${{ secrets.ALLURE_STORAGE_SECRET }}
+          REPO_ADMIN_TOKEN: ${{ secrets.ALLURE_STORAGE_REPO_ADMIN_TOKEN }}
+          SAVE_REPO_SECRET: ${{ inputs.save_repo_secret }}
+        run: |
+          set -euo pipefail
+
+          missing=()
+          [ -n "$SSH_HOST" ] || missing+=("ALLURE_STORAGE_SSH_HOST")
+          [ -n "$SSH_PRIVATE_KEY" ] || missing+=("ALLURE_STORAGE_SSH_PRIVATE_KEY")
+          [ -n "$SSH_USER" ] || missing+=("ALLURE_STORAGE_SSH_USER")
+          [ -n "$STORAGE_ACCESS_TOKEN" ] || missing+=("ALLURE_STORAGE_ACCESS_TOKEN")
+          [ -n "$STORAGE_SECRET" ] || missing+=("ALLURE_STORAGE_SECRET")
+
+          if [ "$SAVE_REPO_SECRET" = "true" ] && [ -z "$REPO_ADMIN_TOKEN" ]; then
+            missing+=("ALLURE_STORAGE_REPO_ADMIN_TOKEN")
+          fi
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required GitHub secret(s):\n' >&2
+            printf ' - %s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.ALLURE_STORAGE_SSH_HOST }}
+          SSH_PORT: ${{ secrets.ALLURE_STORAGE_SSH_PORT || '22' }}
+          SSH_PRIVATE_KEY: ${{ secrets.ALLURE_STORAGE_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/allure_storage
+          chmod 600 ~/.ssh/allure_storage
+          ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Prepare deployment files
+        shell: bash
+        env:
+          ACCESS_TOKEN: ${{ secrets.ALLURE_STORAGE_ACCESS_TOKEN }}
+          ALLURE_STORAGE_PORT: ${{ inputs.port }}
+          MAIN_BRANCH: ${{ inputs.main_branch }}
+          REPORT_RETENTION_MAX_REPORTS_PER_BRANCH: ${{ inputs.retention_max_reports_per_branch }}
+          REPORT_RETENTION_MAX_REPORT_AGE_DAYS: ${{ inputs.retention_max_report_age_days }}
+          SECRET: ${{ secrets.ALLURE_STORAGE_SECRET }}
+        run: |
+          set -euo pipefail
+
+          install -m 700 -d .allure-storage-deploy
+          cp ops/allure-report-storage/compose.yaml .allure-storage-deploy/compose.yaml
+          {
+            printf 'ACCESS_TOKEN=%s\n' "$ACCESS_TOKEN"
+            printf 'SECRET=%s\n' "$SECRET"
+            printf 'MAIN_BRANCH=%s\n' "$MAIN_BRANCH"
+            printf 'ALLURE_STORAGE_PORT=%s\n' "$ALLURE_STORAGE_PORT"
+            printf 'REPORT_RETENTION_MAX_REPORTS_PER_BRANCH=%s\n' "$REPORT_RETENTION_MAX_REPORTS_PER_BRANCH"
+            printf 'REPORT_RETENTION_MAX_REPORT_AGE_DAYS=%s\n' "$REPORT_RETENTION_MAX_REPORT_AGE_DAYS"
+            printf 'STORAGE_BACKEND=fs\n'
+          } > .allure-storage-deploy/.env
+
+      - name: Upload compose files
+        shell: bash
+        env:
+          DEPLOY_PATH: ${{ inputs.deploy_path }}
+          SSH_HOST: ${{ secrets.ALLURE_STORAGE_SSH_HOST }}
+          SSH_PORT: ${{ secrets.ALLURE_STORAGE_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.ALLURE_STORAGE_SSH_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/allure_storage -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_PATH'"
+          scp -i ~/.ssh/allure_storage -P "$SSH_PORT" .allure-storage-deploy/compose.yaml "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/compose.yaml"
+          scp -i ~/.ssh/allure_storage -P "$SSH_PORT" .allure-storage-deploy/.env "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/.env"
+
+      - name: Start Storage on Docker host
+        shell: bash
+        env:
+          DEPLOY_PATH: ${{ inputs.deploy_path }}
+          SSH_HOST: ${{ secrets.ALLURE_STORAGE_SSH_HOST }}
+          SSH_PORT: ${{ secrets.ALLURE_STORAGE_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.ALLURE_STORAGE_SSH_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/allure_storage -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH' && docker compose --env-file .env -f compose.yaml up --build -d"
+
+      - name: Validate Storage on Docker host
+        shell: bash
+        env:
+          DEPLOY_PATH: ${{ inputs.deploy_path }}
+          SSH_HOST: ${{ secrets.ALLURE_STORAGE_SSH_HOST }}
+          SSH_PORT: ${{ secrets.ALLURE_STORAGE_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.ALLURE_STORAGE_SSH_USER }}
+        run: |
+          set -euo pipefail
+
+          ssh -i ~/.ssh/allure_storage -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH' && docker compose --env-file .env -f compose.yaml ps && curl --fail --silent --show-error http://localhost:3000/api/ping"
+
+      - name: Mint report access token
+        id: report_token
+        shell: bash
+        env:
+          PUBLIC_URL: ${{ inputs.public_url }}
+          STORAGE_ACCESS_TOKEN: ${{ secrets.ALLURE_STORAGE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          public_url="${PUBLIC_URL%/}"
+          token="$(curl --fail --silent --show-error --location -X POST "$public_url/api/token" -H "Authorization: Bearer $STORAGE_ACCESS_TOKEN")"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Register main branch
+        shell: bash
+        env:
+          MAIN_BRANCH: ${{ inputs.main_branch }}
+          PUBLIC_URL: ${{ inputs.public_url }}
+          STORAGE_ACCESS_TOKEN: ${{ secrets.ALLURE_STORAGE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          public_url="${PUBLIC_URL%/}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          curl --fail --silent --show-error --location -X POST "$public_url/api/projects/main-branch" \
+            -H "Authorization: Bearer $STORAGE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"repo\":\"$repo\",\"main_branch\":\"$MAIN_BRANCH\"}"
+
+      - name: Save report token as repository secret
+        if: ${{ inputs.save_repo_secret }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.ALLURE_STORAGE_REPO_ADMIN_TOKEN }}
+          REPORT_TOKEN: ${{ steps.report_token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          gh secret set ALLURE_SERVICE_ACCESS_TOKEN --repo "$GITHUB_REPOSITORY" --body "$REPORT_TOKEN"
+
+      - name: Write summary
+        shell: bash
+        env:
+          PUBLIC_URL: ${{ inputs.public_url }}
+          SAVE_REPO_SECRET: ${{ inputs.save_repo_secret }}
+        run: |
+          set -euo pipefail
+
+          public_url="${PUBLIC_URL%/}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          {
+            echo "### Allure Report Storage"
+            echo ""
+            echo "- Storage URL: $public_url"
+            echo "- Reports tree: $public_url/reports/tree?repo=$repo"
+            if [ "$SAVE_REPO_SECRET" = "true" ]; then
+              echo "- Updated repository secret: ALLURE_SERVICE_ACCESS_TOKEN"
+            else
+              echo "- Report token was minted but not saved because save_repo_secret=false."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

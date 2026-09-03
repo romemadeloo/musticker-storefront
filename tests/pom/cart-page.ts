@@ -1,69 +1,195 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import { firstLocatorWithCount } from '../fixtures/resilient-locator.js';
-import type { CartLineItem } from '../fixtures/types.js';
+import { appPath } from '../fixtures/env.js';
+import { parseLastWon, parseWon } from '../fixtures/money.js';
+import { gotoStorefront } from '../fixtures/navigation.js';
+import { cartCopy, ko } from '../fixtures/storefront-data.js';
+import { enterCartDialogCustomSize } from './cart-size-dialog.js';
 
-const changeSizeButtonName = /\uc0ac\uc774\uc988 (?:\ubcc0\uacbd|\uc218\uc815)|Change size|Edit size/i;
-const sizeEditDialogTitle = /\uc0ac\uc774\uc988 \uc218\uc815|\uc5c5\ub370\uc774\ud2b8|Update/i;
-const cartLineMetadataPattern = /Size:|Quantity:|\uc0ac\uc774\uc988:|\uc218\ub7c9:/i;
+const sizeChangeDialogTitle = /사이즈 변경/;
 
-type SelectResult = {
-  changed: boolean;
-  text: string;
-  value: string;
-};
-
-export class CartPage {
+export class CartV2Page {
   readonly page: Page;
-  readonly main: Locator;
 
   constructor(page: Page) {
     this.page = page;
-    this.main = page.getByTestId('cart-page');
   }
 
-  async expectLoaded(): Promise<void> {
-    await expect(this.page).toHaveURL(/\/kr\/cart\/?$/);
-    await expect(this.main).toBeVisible();
-    await expect(this.page.getByTestId('cart-page-summary')).toBeVisible();
+  async goto(): Promise<void> {
+    await gotoStorefront(this.page, appPath('./cart'));
+    await expect(this.page.getByRole('heading', { name: cartCopy.pageHeading })).toBeVisible();
   }
 
-  async captureItems(productNames: string[]): Promise<CartLineItem[]> {
-    const items: CartLineItem[] = [];
-
-    for (const productName of productNames) {
-      const row = this.row(productName);
-      await expect(row).toBeVisible();
-
-      items.push({
-        productName,
-        ...parseCartRow(await row.innerText(), await this.rowQuantity(row))
-      });
-    }
-
-    return items;
+  row(productName: string): Locator {
+    return this.page.getByTestId('cart-page-row').filter({ hasText: productName }).first();
   }
 
-  async captureAllItems(): Promise<CartLineItem[]> {
-    const items: CartLineItem[] = [];
+  rows(): Locator {
+    return this.page.getByTestId('cart-page-row');
+  }
 
-    await expect.poll(() => this.rows().count(), { timeout: 10_000 }).toBeGreaterThan(0);
+  async rowCount(): Promise<number> {
+    return this.rows().count();
+  }
 
+  async expectRowCount(expected: number): Promise<void> {
+    await expect(this.rows()).toHaveCount(expected, { timeout: 15_000 });
+  }
+
+  /** Line prices in render order, as numbers. */
+  async captureRowPrices(): Promise<number[]> {
     const rows = this.rows();
     const rowCount = await rows.count();
+    const prices: number[] = [];
 
     for (let index = 0; index < rowCount; index += 1) {
-      const row = rows.nth(index);
-      const text = await row.innerText();
-
-      items.push({
-        productName: parseProductName(text),
-        ...parseCartRow(text, await this.rowQuantity(row))
-      });
+      // A row reads `<name> | <size> | 이미지 추가 | 사이즈 변경 | <qty>개 | <price>원 | 상품 삭제`, so
+      // the line price is the last won amount in it.
+      prices.push(parseLastWon(await rows.nth(index).innerText()));
     }
 
-    return items;
+    return prices;
+  }
+
+  async captureTotalWon(): Promise<number> {
+    return parseWon(await this.captureTotal());
+  }
+
+  /**
+   * The cart total has to be the sum of its lines. Shipping and discounts are explicitly deferred to
+   * checkout here ("배송비 및 할인은 결제 시 적용됩니다."), so on this page the identity is exact.
+   */
+  async expectTotalIsSumOfRows(): Promise<number> {
+    const prices = await this.captureRowPrices();
+    const expectedTotal = prices.reduce((sum, price) => sum + price, 0);
+
+    await expect
+      .poll(() => this.captureTotalWon(), {
+        timeout: 15_000,
+        message: `Cart total must equal the sum of its ${prices.length} line(s): ${prices.join(' + ')}`
+      })
+      .toBe(expectedTotal);
+
+    return expectedTotal;
+  }
+
+  /** The 주문하기 (N) button carries the line count, so it is a second, independent read of it. */
+  async expectDeclaredItemCount(expected: number): Promise<void> {
+    await expect(this.page.getByTestId('cart-page-summary')).toContainText(
+      new RegExp(`${escapeRegExp(cartCopy.checkoutFromCart)}\\s*\\(${expected}\\)`)
+    );
+  }
+
+  async expectEmpty(): Promise<void> {
+    await expect(this.page.getByTestId('cart-page-empty-state')).toBeVisible({ timeout: 15_000 });
+    await expect(this.rows()).toHaveCount(0);
+    await expect(this.page.getByTestId('cart-page-summary')).toHaveCount(0);
+  }
+
+  /**
+   * Removes a row through the confirm modal the page insists on, and waits for the row to actually
+   * go. Removal is asynchronous -- the summary re-renders after the cart round-trip lands.
+   */
+  async removeRow(productName: string): Promise<void> {
+    const countBefore = await this.rowCount();
+    await this.row(productName).locator('.cart-delete-btn').click();
+
+    const confirm = this.page.getByTestId('cart-item-delete-modal-confirm');
+    await expect(confirm).toBeVisible();
+    await confirm.click();
+
+    await expect(this.rows()).toHaveCount(countBefore - 1, { timeout: 20_000 });
+  }
+
+  /** Cancelling the confirm modal must leave the row exactly where it was. */
+  async cancelRemoveRow(productName: string): Promise<void> {
+    const countBefore = await this.rowCount();
+    await this.row(productName).locator('.cart-delete-btn').click();
+
+    const modal = this.page.getByTestId('cart-item-delete-modal');
+    await expect(modal).toBeVisible();
+    await expect(modal).toContainText(cartCopy.removeConfirmHeading);
+    await this.page.getByTestId('cart-item-delete-modal-cancel').click();
+
+    await expect(modal).toBeHidden();
+    await expect(this.rows()).toHaveCount(countBefore);
+    await expect(this.row(productName)).toBeVisible();
+  }
+
+  async proceedToCheckout(): Promise<void> {
+    await this.page
+      .getByTestId('cart-page-summary')
+      .getByRole('button', { name: new RegExp(escapeRegExp(cartCopy.checkoutFromCart)) })
+      .click();
+    await expect(this.page).toHaveURL(/\/kr\/checkout\/?$/);
+  }
+
+  async expectRowContainsText(productName: string, ...patterns: Array<string | RegExp>): Promise<void> {
+    const row = this.row(productName);
+    await expect(row).toBeVisible();
+
+    for (const pattern of patterns) {
+      await expect(row).toContainText(pattern);
+    }
+  }
+
+  async expectImageLinkVisible(productName: string): Promise<void> {
+    await expect(this.row(productName).getByText(/이미지 추가|이미지 변경/)).toBeVisible();
+  }
+
+  async expectAddImageLinkVisible(productName: string): Promise<void> {
+    await expect(this.row(productName).getByText('이미지 추가')).toBeVisible();
+  }
+
+  async expectChangeImageLinkVisible(productName: string): Promise<void> {
+    await expect(this.row(productName).getByText('이미지 변경')).toBeVisible();
+  }
+
+  async changeMaterialViaSizeChangeDialog(productName: string, materialName: string): Promise<void> {
+    const totalBefore = await this.captureTotal();
+    await this.row(productName).getByText('사이즈 변경').click();
+
+    const dialog = this.page.getByRole('dialog').filter({ hasText: sizeChangeDialogTitle }).last();
+    await expect(dialog).toBeVisible();
+    // The full cart page's edit dialog intentionally exposes material + individual size only;
+    // quantity lives in the row-level select (see changeQuantityViaRowSelect), unlike the cart
+    // preview drawer's combined "사이즈 및 수량 수정" dialog.
+    await expect(dialog.getByText('수량', { exact: true })).toHaveCount(0);
+
+    await dialog.getByRole('button', { name: materialName }).click();
+    await dialog.getByRole('button', { name: /업데이트|Update/i }).click();
+    await expect(dialog).toBeHidden({ timeout: 10_000 });
+    await expect.poll(() => this.captureTotal(), { timeout: 15_000 }).not.toBe(totalBefore);
+  }
+
+  async changeQuantityViaRowSelect(productName: string, quantityLabel: string): Promise<void> {
+    const totalBefore = await this.captureTotal();
+    await this.row(productName).locator('button.cart-qty-select-trigger').click();
+
+    const listbox = this.page.getByRole('listbox').last();
+    await expect(listbox).toBeVisible();
+    await listbox.getByText(new RegExp(`^${escapeRegExp(quantityLabel)}`)).first().click();
+
+    await expect.poll(() => this.captureTotal(), { timeout: 15_000 }).not.toBe(totalBefore);
+  }
+
+  // The full cart page's 사이즈 변경 dialog enforces the same minimum-two-per-sheet rule as the
+  // product page, but through a ui-select listbox (`맞춤 사이즈`) rather than a visible pill, and it
+  // gates 업데이트 instead of 다음 단계.
+  async expectCustomSizeRejectedInSizeChangeDialog(
+    productName: string,
+    widthMm: number,
+    heightMm: number
+  ): Promise<void> {
+    await this.row(productName).getByText(ko.sizeChangeAction).click();
+
+    const dialog = this.page.getByRole('dialog').filter({ hasText: sizeChangeDialogTitle }).last();
+    await expect(dialog).toBeVisible();
+    await enterCartDialogCustomSize(this.page, dialog, widthMm, heightMm);
+
+    await expect(dialog.getByText(ko.minimumTwoPerSheetError)).toBeVisible();
+    await expect(dialog.getByRole('button', { name: new RegExp(`${ko.cartUpdate}|Update`, 'i') })).toBeDisabled();
   }
 
   async captureTotal(): Promise<string> {
@@ -71,321 +197,10 @@ export class CartPage {
     await expect(summary).toBeVisible();
     return extractWonAmount(await summary.innerText()) ?? '';
   }
-
-  async editFirstItemSizeAndQuantity(sizeMm: number, quantity: number): Promise<void> {
-    const totalBefore = await this.captureTotal();
-    await expect.poll(() => this.rows().count(), { timeout: 10_000 }).toBeGreaterThan(0);
-
-    const rows = this.rows();
-    const rowCount = await rows.count();
-
-    for (let index = 0; index < rowCount; index += 1) {
-      const row = rows.nth(index);
-      const sizeButton = row.getByRole('button', { name: changeSizeButtonName });
-      const quantityButton = this.rowQuantityButton(row);
-
-      if (
-        !(await sizeButton.isVisible().catch(() => false)) ||
-        !(await quantityButton.isVisible().catch(() => false))
-      ) {
-        continue;
-      }
-
-      await sizeButton.click();
-      const sizeDialog = this.page.getByRole('dialog').filter({ hasText: sizeEditDialogTitle }).last();
-      await expect(sizeDialog).toBeVisible();
-      const selectedSize = await this.selectModalValue(sizeDialog, String(sizeMm));
-
-      if (!selectedSize.changed) {
-        await this.closeEditDialog(sizeDialog);
-        continue;
-      }
-
-      await sizeDialog.getByRole('button', { name: /\uc5c5\ub370\uc774\ud2b8|Update/i }).click();
-      const sizeDialogClosed = await sizeDialog
-        .waitFor({ state: 'hidden', timeout: 10_000 })
-        .then(() => true)
-        .catch(() => false);
-
-      if (!sizeDialogClosed) {
-        await this.closeEditDialog(sizeDialog);
-        continue;
-      }
-
-      const quantityBefore = await this.rowQuantity(row);
-      const quantityListbox = await this.openQuantityListbox(row);
-      const selectedQuantity = await this.selectOpenListboxValue(
-        String(quantity),
-        quantityBefore?.toString() ?? '',
-        quantityListbox
-      );
-
-      if (selectedSize.value) {
-        await expect(row)
-          .toContainText(new RegExp(`(Size:|\\uc0ac\\uc774\\uc988:)\\s*${selectedSize.value}x${selectedSize.value}(mm)?`, 'i'), {
-            timeout: 5_000
-          })
-          .catch(() => undefined);
-      }
-
-      const quantityChanged = selectedQuantity.value
-        ? await expect
-            .poll(() => this.rowQuantity(row), { timeout: 10_000 })
-            .toBe(Number(selectedQuantity.value))
-            .then(() => true)
-            .catch(() => false)
-        : false;
-
-      const totalChanged = await expect
-        .poll(() => this.captureTotal(), { timeout: 15_000 })
-        .not.toBe(totalBefore)
-        .then(() => true)
-        .catch(() => false);
-
-      if (totalChanged || selectedSize.changed || quantityChanged) {
-        return;
-      }
-    }
-
-    throw new Error('No cart page row exposed both size and quantity edit controls.');
-  }
-
-  async proceedToCheckout(): Promise<void> {
-    await this.page.getByRole('button', { name: /\uc8fc\ubb38\ud558\uae30|Checkout/i }).click();
-    await expect(this.page).toHaveURL(/\/kr\/checkout\/?$/);
-  }
-
-  private row(productName: string): Locator {
-    return this.rows().filter({ hasText: productName }).first();
-  }
-
-  private rows(): Locator {
-    return this.page.getByTestId('cart-page-row').or(this.main.getByRole('article').filter({ hasText: cartLineMetadataPattern }));
-  }
-
-  private async rowQuantity(row: Locator): Promise<number | undefined> {
-    const trigger = this.rowQuantityButton(row);
-    if (!(await trigger.count())) {
-      return undefined;
-    }
-
-    const value = Number((await trigger.first().innerText()).trim().replace(/[^\d]/g, ''));
-    return Number.isFinite(value) ? value : undefined;
-  }
-
-  private async selectModalValue(dialog: Locator, preferredValue: string): Promise<SelectResult> {
-    const trigger = this.editDialogSelectTriggers(dialog).first();
-    const previousValue = extractLeadingNumber(await trigger.innerText());
-
-    await trigger.click({ force: true });
-    return this.selectOpenListboxValue(preferredValue, previousValue);
-  }
-
-  private rowQuantityButton(row: Locator): Locator {
-    return row.locator('button.cart-qty-select-trigger').or(row.getByRole('button', { name: /^\d[\d,]*$/ })).first();
-  }
-
-  private editDialogSelectTriggers(dialog: Locator): Locator {
-    return dialog.locator('button.cart-item-edit-select-trigger, [role="combobox"]');
-  }
-
-  private async openQuantityListbox(row: Locator): Promise<Locator> {
-    const listbox = this.page.getByRole('listbox').last();
-
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      await this.rowQuantityButton(row).click({ force: true });
-
-      const opened = await listbox
-        .waitFor({ state: 'visible', timeout: 3_000 })
-        .then(() => true)
-        .catch(() => false);
-
-      if (opened) {
-        return listbox;
-      }
-
-      await this.page.waitForTimeout(300);
-    }
-
-    await expect(listbox).toBeVisible({ timeout: 5_000 });
-    return listbox;
-  }
-
-  private async selectOpenListboxValue(
-    preferredValue: string,
-    previousValue: string,
-    openListbox?: Locator
-  ): Promise<SelectResult> {
-    const listbox = openListbox ?? this.page.getByRole('listbox').last();
-    await expect(listbox).toBeVisible({ timeout: 5_000 });
-
-    const options = await firstLocatorWithCount([
-      {
-        name: 'listbox button options',
-        locator: listbox.getByRole('button')
-      },
-      {
-        name: 'listbox css button options',
-        locator: listbox.locator('button')
-      },
-      {
-        name: 'listbox role options',
-        locator: listbox.getByRole('option')
-      },
-      {
-        name: 'listbox css role options',
-        locator: listbox.locator('[role="option"]')
-      },
-      {
-        name: 'listbox data-value options',
-        locator: listbox.locator('[data-value]')
-      }
-    ], 5_000);
-    const option = await this.optionForValue(options, preferredValue, previousValue);
-    const selectedText = await option.innerText();
-    const selectedValue = extractLeadingNumber(selectedText);
-
-    await option.click({ force: true });
-    await expect(listbox).toBeHidden({ timeout: 5_000 }).catch(() => undefined);
-
-    return {
-      changed: Boolean(selectedValue && selectedValue !== previousValue),
-      text: normalizeSelectText(selectedText),
-      value: selectedValue
-    };
-  }
-
-  private async optionForValue(options: Locator, preferredValue: string, previousValue: string): Promise<Locator> {
-    const preferred = options.filter({ hasText: new RegExp(`^\\s*${escapeRegExp(preferredValue)}\\b`) }).first();
-    const preferredNumber = selectNumber(preferredValue);
-    const previousNumber = selectNumber(previousValue);
-
-    if ((await preferred.isVisible().catch(() => false)) && extractLeadingNumber(await preferred.innerText()) !== previousValue) {
-      return preferred;
-    }
-
-    const optionCount = await options.count();
-    let higherFallback: Locator | undefined;
-    let changedFallback: Locator | undefined;
-
-    for (let index = 0; index < optionCount; index += 1) {
-      const option = options.nth(index);
-      const optionValue = extractLeadingNumber(await option.innerText());
-
-      if (optionValue && optionValue !== previousValue && !(await option.isDisabled().catch(() => false))) {
-        const optionNumber = selectNumber(optionValue);
-
-        if (optionNumber !== undefined && preferredNumber !== undefined && optionNumber >= preferredNumber) {
-          return option;
-        }
-
-        if (
-          !higherFallback &&
-          optionNumber !== undefined &&
-          previousNumber !== undefined &&
-          optionNumber > previousNumber
-        ) {
-          higherFallback = option;
-        }
-
-        changedFallback ??= option;
-      }
-    }
-
-    if (higherFallback) {
-      return higherFallback;
-    }
-
-    if (await preferred.isVisible().catch(() => false)) {
-      return preferred;
-    }
-
-    if (previousValue) {
-      const current = options.filter({ hasText: new RegExp(`^\\s*${escapeRegExp(previousValue)}\\b`) }).first();
-      if (await current.isVisible().catch(() => false)) {
-        return current;
-      }
-    }
-
-    if (previousNumber === undefined && changedFallback) {
-      return changedFallback;
-    }
-
-    return options.first();
-  }
-
-  private async closeEditDialog(dialog: Locator): Promise<void> {
-    const closeButton = dialog
-      .getByRole('button', { name: /Close|Cancel|\ub2eb\uae30|\ucde8\uc18c|ui\.modal\.close/i })
-      .first();
-
-    if (await closeButton.isVisible().catch(() => false)) {
-      await closeButton.click();
-    } else {
-      await this.page.keyboard.press('Escape');
-    }
-
-    await expect(dialog).toBeHidden({ timeout: 10_000 }).catch(() => undefined);
-  }
-}
-
-function parseCartRow(text: string, selectedQuantity: number | undefined): Omit<CartLineItem, 'productName'> {
-  const normalized = text.replace(/\s+/g, ' ');
-  const size = normalized.match(/(?:(?:Size:|\uc0ac\uc774\uc988:)\s*)?(\d+)\s*(?:x|\u00d7)\s*(\d+)(?:\s*mm)?/i);
-
-  return {
-    widthMm: size ? Number(size[1]) : undefined,
-    heightMm: size ? Number(size[2]) : undefined,
-    quantity: selectedQuantity,
-    price: extractWonAmount(normalized)
-  };
-}
-
-function parseProductName(text: string): string {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => normalizeSelectText(line))
-    .filter(Boolean);
-  const metadataIndex = lines.findIndex((line) => /^(Size|Quantity|\uc0ac\uc774\uc988|\uc218\ub7c9)\s*:/i.test(line));
-  const nameLines = metadataIndex > 0 ? lines.slice(0, metadataIndex) : lines;
-
-  const productName = nameLines.find(isProductNameLine);
-  if (productName) {
-    return productName;
-  }
-
-  return lines.find(isProductNameLine) ?? lines[0] ?? 'Unknown product';
 }
 
 function extractWonAmount(value: string): string | undefined {
-  return [...value.matchAll(/[\d,]+\uc6d0/g)].at(-1)?.[0];
-}
-
-function isProductNameLine(line: string): boolean {
-  return Boolean(line && !extractWonAmount(line) && !isActionLine(line) && !isOptionLine(line));
-}
-
-function isActionLine(line: string): boolean {
-  return /^(Edit|Remove|Change|Checkout|\uc0c1\ud488|\uc0ad\uc81c|\ubcc0\uacbd|\uc218\uc815|\uc8fc\ubb38)/i.test(line);
-}
-
-function isOptionLine(line: string): boolean {
-  return /^(Color|\uc0c9\uc0c1|\uceec\ub7ec|Font|\ud3f0\ud2b8|Text|\ubb38\uad6c|Size|\uc0ac\uc774\uc988|Quantity|\uc218\ub7c9)\s*:/i.test(
-    line
-  );
-}
-
-function extractLeadingNumber(value: string): string {
-  return normalizeSelectText(value).match(/^\d[\d,]*/)?.[0].replace(/,/g, '') ?? '';
-}
-
-function selectNumber(value: string): number | undefined {
-  const parsed = Number(value.replace(/,/g, ''));
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function normalizeSelectText(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
+  return [...value.matchAll(/[\d,]+원/g)].at(-1)?.[0];
 }
 
 function escapeRegExp(value: string): string {
