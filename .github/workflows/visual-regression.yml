@@ -71,12 +71,20 @@ jobs:
     name: ${{ github.event_name == 'workflow_dispatch' && inputs.update_baselines && 'Capture baselines' || 'Compare snapshots' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # Not a real matrix -- a single value, declared here because `container.image` cannot read the
+    # `env` context but can read `matrix`. It gives the image tag and the drift check below one
+    # source of truth, so the two cannot be bumped apart.
+    strategy:
+      matrix:
+        playwright-version: ['1.59.1']
+
     # Pinned to the installed @playwright/test version. Bump both together: a container newer than
     # the library (or vice versa) shifts font rendering and quietly invalidates every baseline. The
-    # "Verify container matches Playwright" step below fails the run if they ever drift apart, which
-    # they will -- the dependency is declared with a caret, so npm ci can float it.
+    # "Verify container matches Playwright" step below fails the run if they ever drift apart. `npm
+    # ci` installs the lockfile exactly, so the realistic drift is a lockfile bump -- Dependabot,
+    # say -- that leaves this tag behind.
     container:
-      image: mcr.microsoft.com/playwright:v1.59.1-noble
+      image: mcr.microsoft.com/playwright:v${{ matrix.playwright-version }}-noble
       options: --user 1001
 
     steps:
@@ -94,20 +102,19 @@ jobs:
 
       - name: Verify container matches Playwright
         shell: bash
+        # The tag this job actually pulled. Read from the matrix rather than from a
+        # PLAYWRIGHT_VERSION env var: the Playwright images do not set one, so the previous check
+        # took its "cannot determine the version" escape hatch on every run and compared nothing.
+        env:
+          CONTAINER_PLAYWRIGHT_VERSION: ${{ matrix.playwright-version }}
         run: |
           set -euo pipefail
 
           installed="$(node -e "console.log(require('@playwright/test/package.json').version)")"
-          # The container stamps its own version here.
-          container="${PLAYWRIGHT_VERSION:-unknown}"
+          container="$CONTAINER_PLAYWRIGHT_VERSION"
 
           echo "Installed @playwright/test: $installed"
           echo "Container image version:    $container"
-
-          if [ "$container" = "unknown" ]; then
-            echo "::warning::The container did not report PLAYWRIGHT_VERSION; skipping the match check."
-            exit 0
-          fi
 
           if [ "$installed" != "$container" ]; then
             echo "The Playwright container ($container) does not match the installed library ($installed)." >&2
