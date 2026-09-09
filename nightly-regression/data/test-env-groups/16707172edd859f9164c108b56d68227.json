@@ -1,1 +1,1 @@
-{"id":"16707172edd859f9164c108b56d68227","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-oval-sticker highest grid row 546000 (728x750) prices from the CSV","status":"passed","testResultsByEnv":{"default":"4c0d12ffbba3b43d4656c977e7c2469d"}}
+{"id":"16707172edd859f9164c108b56d68227","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-oval-sticker highest grid row 546000 (728x750) prices from the CSV","status":"failed","testResultsByEnv":{"default":"6ca6dfc16d0c17503675aba5a56a6078"}}

@@ -1,1 +1,1 @@
-{"id":"d062c59b79c14c6988d16d5f50a49517","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-kiss-cut-sticker area 198025 (445x445) matches stickers/kiss-cut-sticker.csv","status":"passed","testResultsByEnv":{"default":"667df3c7a9e6cfb58ac57ef060791336"}}
+{"id":"d062c59b79c14c6988d16d5f50a49517","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-kiss-cut-sticker area 198025 (445x445) matches stickers/kiss-cut-sticker.csv","status":"failed","testResultsByEnv":{"default":"55949f49929424361b2368fcd9b2a2b3"}}

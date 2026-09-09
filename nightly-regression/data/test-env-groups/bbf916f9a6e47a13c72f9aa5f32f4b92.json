@@ -1,1 +1,1 @@
-{"id":"bbf916f9a6e47a13c72f9aa5f32f4b92","fullName":"purchasing/product-config.spec.ts:73:3","name":"MS-V2-014 product review carousel is usable","status":"passed","testResultsByEnv":{"default":"832ee86b78db66ede1ee92c843d23e4b"}}
+{"id":"bbf916f9a6e47a13c72f9aa5f32f4b92","fullName":"purchasing/product-config.spec.ts:73:3","name":"MS-V2-014 product review carousel is usable","status":"failed","testResultsByEnv":{"default":"9f5ad5f457cc003ae7eeeb285394c9d9"}}

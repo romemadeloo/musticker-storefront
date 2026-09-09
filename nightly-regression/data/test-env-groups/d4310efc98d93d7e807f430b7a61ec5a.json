@@ -1,1 +1,1 @@
-{"id":"d4310efc98d93d7e807f430b7a61ec5a","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP clear-sticker is served by pricing table 46","status":"passed","testResultsByEnv":{"default":"bcfbd7adeebb2e86119d4a73bb61604c"}}
+{"id":"d4310efc98d93d7e807f430b7a61ec5a","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP clear-sticker is served by pricing table 46","status":"failed","testResultsByEnv":{"default":"8ba143db5e60a7f3412a181b0104a7f5"}}

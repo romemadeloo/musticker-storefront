@@ -1,1 +1,1 @@
-{"id":"aba3321947c0cb806232426dc6af38ea","fullName":"pricing/product-table-mapping.spec.ts:64:5","name":"MS-PRC-MAP pricing table 44 is identical across 6 products","status":"passed","testResultsByEnv":{"default":"27d3e4d68ce0ff4c74ec0a2836879365"}}
+{"id":"aba3321947c0cb806232426dc6af38ea","fullName":"pricing/product-table-mapping.spec.ts:64:5","name":"MS-PRC-MAP pricing table 44 is identical across 6 products","status":"failed","testResultsByEnv":{"default":"e0d24ae52f2b38ef0baa93b841bbb48c"}}

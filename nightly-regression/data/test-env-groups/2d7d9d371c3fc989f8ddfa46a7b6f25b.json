@@ -1,1 +1,1 @@
-{"id":"2d7d9d371c3fc989f8ddfa46a7b6f25b","fullName":"discovery/catalog-crawl.spec.ts:13:5","name":"MS-V2-040 catalog page renders without error: ./stickers/kiss-cut-sticker","status":"passed","testResultsByEnv":{"default":"4209a423a9285e128fce189f2ac54147"}}
+{"id":"2d7d9d371c3fc989f8ddfa46a7b6f25b","fullName":"discovery/catalog-crawl.spec.ts:13:5","name":"MS-V2-040 catalog page renders without error: ./stickers/kiss-cut-sticker","status":"failed","testResultsByEnv":{"default":"056b85deeb558d7b44071b74a85262bf"}}

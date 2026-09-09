@@ -1,1 +1,1 @@
-{"id":"98623447d81fbe13fbfb32b22aef1679","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP rounded-sticker is served by pricing table 44","status":"passed","testResultsByEnv":{"default":"01d3487b8f0ba86f5d408cffbad25f5a"}}
+{"id":"98623447d81fbe13fbfb32b22aef1679","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP rounded-sticker is served by pricing table 44","status":"failed","testResultsByEnv":{"default":"5473066b00abe4ec764342767be5c1d8"}}

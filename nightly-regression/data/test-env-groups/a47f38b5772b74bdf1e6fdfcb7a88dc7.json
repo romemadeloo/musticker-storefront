@@ -1,1 +1,1 @@
-{"id":"a47f38b5772b74bdf1e6fdfcb7a88dc7","fullName":"pricing/price-interpolation.spec.ts:103:7","name":"MS-PRC-INT-kiss-cut-sticker area 543000 (724x750) interpolates between 540000 and 546000","status":"passed","testResultsByEnv":{"default":"48a8b69595554b72d602bb67d730b454"}}
+{"id":"a47f38b5772b74bdf1e6fdfcb7a88dc7","fullName":"pricing/price-interpolation.spec.ts:103:7","name":"MS-PRC-INT-kiss-cut-sticker area 543000 (724x750) interpolates between 540000 and 546000","status":"failed","testResultsByEnv":{"default":"c6205515146239a8f56da019b3c93106"}}

@@ -1,1 +1,1 @@
-{"id":"6ec6b82816a90c47aebaf2cc47f90d97","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP rectangle-sticker is served by pricing table 44","status":"passed","testResultsByEnv":{"default":"6d3e9d9d32c1841f9d30ea40649ba905"}}
+{"id":"6ec6b82816a90c47aebaf2cc47f90d97","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP rectangle-sticker is served by pricing table 44","status":"failed","testResultsByEnv":{"default":"73f2e711502d99d60e9e7ae234be6bbf"}}
