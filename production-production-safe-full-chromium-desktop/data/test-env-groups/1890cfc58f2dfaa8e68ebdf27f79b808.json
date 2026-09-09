@@ -1,1 +1,1 @@
-{"id":"1890cfc58f2dfaa8e68ebdf27f79b808","fullName":"discovery/catalog-crawl.spec.ts:13:5","name":"MS-V2-040 catalog page renders without error: ./stickers/oval-sticker","status":"passed","testResultsByEnv":{"default":"0ff7d89d8ac67e47f04654190a7adc70"}}
+{"id":"1890cfc58f2dfaa8e68ebdf27f79b808","fullName":"discovery/catalog-crawl.spec.ts:13:5","name":"MS-V2-040 catalog page renders without error: ./stickers/oval-sticker","status":"failed","testResultsByEnv":{"default":"15e3914afac4ecf9394c66f237f9f702"}}

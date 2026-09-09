@@ -1,1 +1,1 @@
-{"id":"7e921f202963c55ac31f0878e7424044","fullName":"pricing/price-interpolation.spec.ts:160:7","name":"MS-PRC-INT-kiss-cut-sticker quantity 7500 interpolates between rungs 5000 and 10000","status":"passed","testResultsByEnv":{"default":"294430f54c4a9136bb9ec5ad4195ba52"}}
+{"id":"7e921f202963c55ac31f0878e7424044","fullName":"pricing/price-interpolation.spec.ts:160:7","name":"MS-PRC-INT-kiss-cut-sticker quantity 7500 interpolates between rungs 5000 and 10000","status":"failed","testResultsByEnv":{"default":"4560f3ec9b38e8385ff96f5e03dc1c3e"}}

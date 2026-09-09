@@ -1,1 +1,1 @@
-{"id":"58c25e332ecde0936cbc64a5e0e8df27","fullName":"pricing/price-interpolation.spec.ts:160:7","name":"MS-PRC-INT-die-cut-sticker quantity 7500 interpolates between rungs 5000 and 10000","status":"passed","testResultsByEnv":{"default":"292b76e993d7308d913613e1fa636b42"}}
+{"id":"58c25e332ecde0936cbc64a5e0e8df27","fullName":"pricing/price-interpolation.spec.ts:160:7","name":"MS-PRC-INT-die-cut-sticker quantity 7500 interpolates between rungs 5000 and 10000","status":"failed","testResultsByEnv":{"default":"afde7020f1f45ffab3b7aef016f11180"}}

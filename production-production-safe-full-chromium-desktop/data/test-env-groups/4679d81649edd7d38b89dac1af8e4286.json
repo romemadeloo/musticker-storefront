@@ -1,1 +1,1 @@
-{"id":"4679d81649edd7d38b89dac1af8e4286","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-clear-sticker lowest grid row 100 (10x10) prices from the CSV","status":"passed","testResultsByEnv":{"default":"0cf6a3a714ae0f8dfa4896bfe8526bf2"}}
+{"id":"4679d81649edd7d38b89dac1af8e4286","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-clear-sticker lowest grid row 100 (10x10) prices from the CSV","status":"failed","testResultsByEnv":{"default":"4f9df9e53712e1f13e7b8000e2046bb0"}}

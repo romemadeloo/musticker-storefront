@@ -1,1 +1,1 @@
-{"id":"6146d4906904f6bc2a1c6eb76b898965","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-hologram-sticker area 444000 (600x740) matches stickers/hologram-sticker.csv","status":"passed","testResultsByEnv":{"default":"db84d5c101d2fcb9695ce1192dd09358"}}
+{"id":"6146d4906904f6bc2a1c6eb76b898965","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-hologram-sticker area 444000 (600x740) matches stickers/hologram-sticker.csv","status":"failed","testResultsByEnv":{"default":"fb278e63482fa38517747abff6b53066"}}

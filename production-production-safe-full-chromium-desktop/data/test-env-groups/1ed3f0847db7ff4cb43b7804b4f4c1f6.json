@@ -1,1 +1,1 @@
-{"id":"1ed3f0847db7ff4cb43b7804b4f4c1f6","fullName":"purchasing/sticker-catalog-configurator.spec.ts:24:5","name":"MS-V2-060 홀로그램 스티커 supports size and quantity selection through to cart","status":"passed","testResultsByEnv":{"default":"ce7ee329eb24c45513bdccb84c6461a9"}}
+{"id":"1ed3f0847db7ff4cb43b7804b4f4c1f6","fullName":"purchasing/sticker-catalog-configurator.spec.ts:24:5","name":"MS-V2-060 홀로그램 스티커 supports size and quantity selection through to cart","status":"failed","testResultsByEnv":{"default":"947bbea11d6ba078a23976279b6c93f7"}}
