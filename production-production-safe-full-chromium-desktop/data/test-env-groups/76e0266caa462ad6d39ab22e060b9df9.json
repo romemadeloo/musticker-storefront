@@ -1,1 +1,1 @@
-{"id":"76e0266caa462ad6d39ab22e060b9df9","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-clear-sticker area 62500 (250x250) matches stickers/clear-sticker.csv","status":"failed","testResultsByEnv":{"default":"0f8a7f6ef2a56c23e0b3766c2a324d3e"}}
+{"id":"76e0266caa462ad6d39ab22e060b9df9","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-clear-sticker area 62500 (250x250) matches stickers/clear-sticker.csv","status":"passed","testResultsByEnv":{"default":"3b337300b44fffb0960498a0cc6faa7e"}}
