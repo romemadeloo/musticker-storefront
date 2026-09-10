@@ -1,1 +1,1 @@
-{"id":"9b1bae87693095671a9d1f860be8386c","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-circle-sticker area 21025 (145x145) matches stickers/circle-sticker.csv","status":"failed","testResultsByEnv":{"default":"0774bed77b93bf848853f795109c3b31"}}
+{"id":"9b1bae87693095671a9d1f860be8386c","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-circle-sticker area 21025 (145x145) matches stickers/circle-sticker.csv","status":"passed","testResultsByEnv":{"default":"b1edcbe0246f2a026a0b7bf684525928"}}

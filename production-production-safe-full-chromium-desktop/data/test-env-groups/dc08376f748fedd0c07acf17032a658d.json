@@ -1,1 +1,1 @@
-{"id":"dc08376f748fedd0c07acf17032a658d","fullName":"auth/login.spec.ts:52:3","name":"MS-V2-030 invalid credentials fail safely and keep the user anonymous @validation","status":"passed","testResultsByEnv":{"default":"a4e7ef98b432471568eda2ea16379660"}}
+{"id":"dc08376f748fedd0c07acf17032a658d","fullName":"auth/login.spec.ts:52:3","name":"MS-V2-030 invalid credentials fail safely and keep the user anonymous @validation","status":"failed","testResultsByEnv":{"default":"4f3aef9e37b93250012cc842f2cb90a2"}}
