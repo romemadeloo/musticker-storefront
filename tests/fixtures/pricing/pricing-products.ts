@@ -157,7 +157,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   {
     // "Clear Sticker" on production, "Clear Die Cut / Kiss Cut Pricing ... v.2" on development-1.
     slug: 'clear-sticker',
-    pricingName: /^Clear\b/,
+    pricingName: /^clear\b/,
     pricingIds: { production: 49, 'development-1': 49, 'development-static':54, 'development-static-2': 30 },
     normalizedNr: 100,
     csv: 'stickers/clear-sticker.csv',
@@ -165,7 +165,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   },
   {
     slug: 'hologram-sticker',
-    pricingName: /^Hologram\b/,
+    pricingName: /^hologram\b/,
     pricingIds: { production: 50, 'development-1': 50, 'development-static':54, 'development-static-2': 31 },
     normalizedNr: 100,
     csv: 'stickers/hologram-sticker.csv',
