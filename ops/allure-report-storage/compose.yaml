@@ -1,0 +1,35 @@
+services:
+  app:
+    build:
+      context: https://github.com/allure-framework/allure-report-storage.git#main
+      dockerfile: Dockerfile
+    image: musticker/allure-report-storage:local
+    environment:
+      ACCESS_TOKEN: ${ACCESS_TOKEN:?Set ACCESS_TOKEN in ops/allure-report-storage/.env}
+      DATABASE_PATH: /data/reports.sqlite
+      DATA_DIR: /data
+      HOST: 0.0.0.0
+      MAIN_BRANCH: ${MAIN_BRANCH:-production}
+      PORT: 3000
+      REPORT_RETENTION_MAX_REPORTS_PER_BRANCH: ${REPORT_RETENTION_MAX_REPORTS_PER_BRANCH:-}
+      REPORT_RETENTION_MAX_REPORT_AGE_DAYS: ${REPORT_RETENTION_MAX_REPORT_AGE_DAYS:-}
+      SECRET: ${SECRET:?Set SECRET in ops/allure-report-storage/.env}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-fs}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-}
+      S3_SESSION_TOKEN: ${S3_SESSION_TOKEN:-}
+      S3_PREFIX: ${S3_PREFIX:-}
+      S3_REPORTS_PREFIX: ${S3_REPORTS_PREFIX:-}
+      S3_ASSETS_PREFIX: ${S3_ASSETS_PREFIX:-}
+    ports:
+      - "${ALLURE_STORAGE_PORT:-3000}:3000"
+    restart: unless-stopped
+    volumes:
+      - report-data:/data
+
+volumes:
+  report-data:

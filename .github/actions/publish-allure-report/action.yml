@@ -27,10 +27,23 @@ inputs:
     description: Optional fallback URL to existing Allure history files.
     required: false
     default: ''
+  history_limit:
+    description: >-
+      How many past runs to keep in the persisted Allure history file. The file is committed to the
+      Pages branch, and GitHub rejects any push containing a file over 100 MiB, so this has to stay
+      bounded: the production suite writes roughly 3 MB per run, which pushed the file over the limit
+      after 2026-09-03 and failed every publish from then on. Allure rewrites the file on append, so
+      lowering this shrinks an already oversized file on the next run.
+    required: false
+    default: '15'
   fallback_root_history:
     description: Whether to try the repository Pages root /history path when no persisted history exists.
     required: false
     default: 'false'
+  allure_service_access_token:
+    description: Optional Allure Report Storage access token. When set, Allure 3 publishes to Storage during report generation.
+    required: false
+    default: ''
 
 outputs:
   page_url:
@@ -55,12 +68,6 @@ runs:
       with:
         name: ${{ inputs.artifact_name }}
         path: .allure-artifact
-
-    - name: Set up Java for Allure
-      uses: actions/setup-java@v5
-      with:
-        distribution: temurin
-        java-version: 21
 
     - name: Prepare Pages worktree
       shell: bash
@@ -148,13 +155,19 @@ runs:
     - name: Generate Allure report
       shell: bash
       env:
+        ALLURE_HISTORY_LIMIT: ${{ inputs.history_limit }}
+        ALLURE_HISTORY_PATH: ${{ inputs.pages_dir }}/${{ inputs.report_slug }}-history.jsonl
+        ALLURE_PUBLISH: ${{ inputs.allure_service_access_token != '' && 'true' || 'false' }}
+        ALLURE_REPORT_DIR: ${{ inputs.pages_dir }}/${{ inputs.report_slug }}
+        ALLURE_REPORT_NAME: ${{ inputs.report_name }}
+        ALLURE_SERVICE_ACCESS_TOKEN: ${{ inputs.allure_service_access_token }}
         PAGES_DIR: ${{ inputs.pages_dir }}
         REPORT_SLUG: ${{ inputs.report_slug }}
       run: |
         set -euo pipefail
 
         rm -rf "$PAGES_DIR/$REPORT_SLUG"
-        npx allure generate .allure-artifact/allure-results --clean -o "$PAGES_DIR/$REPORT_SLUG"
+        npx allure generate .allure-artifact/allure-results
         touch "$PAGES_DIR/.nojekyll"
 
     - name: Update Pages index
@@ -258,7 +271,11 @@ runs:
             exit 1
           fi
 
-          git -C "$PAGES_DIR" pull --rebase origin "$PAGES_BRANCH"
+          # Guarded on purpose: `set -e` would abort the step on the rebase's own exit code, so a
+          # rejected push surfaced as a rebase failure instead of the message below.
+          if ! git -C "$PAGES_DIR" pull --rebase origin "$PAGES_BRANCH"; then
+            echo "Could not rebase onto $PAGES_BRANCH before attempt $((attempt + 1))." >&2
+          fi
         done
 
     - name: Configure GitHub Pages

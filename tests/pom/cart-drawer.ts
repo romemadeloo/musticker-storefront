@@ -1,7 +1,9 @@
 import type { Locator, Page, Response } from '@playwright/test';
 import { expect } from '@playwright/test';
 
+import { ko } from '../fixtures/storefront-data.js';
 import { firstLocatorWithCount, firstVisibleLocator } from '../fixtures/resilient-locator.js';
+import { enterCartDialogCustomSize } from './cart-size-dialog.js';
 import type { CartLineItem, ProductConfig } from '../fixtures/types.js';
 
 const cartPreviewTitle = /\uc7a5\ubc14\uad6c\ub2c8 \ubbf8\ub9ac\ubcf4\uae30|Cart Preview/i;
@@ -203,6 +205,47 @@ export class CartDrawer {
     }
 
     throw new Error('No cart preview item exposed both size and quantity edit controls.');
+  }
+
+  async editFirstItemMaterial(materialName: string): Promise<void> {
+    const totalBefore = await this.captureTotal();
+    const editButtons = await this.editButtons();
+    await editButtons.first().click();
+
+    const editDialog = await this.editDialog();
+    await editDialog.getByRole('button', { name: materialName }).click();
+
+    const updateResponsePromise = this.waitForCartItemUpdateResponse();
+    const updateButton = await firstVisibleLocator([
+      {
+        name: 'cart edit update button role',
+        locator: editDialog.getByRole('button', { name: /업데이트|Update/i })
+      },
+      {
+        name: 'cart edit submit button',
+        locator: editDialog.locator('button[type="submit"]')
+      }
+    ]);
+
+    await updateButton.click();
+    await this.expectCartItemUpdateSucceeded(await updateResponsePromise);
+    await expect(editDialog).toBeHidden({ timeout: 10_000 });
+    await expect.poll(() => this.captureTotal(), { timeout: 15_000 }).not.toBe(totalBefore);
+  }
+
+  // The drawer's combined 사이즈 및 수량 수정 dialog enforces the same minimum-two-per-sheet rule as
+  // the product page and the full cart page's 사이즈 변경 dialog.
+  async expectCustomSizeRejectedInEditDialog(widthMm: number, heightMm: number): Promise<void> {
+    const editButtons = await this.editButtons();
+    await editButtons.first().click();
+
+    const editDialog = await this.editDialog();
+    await enterCartDialogCustomSize(this.page, editDialog, widthMm, heightMm);
+
+    await expect(editDialog.getByText(ko.minimumTwoPerSheetError)).toBeVisible();
+    await expect(
+      editDialog.getByRole('button', { name: new RegExp(`${ko.cartUpdate}|Update`, 'i') })
+    ).toBeDisabled();
   }
 
   async expectRecommendedProductsVisible(): Promise<void> {

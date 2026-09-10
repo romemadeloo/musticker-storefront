@@ -1,84 +1,70 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { environments, isEnvironmentName } from './environments.js';
+import type { EnvironmentName } from './environments.js';
 
-import type { CheckoutProfile, PaymentProfile, SeededUser } from './types.js';
-
-const fixturesDir = path.dirname(fileURLToPath(import.meta.url));
-
-export const projectRoot = path.resolve(fixturesDir, '..', '..');
-export const AUTH_STORAGE_STATE = path.join(projectRoot, '.auth', 'seeded-user.json');
+const selectedEnvironment = resolveSelectedEnvironment();
 
 export const env = {
-  BASE_URL: process.env.BASE_URL ?? 'https://musticker.com/kr',
-  API_BASE_URL: process.env.API_BASE_URL,
-  API_TOKEN: process.env.API_TOKEN,
-  TEST_DATA_USER_ENDPOINT: process.env.TEST_DATA_USER_ENDPOINT,
-  TEST_DATA_USER_DELETE_ENDPOINT: process.env.TEST_DATA_USER_DELETE_ENDPOINT,
-  REGISTRATION_OTP_ENDPOINT:
-    process.env.REGISTRATION_OTP_ENDPOINT ??
-    'https://dev-api.musticker.com/index.php/sys/kr/tester/get-otp',
-  REGISTRATION_OTP_METHOD: process.env.REGISTRATION_OTP_METHOD ?? 'GET',
-  REGISTRATION_OTP_REQUEST_FROM: process.env.REGISTRATION_OTP_REQUEST_FROM ?? 'glophics-dev',
-  TEST_USER_EMAIL: process.env.TEST_USER_EMAIL,
-  TEST_USER_PASSWORD: process.env.TEST_USER_PASSWORD,
-  RUN_PAYMENT_E2E: process.env.RUN_PAYMENT_E2E,
-  RUN_ORDER_ALL_PRODUCTS_E2E: process.env.RUN_ORDER_ALL_PRODUCTS_E2E,
-  ORDER_ALL_PRODUCTS_PAYLOAD: process.env.ORDER_ALL_PRODUCTS_PAYLOAD,
-  ORDER_ALL_PRODUCTS_PAYLOAD_FILE: process.env.ORDER_ALL_PRODUCTS_PAYLOAD_FILE,
-  CHECKOUT_EMAIL: process.env.CHECKOUT_EMAIL,
-  CHECKOUT_FULL_NAME: process.env.CHECKOUT_FULL_NAME ?? 'Musticker E2E',
-  CHECKOUT_COMPANY: process.env.CHECKOUT_COMPANY ?? 'Musticker QA',
-  CHECKOUT_PROVINCE: process.env.CHECKOUT_PROVINCE ?? '\uc11c\uc6b8\ud2b9\ubcc4\uc2dc',
-  CHECKOUT_CITY: process.env.CHECKOUT_CITY ?? '\uac15\ub0a8\uad6c',
-  CHECKOUT_ADDRESS1: process.env.CHECKOUT_ADDRESS1 ?? '서울특별시 강남구 테헤란로 123',
-  CHECKOUT_ADDRESS2: process.env.CHECKOUT_ADDRESS2 ?? '10층 E2E 테스트',
-  CHECKOUT_POSTAL_CODE: process.env.CHECKOUT_POSTAL_CODE ?? '06234',
-  CHECKOUT_PHONE: process.env.CHECKOUT_PHONE ?? '01012345678',
-  PAYMENT_METHOD: process.env.PAYMENT_METHOD ?? 'Credit Card',
-  PAYMENT_CARD_NUMBER: process.env.PAYMENT_CARD_NUMBER,
-  PAYMENT_CARD_EXPIRY: process.env.PAYMENT_CARD_EXPIRY,
-  PAYMENT_CARD_CVC: process.env.PAYMENT_CARD_CVC,
-  PAYMENT_CARD_PASSWORD: process.env.PAYMENT_CARD_PASSWORD,
-  PAYMENT_BIRTH_DATE: process.env.PAYMENT_BIRTH_DATE,
-  PAYMENT_GATEWAY_CARD_NUMBER_SELECTOR: process.env.PAYMENT_GATEWAY_CARD_NUMBER_SELECTOR,
-  PAYMENT_GATEWAY_EXPIRY_SELECTOR: process.env.PAYMENT_GATEWAY_EXPIRY_SELECTOR,
-  PAYMENT_GATEWAY_CVC_SELECTOR: process.env.PAYMENT_GATEWAY_CVC_SELECTOR,
-  PAYMENT_GATEWAY_PASSWORD_SELECTOR: process.env.PAYMENT_GATEWAY_PASSWORD_SELECTOR,
-  PAYMENT_GATEWAY_BIRTH_DATE_SELECTOR: process.env.PAYMENT_GATEWAY_BIRTH_DATE_SELECTOR,
-  PAYMENT_GATEWAY_CONFIRM_SELECTOR: process.env.PAYMENT_GATEWAY_CONFIRM_SELECTOR,
-  TOSS_BANK_TRANSFER_PASSWORD: process.env.TOSS_BANK_TRANSFER_PASSWORD ?? '000000',
-  TOSS_PAYMENT_STATUS_WEBHOOK_URL:
-    process.env.TOSS_PAYMENT_STATUS_WEBHOOK_URL ??
-    'https://dev-api.musticker.com/index.php/sys/kr/payments/webhook/toss/payment-status',
-  TOSS_PAYMENT_WEBHOOK_CREATED_AT: process.env.TOSS_PAYMENT_WEBHOOK_CREATED_AT ?? '2022-01-01T00:00:00.000000',
-  TOSS_PAYMENT_WEBHOOK_PAYMENT_KEY: process.env.TOSS_PAYMENT_WEBHOOK_PAYMENT_KEY ?? 'test_payment_key',
-  TOSS_PAYMENT_WEBHOOK_MID: process.env.TOSS_PAYMENT_WEBHOOK_MID ?? 'tosspayments',
-  PAYAPP_FEEDBACK_WEBHOOK_URL:
-    process.env.PAYAPP_FEEDBACK_WEBHOOK_URL ??
-    'https://api.musticker.com/index.php/sys/kr/payments/webhook/payapp/feedback',
-  PAYAPP_FEEDBACK_USERID: process.env.PAYAPP_FEEDBACK_USERID ?? 'glophics',
-  PAYAPP_FEEDBACK_LINKKEY: process.env.PAYAPP_FEEDBACK_LINKKEY ?? 'jinkey',
-  PAYAPP_FEEDBACK_LINKVAL: process.env.PAYAPP_FEEDBACK_LINKVAL ?? 'jinkval',
-  PAYAPP_FEEDBACK_RECVPHONE: process.env.PAYAPP_FEEDBACK_RECVPHONE,
-  PAYAPP_FEEDBACK_REQDATE: process.env.PAYAPP_FEEDBACK_REQDATE,
-  PAYAPP_FEEDBACK_PAY_TYPE: process.env.PAYAPP_FEEDBACK_PAY_TYPE ?? '7',
-  PAYAPP_FEEDBACK_PAY_STATE: process.env.PAYAPP_FEEDBACK_PAY_STATE ?? '4',
-  PAYAPP_FEEDBACK_VBANK: process.env.PAYAPP_FEEDBACK_VBANK ?? '\uae30\uc5c5\uc740\ud589',
-  PAYAPP_FEEDBACK_VBANKNO: process.env.PAYAPP_FEEDBACK_VBANKNO ?? '48011060187132',
-  PAYAPP_FEEDBACK_DEPOSITOR: process.env.PAYAPP_FEEDBACK_DEPOSITOR ?? '\uc8fc)\uc720\ub514\uc544\uc774\ub514_\uacfd\uc9c0\uc5f0',
-  PAYAPP_FEEDBACK_CURRENCY: process.env.PAYAPP_FEEDBACK_CURRENCY ?? 'krw',
-  PAYAPP_FEEDBACK_AMOUNT_TAXABLE: process.env.PAYAPP_FEEDBACK_AMOUNT_TAXABLE ?? '1000000',
-  PAYAPP_FEEDBACK_AMOUNT_TAXFREE: process.env.PAYAPP_FEEDBACK_AMOUNT_TAXFREE ?? '0',
-  PAYAPP_FEEDBACK_AMOUNT_VAT: process.env.PAYAPP_FEEDBACK_AMOUNT_VAT ?? '100000',
-  PAYAPP_FEEDBACK_TYPE: process.env.PAYAPP_FEEDBACK_TYPE ?? '0',
-  ORDER_COMPLETION_DETAILS_ENDPOINT:
-    process.env.ORDER_COMPLETION_DETAILS_ENDPOINT ??
-    'https://dev-api.musticker.com/index.php/sys/kr/orders/completion/details/{orderId}',
-  BYPASS_ARTWORK_UPLOAD: process.env.BYPASS_ARTWORK_UPLOAD === 'true'
+  BASE_URL: process.env.BASE_URL ?? selectedEnvironment?.baseUrl ?? 'https://www.musticker.com/kr',
+  API_BASE_URL: process.env.API_BASE_URL ?? selectedEnvironment?.apiBaseUrl,
+  AUTH_TEST_EMAIL: process.env.AUTH_TEST_EMAIL,
+  AUTH_TEST_PASSWORD: process.env.AUTH_TEST_PASSWORD,
+  // WAF exemption keys issued by the site owner -- production and the development-* servers sit
+  // behind separate WAFs with separate keys. Read these through internalOriginKey() rather than
+  // directly; see the note there. Sent as the x-internal-origin header on first-party requests
+  // only -- tests/fixtures/internal-origin.ts.
+  // Trimmed because these arrive by copy-paste into a secrets UI, where a trailing newline or
+  // space is easy to include and impossible to see. An HTTP header value carries that whitespace
+  // verbatim, so an otherwise-correct key gets refused and looks exactly like a wrong one.
+  INTERNAL_ORIGIN_KEY: process.env.INTERNAL_ORIGIN_KEY?.trim(),
+  DEV_INTERNAL_ORIGIN_KEY: process.env.DEV_INTERNAL_ORIGIN_KEY?.trim()
 };
 
-export function normalizeBaseURL(baseURL: string): string {
-  return baseURL.endsWith('/') ? baseURL : `${baseURL}/`;
+// Which named environment this run is pointed at, for fixtures that hold per-environment data (the
+// pricing registry, whose table ids differ per server). E2E_ENVIRONMENT is authoritative when set;
+// otherwise BASE_URL is matched back against the registry, because the production-facing scripts
+// (test:prod:*, test:regression, and the nightly/full-suite workflows) set BASE_URL instead.
+//
+// Undefined means "pointed somewhere not in the registry" -- an ad-hoc BASE_URL, say. Callers must
+// treat that as unknown rather than assuming production: env-specific expectations cannot be
+// asserted against a server we have no recorded data for.
+export const activeEnvironment: EnvironmentName | undefined = resolveActiveEnvironmentName();
+
+/**
+ * Which of the two internal-origin keys belongs to a given environment, by variable name.
+ *
+ * Split out as a pure function because it is the part that can quietly be wrong: handing the
+ * production key to a dev server would put a production credential on a less-guarded host, and
+ * nothing about the resulting run would look unusual. tests/e2e/security/ asserts this mapping.
+ *
+ * Undefined means "send no key" -- the honest answer for an unrecognised BASE_URL, where guessing
+ * production would be the dangerous guess.
+ */
+export function internalOriginKeyVarFor(
+  environment: EnvironmentName | undefined
+): 'INTERNAL_ORIGIN_KEY' | 'DEV_INTERNAL_ORIGIN_KEY' | undefined {
+  if (environment === 'production') {
+    return 'INTERNAL_ORIGIN_KEY';
+  }
+
+  return environment?.startsWith('development-') ? 'DEV_INTERNAL_ORIGIN_KEY' : undefined;
+}
+
+/**
+ * The internal-origin key for the environment this run is pointed at, or undefined when there is
+ * none to send.
+ *
+ * Resolved here rather than by a ternary in each workflow, which is how the AUTH_TEST and
+ * DEV_AUTH_TEST secrets are selected, so that which key goes to which host is decided in one place
+ * that is tested. A stale production key sitting in a local .env therefore cannot reach a dev
+ * server.
+ *
+ * Runs that resolve to no key fall back to the 403 retry ladder in navigation.ts, exactly as they
+ * did before any key existed.
+ */
+export function internalOriginKey(): string | undefined {
+  const variable = internalOriginKeyVarFor(activeEnvironment);
+
+  return variable ? env[variable] : undefined;
 }
 
 export function appPath(relativePath = ''): string {
@@ -89,81 +75,49 @@ export function appPath(relativePath = ''): string {
   return cleanPath ? `${basePath}/${cleanPath}` : basePath;
 }
 
-export function hasSeededUser(): boolean {
-  return Boolean(env.TEST_USER_EMAIL && env.TEST_USER_PASSWORD);
+export function apiPath(relativePath: string): string {
+  const base = new URL(env.API_BASE_URL ?? defaultApiBaseUrl());
+  const cleanPath = relativePath.replace(/^\.\//, '').replace(/^\//, '');
+  const basePath = base.pathname.replace(/\/$/, '');
+
+  return `${base.origin}${basePath}/${cleanPath}`;
 }
 
-export function seededUser(): SeededUser {
-  if (!env.TEST_USER_EMAIL || !env.TEST_USER_PASSWORD) {
-    throw new Error('TEST_USER_EMAIL and TEST_USER_PASSWORD are required for seeded-user tests.');
+function defaultApiBaseUrl(): string {
+  const base = new URL(env.BASE_URL);
+  const apiHost = base.hostname.startsWith('dev.') ? 'dev-api.musticker.com' : 'api.musticker.com';
+
+  return `${base.protocol}//${apiHost}/index.php`;
+}
+
+function normalizeBaseUrl(value: string): string {
+  return value.replace(/\/+$/, '').toLowerCase();
+}
+
+function resolveActiveEnvironmentName(): EnvironmentName | undefined {
+  const requested = process.env.E2E_ENVIRONMENT;
+  if (requested) {
+    // Already validated by resolveSelectedEnvironment(), which throws on an unknown name.
+    return requested as EnvironmentName;
   }
 
-  return {
-    email: env.TEST_USER_EMAIL,
-    password: env.TEST_USER_PASSWORD
-  };
+  const target = normalizeBaseUrl(env.BASE_URL);
+  const names = Object.keys(environments) as EnvironmentName[];
+
+  return names.find((name) => normalizeBaseUrl(environments[name].baseUrl) === target);
 }
 
-export function checkoutProfile(): CheckoutProfile {
-  const userEmail = env.CHECKOUT_EMAIL ?? env.TEST_USER_EMAIL ?? 'musticker-e2e@example.com';
+function resolveSelectedEnvironment(): { baseUrl: string; apiBaseUrl: string } | undefined {
+  const requested = process.env.E2E_ENVIRONMENT;
+  if (!requested) {
+    return undefined;
+  }
 
-  return {
-    email: userEmail,
-    fullName: env.CHECKOUT_FULL_NAME,
-    company: env.CHECKOUT_COMPANY,
-    province: env.CHECKOUT_PROVINCE,
-    city: env.CHECKOUT_CITY,
-    addressLine1: env.CHECKOUT_ADDRESS1,
-    addressLine2: env.CHECKOUT_ADDRESS2,
-    postalCode: env.CHECKOUT_POSTAL_CODE,
-    phone: env.CHECKOUT_PHONE
-  };
-}
+  if (!isEnvironmentName(requested)) {
+    throw new Error(
+      `Unsupported E2E_ENVIRONMENT "${requested}". Use one of: ${Object.keys(environments).join(', ')}.`
+    );
+  }
 
-export function paymentProfile(): PaymentProfile {
-  return {
-    method: env.PAYMENT_METHOD,
-    cardNumber: env.PAYMENT_CARD_NUMBER,
-    expiry: env.PAYMENT_CARD_EXPIRY,
-    cvc: env.PAYMENT_CARD_CVC,
-    password: env.PAYMENT_CARD_PASSWORD,
-    birthDate: env.PAYMENT_BIRTH_DATE,
-    selectors: {
-      cardNumber: env.PAYMENT_GATEWAY_CARD_NUMBER_SELECTOR,
-      expiry: env.PAYMENT_GATEWAY_EXPIRY_SELECTOR,
-      cvc: env.PAYMENT_GATEWAY_CVC_SELECTOR,
-      password: env.PAYMENT_GATEWAY_PASSWORD_SELECTOR,
-      birthDate: env.PAYMENT_GATEWAY_BIRTH_DATE_SELECTOR,
-      confirm: env.PAYMENT_GATEWAY_CONFIRM_SELECTOR
-    }
-  };
-}
-
-export function canRunPaymentE2E(): boolean {
-  return env.RUN_PAYMENT_E2E === 'true' && hasSeededUser();
-}
-
-export function canFetchRegistrationOtp(): boolean {
-  return Boolean(env.REGISTRATION_OTP_ENDPOINT);
-}
-
-export function canRunMemberPurchaseRegression(): boolean {
-  return env.RUN_PAYMENT_E2E === 'true' && canFetchRegistrationOtp();
-}
-
-export function canRunApiSetup(): boolean {
-  return Boolean(env.API_BASE_URL && env.API_TOKEN && env.TEST_DATA_USER_ENDPOINT);
-}
-
-export function makeRunMarker(workerIndex: number): string {
-  const now = new Date();
-
-  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(now.getUTCDate()).padStart(2, '0');
-  const yy = String(now.getUTCFullYear()).slice(-2);
-
-  const hh = String(now.getUTCHours()).padStart(2, '0');
-  const min = String(now.getUTCMinutes()).padStart(2, '0');
-
-  return `${mm}${dd}${yy}-${hh}${min}-${workerIndex}`;
+  return environments[requested];
 }

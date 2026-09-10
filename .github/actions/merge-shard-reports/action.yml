@@ -1,0 +1,150 @@
+name: Merge shard reports
+description: Combine the blob reports and Allure results of a sharded Playwright run into one artifact.
+
+# A sharded run produces one partial report per shard, and neither Playwright's HTML report nor the
+# JUnit XML can be usefully combined after the fact -- which is why the shards emit `blob` reports
+# instead (see reportersForShardedRun in playwright.config.ts). This action turns them back into the
+# single artifact the rest of the pipeline, publish-allure-report included, already expects.
+
+inputs:
+  shard_artifact_pattern:
+    description: Artifact name pattern the shards uploaded, for example nightly-regression-shard-*.
+    required: true
+  artifact_name:
+    description: Name for the combined artifact. Pass this same value to publish-allure-report.
+    required: true
+  retention_days:
+    description: Number of days to retain the combined artifact.
+    required: false
+    default: '14'
+  node_version:
+    description: Node.js version used to run the Playwright and Allure CLIs.
+    required: false
+    default: '22'
+
+outputs:
+  allure_results_found:
+    description: Whether the merged allure-results directory contains files.
+    value: ${{ steps.merge_allure.outputs.found }}
+  shard_count:
+    description: How many shard artifacts contributed to the merge.
+    value: ${{ steps.collect_blobs.outputs.shard_count }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v5
+      with:
+        cache: npm
+        node-version: ${{ inputs.node_version }}
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Download shard artifacts
+      uses: actions/download-artifact@v7
+      with:
+        merge-multiple: false
+        path: .shard-artifacts
+        pattern: ${{ inputs.shard_artifact_pattern }}
+
+    - name: Collect blob reports
+      id: collect_blobs
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        rm -rf .all-blob-reports
+        mkdir -p .all-blob-reports
+
+        shard_count=0
+        if [ -d .shard-artifacts ]; then
+          for shard_dir in .shard-artifacts/*/; do
+            [ -d "$shard_dir" ] || continue
+            shard_count=$((shard_count + 1))
+
+            if [ -d "$shard_dir/blob-report" ]; then
+              find "$shard_dir/blob-report" -maxdepth 1 -type f -name '*.zip' -exec cp {} .all-blob-reports/ \;
+            fi
+          done
+        fi
+
+        blob_count="$(find .all-blob-reports -maxdepth 1 -type f -name '*.zip' | wc -l | tr -d ' ')"
+
+        echo "shard_count=$shard_count" >> "$GITHUB_OUTPUT"
+        echo "blob_count=$blob_count" >> "$GITHUB_OUTPUT"
+        echo "Collected $blob_count blob report(s) from $shard_count shard artifact(s)."
+
+        # No blobs means every shard died before writing one. That is a pipeline failure worth
+        # surfacing here rather than as a confusing "no results" further down.
+        if [ "$blob_count" -eq 0 ]; then
+          echo "No blob reports were found in any shard artifact." >&2
+          exit 1
+        fi
+
+    - name: Merge into one HTML and JUnit report
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        rm -rf playwright-report test-results
+        mkdir -p test-results
+
+        npx playwright merge-reports --reporter html .all-blob-reports
+        PLAYWRIGHT_JUNIT_OUTPUT_NAME=test-results/junit.xml npx playwright merge-reports --reporter junit .all-blob-reports
+
+    - name: Merge Allure results
+      id: merge_allure
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        rm -rf allure-results allure-report
+        mkdir -p allure-results
+
+        # Allure writes one self-contained file per test result, with a UUID filename, so merging the
+        # shards is a copy rather than a real merge -- no collisions and nothing to reconcile.
+        for shard_dir in .shard-artifacts/*/; do
+          [ -d "$shard_dir/allure-results" ] || continue
+          cp -R "$shard_dir/allure-results/." allure-results/
+        done
+
+        if [ -z "$(find allure-results -type f -print -quit)" ]; then
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          echo "No Allure results were found in the shard artifacts."
+          exit 0
+        fi
+
+        echo "found=true" >> "$GITHUB_OUTPUT"
+        npx allure generate allure-results
+
+    - name: Upload combined artifact
+      uses: actions/upload-artifact@v7
+      with:
+        if-no-files-found: ignore
+        name: ${{ inputs.artifact_name }}
+        path: |
+          allure-results/
+          allure-report/
+          playwright-report/
+          test-results/
+        retention-days: ${{ inputs.retention_days }}
+
+    - name: Write summary
+      shell: bash
+      env:
+        ALLURE_FOUND: ${{ steps.merge_allure.outputs.found }}
+        ARTIFACT_NAME: ${{ inputs.artifact_name }}
+        BLOB_COUNT: ${{ steps.collect_blobs.outputs.blob_count }}
+        SHARD_COUNT: ${{ steps.collect_blobs.outputs.shard_count }}
+      run: |
+        {
+          echo "### Merged shard reports"
+          echo ""
+          echo "- Shard artifacts merged: $SHARD_COUNT"
+          echo "- Blob reports merged: $BLOB_COUNT"
+          echo "- Allure results found: $ALLURE_FOUND"
+          echo "- Combined artifact: $ARTIFACT_NAME"
+        } >> "$GITHUB_STEP_SUMMARY"
