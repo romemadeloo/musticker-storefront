@@ -1,1 +1,1 @@
-{"id":"a426df493aa4c1bf326e7b2f00b65e58","fullName":"purchasing/product-config.spec.ts:43:3","name":"MS-V2-011 die-cut sheet sticker supports material, sheet size, and quantity selection","status":"broken","testResultsByEnv":{"default":"30bddac8add23d7a7aa826045818d5c8"}}
+{"id":"a426df493aa4c1bf326e7b2f00b65e58","fullName":"purchasing/product-config.spec.ts:43:3","name":"MS-V2-011 die-cut sheet sticker supports material, sheet size, and quantity selection","status":"passed","testResultsByEnv":{"default":"9a59d202d58dbfed02ea027093d4a3ae"}}

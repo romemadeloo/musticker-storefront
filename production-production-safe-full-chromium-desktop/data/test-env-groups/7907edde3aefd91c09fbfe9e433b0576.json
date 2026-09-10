@@ -1,1 +1,1 @@
-{"id":"7907edde3aefd91c09fbfe9e433b0576","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP paper-roll is served by pricing table 17","status":"passed","testResultsByEnv":{"default":"1e4c101a5cdaa42e4a7f3e2ee551975d"}}
+{"id":"7907edde3aefd91c09fbfe9e433b0576","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP paper-roll is served by pricing table 17","status":"failed","testResultsByEnv":{"default":"6ad29324448095bfea1c5777a04a0234"}}

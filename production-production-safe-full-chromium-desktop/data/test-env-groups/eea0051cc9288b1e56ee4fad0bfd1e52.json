@@ -1,1 +1,1 @@
-{"id":"eea0051cc9288b1e56ee4fad0bfd1e52","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-rounded-roll area 52900 (230x230) matches roll-stickers/rounded-roll.csv","status":"passed","testResultsByEnv":{"default":"c6bb9ca44f178e038caf69df3d466d56"}}
+{"id":"eea0051cc9288b1e56ee4fad0bfd1e52","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-rounded-roll area 52900 (230x230) matches roll-stickers/rounded-roll.csv","status":"failed","testResultsByEnv":{"default":"c8ff3926fd4c41be913ac1ab173dcf3b"}}

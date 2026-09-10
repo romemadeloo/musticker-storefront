@@ -1,0 +1,8 @@
+{
+  "url": "https://www.musticker.com/kr",
+  "violations": [],
+  "incompleteRuleIds": [
+    "aria-prohibited-attr",
+    "color-contrast"
+  ]
+}

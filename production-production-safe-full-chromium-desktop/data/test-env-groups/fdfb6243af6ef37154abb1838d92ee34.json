@@ -1,1 +1,1 @@
-{"id":"fdfb6243af6ef37154abb1838d92ee34","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-square-roll area 12100 (110x110) matches roll-stickers/square-roll.csv","status":"passed","testResultsByEnv":{"default":"bcd254af08336b0ed7ca5a98bc930cf4"}}
+{"id":"fdfb6243af6ef37154abb1838d92ee34","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-square-roll area 12100 (110x110) matches roll-stickers/square-roll.csv","status":"failed","testResultsByEnv":{"default":"f3d67ddf6e89685c73c40a9a6cccb7ae"}}
