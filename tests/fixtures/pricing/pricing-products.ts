@@ -100,7 +100,7 @@ const CSV_SOURCES_ALL = [
 const registry: readonly PricingProductRegistryEntry[] = [
   {
     slug: 'die-cut-sticker',
-    pricingName: /^Die Cut\b/,
+    pricingName: /^diecut\/kisscut\b/,
     pricingIds: { production: 48, 'development-1': 45, 'development-static':51, 'development-static-2': 5 },
     normalizedNr: 100,
     csv: 'stickers/die-cut-sticker.csv',
@@ -108,7 +108,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   },
   {
     slug: 'kiss-cut-sticker',
-    pricingName: /^Die Cut \/ Kiss Cut\b/,
+    pricingName: /^diecut\/kisscut\b/,
     pricingIds: { production: 48, 'development-1': 47, 'development-static':51, 'development-static-2': 23 },
     normalizedNr: 100,
     csv: 'stickers/kiss-cut-sticker.csv',
@@ -116,7 +116,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   },
   {
     slug: 'circle-sticker',
-    pricingName: /^Die Cut \/ Kiss Cut\b/,
+    pricingName: /^diecut\/kisscut\b/,
     pricingIds: { production: 48, 'development-1': 46, 'development-static':51, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/circle-sticker.csv',
@@ -124,7 +124,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   },
   {
     slug: 'rectangle-sticker',
-    pricingName: /^Die Cut \/ Kiss Cut\b/,
+    pricingName: /^diecut\/kisscut\b/,
     pricingIds: { production: 48, 'development-1': 46, 'development-static':51, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/rectangle-sticker.csv',
@@ -132,7 +132,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   },
   {
     slug: 'square-sticker',
-    pricingName: /^Die Cut \/ Kiss Cut\b/,
+    pricingName: /^diecut\/kisscut\b/,
     pricingIds: { production: 48, 'development-1': 46, 'development-static':51, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/square-sticker.csv',
@@ -140,7 +140,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   },
   {
     slug: 'oval-sticker',
-    pricingName: /^Die Cut \/ Kiss Cut\b/,
+    pricingName: /^diecut\/kisscut\b/,
     pricingIds: { production: 48, 'development-1': 46, 'development-static':51, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/oval-sticker.csv',
@@ -148,7 +148,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   },
   {
     slug: 'rounded-sticker',
-    pricingName: /^Die Cut \/ Kiss Cut\b/,
+    pricingName: /^diecut\/kisscut\b/,
     pricingIds: { production: 48, 'development-1': 46, 'development-static':51, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/rounded-sticker.csv',
