@@ -1,1 +1,1 @@
-{"id":"d51dc718c33570ab0906139bc88049f8","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP oval-roll is served by pricing table 15","status":"passed","testResultsByEnv":{"default":"5369884cb872e5874d90fbf9599a3da0"}}
+{"id":"d51dc718c33570ab0906139bc88049f8","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP oval-roll is served by pricing table 15","status":"failed","testResultsByEnv":{"default":"dbee191093670228dd91f027a96bf70f"}}

@@ -1,1 +1,1 @@
-{"id":"3e7eb0e8e816a8c433007ddf667328f6","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-circle-roll area 5625 (75x75) matches roll-stickers/circle-roll.csv","status":"passed","testResultsByEnv":{"default":"5048975b1f4817b80851269460342577"}}
+{"id":"3e7eb0e8e816a8c433007ddf667328f6","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-circle-roll area 5625 (75x75) matches roll-stickers/circle-roll.csv","status":"failed","testResultsByEnv":{"default":"f4544be18795957066cf13333cc306a0"}}

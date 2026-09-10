@@ -1,1 +1,1 @@
-{"id":"fe60c365855e95607e07991a5fe7f0a2","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-rectangle-sticker area 250000 (500x500) matches stickers/rectangle-sticker.csv","status":"failed","testResultsByEnv":{"default":"9b0152406af3b17120f60f167dcb6879"}}
+{"id":"fe60c365855e95607e07991a5fe7f0a2","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-rectangle-sticker area 250000 (500x500) matches stickers/rectangle-sticker.csv","status":"passed","testResultsByEnv":{"default":"80347ee4a57e46c82a3d7bf00fa2a6e8"}}

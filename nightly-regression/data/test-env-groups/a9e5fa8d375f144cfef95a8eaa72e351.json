@@ -1,1 +1,1 @@
-{"id":"a9e5fa8d375f144cfef95a8eaa72e351","fullName":"pricing/price-interpolation.spec.ts:103:7","name":"MS-PRC-INT-rectangle-sticker area 543000 (724x750) interpolates between 540000 and 546000","status":"failed","testResultsByEnv":{"default":"0f9246014d8ffd8fc411595a7e684f62"}}
+{"id":"a9e5fa8d375f144cfef95a8eaa72e351","fullName":"pricing/price-interpolation.spec.ts:103:7","name":"MS-PRC-INT-rectangle-sticker area 543000 (724x750) interpolates between 540000 and 546000","status":"passed","testResultsByEnv":{"default":"0ffec475717d3086d2de7f3c64d11847"}}

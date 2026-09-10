@@ -1,1 +1,1 @@
-{"id":"dbeba22828baa8674431835ee14d27b4","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-rounded-sticker area 27225 (165x165) matches stickers/rounded-sticker.csv","status":"failed","testResultsByEnv":{"default":"c95534ee1ee578e84ded56b9cd173056"}}
+{"id":"dbeba22828baa8674431835ee14d27b4","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-rounded-sticker area 27225 (165x165) matches stickers/rounded-sticker.csv","status":"passed","testResultsByEnv":{"default":"40c657c2ed738dd0063c359e855d90ef"}}

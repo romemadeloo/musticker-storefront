@@ -1,1 +1,1 @@
-{"id":"0672e100b116ec285f27e4fb57f2201c","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-clear-sticker area 2025 (45x45) matches stickers/clear-sticker.csv","status":"failed","testResultsByEnv":{"default":"627b83ee38662d45c3c30ef152e09a2e"}}
+{"id":"0672e100b116ec285f27e4fb57f2201c","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-clear-sticker area 2025 (45x45) matches stickers/clear-sticker.csv","status":"passed","testResultsByEnv":{"default":"094d352abad7169d9184918f5786470c"}}

@@ -1,1 +1,1 @@
-{"id":"b070c5a38191175e71bd12c7cfa88188","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-rectangle-roll area 34225 (185x185) matches roll-stickers/rectangle-roll.csv","status":"passed","testResultsByEnv":{"default":"eb1a864b2fa51445c8d4d92992e3cc90"}}
+{"id":"b070c5a38191175e71bd12c7cfa88188","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-rectangle-roll area 34225 (185x185) matches roll-stickers/rectangle-roll.csv","status":"failed","testResultsByEnv":{"default":"9360f5f4ab39435e1a3d456325ae6043"}}

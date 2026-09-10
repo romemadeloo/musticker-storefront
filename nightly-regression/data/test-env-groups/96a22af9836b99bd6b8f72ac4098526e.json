@@ -1,1 +1,1 @@
-{"id":"96a22af9836b99bd6b8f72ac4098526e","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-circle-sticker area 255025 (505x505) matches stickers/circle-sticker.csv","status":"failed","testResultsByEnv":{"default":"11dbac3baa8e86a980ec341382e46c0b"}}
+{"id":"96a22af9836b99bd6b8f72ac4098526e","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-circle-sticker area 255025 (505x505) matches stickers/circle-sticker.csv","status":"passed","testResultsByEnv":{"default":"6d3f98da6e8b9e088578194e1b8231bd"}}

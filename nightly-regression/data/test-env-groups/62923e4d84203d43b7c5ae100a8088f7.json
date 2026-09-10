@@ -1,1 +1,1 @@
-{"id":"62923e4d84203d43b7c5ae100a8088f7","fullName":"pricing/price-interpolation.spec.ts:103:7","name":"MS-PRC-INT-square-roll area 16262 (94x173) interpolates between 15625 and 16900","status":"passed","testResultsByEnv":{"default":"a1c44daed09bf8dbd882995dafdd613e"}}
+{"id":"62923e4d84203d43b7c5ae100a8088f7","fullName":"pricing/price-interpolation.spec.ts:103:7","name":"MS-PRC-INT-square-roll area 16262 (94x173) interpolates between 15625 and 16900","status":"failed","testResultsByEnv":{"default":"44628f9d954354e763a4b595197a8633"}}

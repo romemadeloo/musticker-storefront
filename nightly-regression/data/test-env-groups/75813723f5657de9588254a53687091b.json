@@ -1,1 +1,1 @@
-{"id":"75813723f5657de9588254a53687091b","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-rectangle-sticker area 9025 (95x95) matches stickers/rectangle-sticker.csv","status":"failed","testResultsByEnv":{"default":"4e341d6e69d074f5e18a267b0243399c"}}
+{"id":"75813723f5657de9588254a53687091b","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-rectangle-sticker area 9025 (95x95) matches stickers/rectangle-sticker.csv","status":"passed","testResultsByEnv":{"default":"206ddf43c66ad6a0142cddfd2053f6ae"}}

@@ -1,1 +1,1 @@
-{"id":"1a31ea9f94ee38a5fa2d41cc29f2e534","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP clear-roll is served by pricing table 16","status":"passed","testResultsByEnv":{"default":"b10a56ba78d4fe0e769ed11fc2850bb4"}}
+{"id":"1a31ea9f94ee38a5fa2d41cc29f2e534","fullName":"pricing/product-table-mapping.spec.ts:40:5","name":"MS-PRC-MAP clear-roll is served by pricing table 16","status":"failed","testResultsByEnv":{"default":"63b014447c676b362dd01cd0a7ae7072"}}

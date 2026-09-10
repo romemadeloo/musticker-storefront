@@ -1,1 +1,1 @@
-{"id":"abe90c62a2e12103b0ff86df6df5d340","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-hologram-sticker area 112225 (335x335) matches stickers/hologram-sticker.csv","status":"failed","testResultsByEnv":{"default":"7f7f603baedf7e1d2e854efd191ae844"}}
+{"id":"abe90c62a2e12103b0ff86df6df5d340","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-hologram-sticker area 112225 (335x335) matches stickers/hologram-sticker.csv","status":"passed","testResultsByEnv":{"default":"154a1d386f7f81f6ea4531aeb0aab545"}}

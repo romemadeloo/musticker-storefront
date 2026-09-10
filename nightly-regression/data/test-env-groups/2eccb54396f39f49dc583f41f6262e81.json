@@ -1,1 +1,1 @@
-{"id":"2eccb54396f39f49dc583f41f6262e81","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-kiss-cut-sticker highest grid row 546000 (728x750) prices from the CSV","status":"failed","testResultsByEnv":{"default":"3ce68e6c27c91ccd9e71917673029976"}}
+{"id":"2eccb54396f39f49dc583f41f6262e81","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-kiss-cut-sticker highest grid row 546000 (728x750) prices from the CSV","status":"passed","testResultsByEnv":{"default":"4328b6cfa2b1c99db947eea8975fafaa"}}

@@ -1,1 +1,1 @@
-{"id":"a1f5a55c0c5867658e0507e5305edffa","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-clear-sticker area 48400 (220x220) matches stickers/clear-sticker.csv","status":"failed","testResultsByEnv":{"default":"1e635ef63940000ada31ce9deb10a3d2"}}
+{"id":"a1f5a55c0c5867658e0507e5305edffa","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-clear-sticker area 48400 (220x220) matches stickers/clear-sticker.csv","status":"passed","testResultsByEnv":{"default":"8a86623eedf474cd09dc8cf8f6d6029b"}}

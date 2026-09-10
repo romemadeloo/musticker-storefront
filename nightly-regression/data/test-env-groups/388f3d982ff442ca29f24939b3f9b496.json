@@ -1,1 +1,1 @@
-{"id":"388f3d982ff442ca29f24939b3f9b496","fullName":"pricing/price-interpolation.spec.ts:103:7","name":"MS-PRC-INT-circle-roll area 312 (13x24) interpolates between 225 and 400","status":"passed","testResultsByEnv":{"default":"87d2643b50170b14b6002fff96f22587"}}
+{"id":"388f3d982ff442ca29f24939b3f9b496","fullName":"pricing/price-interpolation.spec.ts:103:7","name":"MS-PRC-INT-circle-roll area 312 (13x24) interpolates between 225 and 400","status":"failed","testResultsByEnv":{"default":"a4f59105cc6f8a995aba94bf140f3a7f"}}

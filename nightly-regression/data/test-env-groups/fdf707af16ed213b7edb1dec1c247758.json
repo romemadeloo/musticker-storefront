@@ -1,1 +1,1 @@
-{"id":"fdf707af16ed213b7edb1dec1c247758","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-die-cut-sticker highest grid row 546000 (728x750) prices from the CSV","status":"failed","testResultsByEnv":{"default":"59414cd5402fc3b84f70df54a89e65e6"}}
+{"id":"fdf707af16ed213b7edb1dec1c247758","fullName":"pricing/price-interpolation.spec.ts:219:7","name":"MS-PRC-INT-die-cut-sticker highest grid row 546000 (728x750) prices from the CSV","status":"passed","testResultsByEnv":{"default":"4acf0dda7438fe1d68e39e9a9de0b066"}}

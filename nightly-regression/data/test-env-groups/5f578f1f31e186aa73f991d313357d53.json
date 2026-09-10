@@ -1,1 +1,1 @@
-{"id":"5f578f1f31e186aa73f991d313357d53","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-square-sticker area 492000 (656x750) matches stickers/square-sticker.csv","status":"failed","testResultsByEnv":{"default":"88815cb0ef768f16a3b39be61bf52077"}}
+{"id":"5f578f1f31e186aa73f991d313357d53","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-square-sticker area 492000 (656x750) matches stickers/square-sticker.csv","status":"passed","testResultsByEnv":{"default":"fe03353dd260e4a0353833998f50c7d3"}}

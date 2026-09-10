@@ -1,1 +1,1 @@
-{"id":"c46050025b4040a1a0851e4bad5c9f0e","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-die-cut-sticker area 230400 (480x480) matches stickers/die-cut-sticker.csv","status":"failed","testResultsByEnv":{"default":"4c55684b5f1963bbfcf9ea9c02b0d3b2"}}
+{"id":"c46050025b4040a1a0851e4bad5c9f0e","fullName":"pricing/price-table.spec.ts:59:7","name":"MS-PRC-die-cut-sticker area 230400 (480x480) matches stickers/die-cut-sticker.csv","status":"passed","testResultsByEnv":{"default":"7a40165b4f9f2c4723713d16822d822a"}}
