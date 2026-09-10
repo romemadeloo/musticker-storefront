@@ -101,7 +101,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   {
     slug: 'die-cut-sticker',
     pricingName: /^Die Cut\b/,
-    pricingIds: { production: 43, 'development-1': 45, 'development-static-2': 5 },
+    pricingIds: { production: 48, 'development-1': 45, 'development-static':51, 'development-static-2': 5 },
     normalizedNr: 100,
     csv: 'stickers/die-cut-sticker.csv',
     csvSources: CSV_SOURCES
@@ -109,7 +109,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   {
     slug: 'kiss-cut-sticker',
     pricingName: /^Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 44, 'development-1': 47, 'development-static-2': 23 },
+    pricingIds: { production: 48, 'development-1': 47, 'development-static':51, 'development-static-2': 23 },
     normalizedNr: 100,
     csv: 'stickers/kiss-cut-sticker.csv',
     csvSources: CSV_SOURCES
@@ -117,7 +117,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   {
     slug: 'circle-sticker',
     pricingName: /^Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 44, 'development-1': 46, 'development-static-2': 25 },
+    pricingIds: { production: 48, 'development-1': 46, 'development-static':51, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/circle-sticker.csv',
     csvSources: CSV_SOURCES
@@ -125,7 +125,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   {
     slug: 'rectangle-sticker',
     pricingName: /^Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 44, 'development-1': 46, 'development-static-2': 25 },
+    pricingIds: { production: 48, 'development-1': 46, 'development-static':51, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/rectangle-sticker.csv',
     csvSources: CSV_SOURCES
@@ -133,7 +133,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   {
     slug: 'square-sticker',
     pricingName: /^Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 44, 'development-1': 46, 'development-static-2': 25 },
+    pricingIds: { production: 48, 'development-1': 46, 'development-static':51, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/square-sticker.csv',
     csvSources: CSV_SOURCES
@@ -141,7 +141,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   {
     slug: 'oval-sticker',
     pricingName: /^Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 44, 'development-1': 46, 'development-static-2': 25 },
+    pricingIds: { production: 48, 'development-1': 46, 'development-static':51, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/oval-sticker.csv',
     csvSources: CSV_SOURCES
@@ -149,7 +149,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   {
     slug: 'rounded-sticker',
     pricingName: /^Die Cut \/ Kiss Cut\b/,
-    pricingIds: { production: 44, 'development-1': 46, 'development-static-2': 25 },
+    pricingIds: { production: 48, 'development-1': 46, 'development-static':51, 'development-static-2': 25 },
     normalizedNr: 100,
     csv: 'stickers/rounded-sticker.csv',
     csvSources: CSV_SOURCES
@@ -158,7 +158,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
     // "Clear Sticker" on production, "Clear Die Cut / Kiss Cut Pricing ... v.2" on development-1.
     slug: 'clear-sticker',
     pricingName: /^Clear\b/,
-    pricingIds: { production: 46, 'development-1': 49, 'development-static-2': 30 },
+    pricingIds: { production: 49, 'development-1': 49, 'development-static':54, 'development-static-2': 30 },
     normalizedNr: 100,
     csv: 'stickers/clear-sticker.csv',
     csvSources: CSV_SOURCES
@@ -166,7 +166,7 @@ const registry: readonly PricingProductRegistryEntry[] = [
   {
     slug: 'hologram-sticker',
     pricingName: /^Hologram\b/,
-    pricingIds: { production: 47, 'development-1': 50, 'development-static-2': 31 },
+    pricingIds: { production: 50, 'development-1': 50, 'development-static':54, 'development-static-2': 31 },
     normalizedNr: 100,
     csv: 'stickers/hologram-sticker.csv',
     csvSources: CSV_SOURCES
