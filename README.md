@@ -1,41 +1,14 @@
-# Musticker Storefront E2E
+# Musticker Storefront E2E v2
 
-Playwright TypeScript tests for the Musticker storefront using Page Object Model classes, custom fixtures, and native Playwright tags. The default local target is `https://dev.musticker.com/kr`; production-safe runs target `https://www.musticker.com/kr`.
+Playwright TypeScript tests for the Musticker storefront v2 suite described in `test-case.md`.
 
-## Setup
-
-On Windows PowerShell, use `npm.cmd` / `npx.cmd` so execution policy does not block npm scripts.
+The default target is production-safe:
 
 ```powershell
 npm.cmd install
 npx.cmd playwright install chromium
 npm.cmd run test:e2e:list
 ```
-
-Create a local `.env` file when you need seeded auth, API setup, or sandbox payment coverage. Tests that require missing environment values are skipped with an explicit reason.
-
-Common environment variables:
-
-- `BASE_URL`: storefront URL, defaults to `https://dev.musticker.com/kr`.
-- `PRODUCTION_BASE_URL`: optional GitHub Actions variable for production workflows, defaults to `https://www.musticker.com/kr`.
-- `TEST_USER_EMAIL`, `TEST_USER_PASSWORD`: seeded member credentials for auth and payment flows.
-- `API_BASE_URL`, `API_TOKEN`, `TEST_DATA_USER_ENDPOINT`, `TEST_DATA_USER_DELETE_ENDPOINT`: API setup data management.
-- `RUN_PAYMENT_E2E=true`: enables the sandbox payment test when credentials are also configured.
-- `RUN_ORDER_ALL_PRODUCTS_E2E=true`: enables only the dedicated all-products order test. Use with `RUN_PAYMENT_E2E=true`.
-- `ORDER_ALL_PRODUCTS_PAYLOAD`: optional JSON payload for the all-products order test. It can include `credentials`, `checkout`, and `products`.
-- `ORDER_ALL_PRODUCTS_PAYLOAD_FILE`: optional path to a JSON payload file for the all-products order test. Use this instead of `ORDER_ALL_PRODUCTS_PAYLOAD`.
-- `SKIP_SEEDED_AUTH_SETUP=true`: skips global seeded-user auth setup; used by the self-registering member regression.
-- `REGISTRATION_OTP_ENDPOINT`: dev/test endpoint for the latest registration OTP. Defaults to `https://dev-api.musticker.com/index.php/sys/kr/tester/get-otp`; GET endpoints receive `email` as a query parameter, and `{email}` URL templates are also supported.
-- `REGISTRATION_OTP_METHOD`: OTP request method, defaults to `GET`.
-- `REGISTRATION_OTP_REQUEST_FROM`: OTP request `Request-From` header, defaults to `glophics-dev`.
-- `TOSS_BANK_TRANSFER_PASSWORD`: Toss bank-transfer sandbox password, defaults to `000000`.
-- `TOSS_PAYMENT_STATUS_WEBHOOK_URL`: Toss payment-status webhook used by the member regression payment bypass, defaults to the dev API endpoint.
-- `TOSS_PAYMENT_WEBHOOK_CREATED_AT`: webhook `createdAt` payload value, defaults to `2022-01-01T00:00:00.000000`.
-- `TOSS_PAYMENT_WEBHOOK_PAYMENT_KEY`, `TOSS_PAYMENT_WEBHOOK_MID`: optional webhook payload overrides; defaults match the dev Toss test payload.
-- `ORDER_COMPLETION_DETAILS_ENDPOINT`: order completion details endpoint template, defaults to `https://dev-api.musticker.com/index.php/sys/kr/orders/completion/details/{orderId}`.
-- `BYPASS_ARTWORK_UPLOAD=true`: optional fallback for environments where real artwork upload is unavailable. Leave unset for the member regression so uploaded artwork uses real traceable PNG files.
-- `PAYMENT_METHOD`, `PAYMENT_CARD_NUMBER`, `PAYMENT_CARD_EXPIRY`, `PAYMENT_CARD_CVC`, `PAYMENT_CARD_PASSWORD`, `PAYMENT_BIRTH_DATE`: sandbox payment data.
-- `PAYMENT_GATEWAY_*_SELECTOR`: optional gateway field and confirm selectors for provider-specific payment forms.
 
 ## Commands
 
@@ -45,109 +18,160 @@ npm.cmd run test:e2e:list
 npm.cmd run test:prod:smoke
 npm.cmd run test:prod:full
 npm.cmd run test:prod:mobile
+npm.cmd run test:env:smoke
+npm.cmd run test:env:full
+npm.cmd run test:env:mobile
 npm.cmd run test:smoke
 npm.cmd run test:regression
-npm.cmd run test:e2e:journeys
+npm.cmd run test:purchasing
+npm.cmd run test:validation
+npm.cmd run test:visual
+npm.cmd run test:visual:update
+npm.cmd run test:a11y
+npm.cmd run test:flake
 npm.cmd run test:api
-npm.cmd run test:setup
 npm.cmd run test:ci
-npm.cmd run test:e2e:headed
-npm.cmd run test:e2e:ui
-npm.cmd run test:e2e:headed:ui
-npm.cmd run test:e2e:payment
-npm.cmd run test:e2e:member-regression
-npm.cmd run test:e2e:order-all-products
-```
-
-Quality checks:
-
-```powershell
 npm.cmd run typecheck
 npm.cmd run lint
 ```
 
-Direct Playwright tag examples:
+## Environments
+
+musticker runs one production server and 5 development/staging servers, each with its own git branch of the same name. Branch names match the keys in `tests/fixtures/environments.ts` exactly.
+
+| Environment | Branch | Storefront (`BASE_URL`) | API (`API_BASE_URL`) |
+| --- | --- | --- | --- |
+| Production | `production` | `https://www.musticker.com/kr` | `https://api.musticker.com/index.php` |
+| Static/QA | `development-static` | `https://dev-static-1.musticker.com/kr` | `https://dev-static-1-api.musticker.com/index.php` |
+| Dev 1 | `development-1` | `https://dev.musticker.com/kr` | `https://dev-api.musticker.com/index.php` |
+| Dev 2 | `development-2` | `https://dev-2.musticker.com/kr` | `https://dev-2-api.musticker.com/index.php` |
+| Dev 3 | `development-3` | `https://dev-3.musticker.com/kr` | `https://dev-3-api.musticker.com/index.php` |
+| Dev 4 | `development-4` | `https://dev-4.musticker.com/kr` | `https://dev-4-api.musticker.com/index.php` |
+
+`smoke.yml` and `pr-checks.yml` pick the environment automatically from the branch name (`E2E_ENVIRONMENT: ${{ github.ref_name }}`) — no per-branch conditionals needed. `manual-playwright.yml` exposes the same 6 as a workflow-dispatch dropdown.
+
+Locally, either:
 
 ```powershell
-npx.cmd playwright test --grep @smoke
-npx.cmd playwright test --grep @regression
-npx.cmd playwright test --grep "(?=.*@regression)(?=.*@slow)"
-npx.cmd playwright test --grep-invert @slow
+$Env:E2E_ENVIRONMENT = "development-2"
+npm.cmd run test:env:smoke
 ```
+
+or set `BASE_URL`/`API_BASE_URL` directly (these always take precedence over `E2E_ENVIRONMENT`). `npm run test:prod:*` remains a production-only shortcut.
+
+> `development-1`'s frontend host (`dev.musticker.com`) did not resolve during setup on 2026-08-11, while its API host (`dev-api.musticker.com`) responded correctly. Confirm that hostname before relying on `development-1` storefront (non-API) tests.
+
+## Environment Variables
+
+- `E2E_ENVIRONMENT`: selects a named environment from `tests/fixtures/environments.ts` (see table above). Ignored for any URL that `BASE_URL`/`API_BASE_URL` already sets explicitly.
+- `BASE_URL`: storefront URL override. Defaults to `https://www.musticker.com/kr` if neither this nor `E2E_ENVIRONMENT` is set.
+- `API_BASE_URL`: API origin/path override for direct API checks. Falls back to `E2E_ENVIRONMENT`'s API URL, then to a `BASE_URL`-derived guess (only correct for hostnames starting with `dev.`).
+- `E2E_BROWSER_PROJECT`: `chromium-desktop`, `firefox-desktop`, `webkit-desktop`, `chromium-mobile`, or `all-desktop`.
+- `RUN_VISUAL_E2E=true`: enables visual snapshot tests. See [Visual baselines](#visual-baselines).
+- `RUN_PAYMENT_E2E=true`: enables the destructive checkout test (`MS-V2-025`). Dev environments only.
+- `RUN_AUTH_DESTRUCTIVE_E2E=true`: enables the tests that create or mutate real member state --
+  registration OTP completion (`MS-V2-087`/`088`), the password rotation (`MS-V2-094`), and the
+  guest-to-member cart merge (`MS-V2-104`). Dev environments only; `manual-playwright.yml` refuses to
+  run them against production.
+- `AUTH_TEST_EMAIL` / `AUTH_TEST_PASSWORD`: seeded member for the `@credentialed` tests. Must exist on
+  the environment under test -- each `development-*` server has its own user database. Unset means
+  those tests skip, not fail.
+- `TEST_DATA_USER_DELETE_ENDPOINT` (+ optional `API_TOKEN`): lets the global teardown delete the
+  throwaway members the destructive auth tests register. See [Test data](#test-data).
+- `PW_BLOB_REPORT=true`: swaps the HTML/JUnit reporters for a merge-able `blob` report. Set by the
+  sharded workflows; you rarely want it locally.
 
 ## Test Categories
 
-- `@smoke`: fast critical checks such as home/header loading and seeded login.
-- `@regression`: broad storefront validation for search, auth, product configuration, cart, and checkout.
-- `@e2e`: complete user journeys that cross multiple pages or systems.
-- `@api` / `@setup`: API-backed test data creation and cleanup.
-- `@slow`: long-running sandbox payment coverage.
-- `@production`: production-readiness checks.
-- `@destructive`: tests that create durable data, call test-data APIs, or place orders.
+- `@smoke`: v2 critical public storefront checks.
+- `@regression`: v2 category, FAQ, accessibility, and broader storefront checks.
+- `@production`: production-safe tests.
+- `@mobile`: mobile-only critical path.
+- `@purchasing`: production-safe product configuration checks.
+- `@validation`: inquiry validation/contract checks.
+- `@api`: production-safe read-only API contract checks.
+- `@visual`: gated screenshot comparisons.
+- `@a11y`: axe-core WCAG 2.1 AA scans.
+- `@credentialed`: needs `AUTH_TEST_EMAIL`/`AUTH_TEST_PASSWORD`; skips cleanly without them.
+- `@destructive`: creates or mutates real data. Gated behind `RUN_PAYMENT_E2E` or
+  `RUN_AUTH_DESTRUCTIVE_E2E`, and excluded from every scheduled production run.
 
-## Project Notes
+## Structure
 
-- `playwright.config.ts` provides Chromium, Firefox, and WebKit desktop projects at `1440x900`, plus a Pixel 7 mobile Chromium project.
-- Tests are headless by default; set `HEADED=true` for local headed runs.
-- The package is ESM (`"type": "module"`), so local TypeScript imports use `.js` extensions for NodeNext compatibility.
-- Shared runtime settings and environment parsing live in `tests/fixtures/env.ts`.
-- Page Object Model classes live in `tests/pom`.
-- Upload files are generated at runtime and attached to the Playwright report.
+- `tests/e2e`: v2 specs only.
+- `tests/pom`: v2 page objects plus shared header/search/cart helpers.
+- `tests/fixtures`: v2 test data, environment helpers, and guarded Playwright fixture.
+- `tests/setup`: the global teardown that cleans up test-created accounts.
+- `test-case.md`: source test-case matrix.
 
-## CI/CD
+## Signing in
 
-AWS CodeBuild can use `buildspec.yml`:
+Tests that need a member session but are not *about* signing in take one from the API instead of
+driving the login form:
 
-- Installs dependencies with `npm ci`.
-- Installs Chromium with Playwright system dependencies.
-- Runs `npm run typecheck`.
-- Runs smoke tests and the non-slow CI suite.
-- Publishes `playwright-report` and `test-results` artifacts.
-
-Required secrets such as `TEST_USER_EMAIL`, `TEST_USER_PASSWORD`, `API_TOKEN`, and sandbox payment values should be stored in Parameter Store or Secrets Manager and injected as environment variables.
-
-Payment tests are skipped unless `RUN_PAYMENT_E2E=true`, seeded user credentials are set, and the sandbox gateway fields/selectors required by the current provider are supplied.
-
-GitHub Actions workflows:
-
-- `pr-checks.yml`: lint, typecheck, and smoke coverage for pull requests.
-- `smoke.yml`: fast buyer smoke checks on pushes to `develop` and `main`.
-- `member-regression.yml`: daily/manual dev member purchase regression with payment flow enabled.
-- `nightly-regression.yml`: production-safe scheduled/manual regression against `https://www.musticker.com/kr`.
-- `manual-playwright.yml`: manual QA dispatch with suite and browser selection, defaulting to production mode.
-- `production-full-suite.yml`: production mode workflow for `https://www.musticker.com/kr`; runs static checks, production availability smoke, and the production-safe full suite on pushes to `main` or `production-mode-test-suite`, daily schedule, and manual dispatch.
-
-Each Playwright workflow uploads raw artifacts. Runs on the repository default branch also publish an Allure report with history to GitHub Pages, matching the protected `github-pages` deployment environment.
-
-Production mode safety:
-
-- Use `npm.cmd run test:prod:smoke` for a fast live-site health check.
-- Use `npm.cmd run test:prod:full` for the full production-safe suite.
-- Production workflows set `RUN_PAYMENT_E2E=false`, `RUN_ORDER_ALL_PRODUCTS_E2E=false`, and exclude `@payment`, `@slow`, `@api`, `@setup`, and `@destructive`.
-- Use `PRODUCTION_TEST_USER_EMAIL` and `PRODUCTION_TEST_USER_PASSWORD` only if QA has a production-safe seeded member. Otherwise seeded login tests skip cleanly.
-
-The full new-member purchase regression is skipped unless `RUN_PAYMENT_E2E=true`. It registers a disposable member through the UI, generates traceable 800x800 PNG files for profile and product artwork uploads, fetches the OTP from the configured tester endpoint by sending `{ "email": "..." }` with `Request-From: glophics-dev`, creates the bank-transfer Toss order from checkout, posts the Toss payment-status webhook using the captured `AO-...-dev` order number, waits for `/orders/completion/details/{numericOrderId}` to return matching paid order details, and verifies `/kr/checkout/confirmation?order_id={numericOrderId}`.
-
-The all-products order test is skipped unless `RUN_ORDER_ALL_PRODUCTS_E2E=true`, `RUN_PAYMENT_E2E=true`, and member credentials are provided. It logs in with the payload credentials or `TEST_USER_EMAIL` / `TEST_USER_PASSWORD`, empties the cart, discovers product detail links from the storefront unless `products` are supplied in the payload, adds every product, and places one bank-transfer order. Example payload:
-
-```json
-{
-  "credentials": {
-    "email": "member@example.com",
-    "password": "password"
-  },
-  "checkout": {
-    "fullName": "Musticker E2E",
-    "phone": "01012345678"
-  },
-  "products": [
-    {
-      "path": "./stickers/die-cut-sticker",
-      "productName": "Die Cut Sticker",
-      "widthMm": 75,
-      "heightMm": 75,
-      "quantity": 10
-    }
-  ]
-}
+```ts
+test.use({ asMember: true });
+test.skip(!hasMemberCredentials(), SKIP_WITHOUT_MEMBER_CREDENTIALS);
 ```
+
+`POST /sys/kr/auth/login` returns a `*_customer_token` cookie scoped to `.musticker.com`, so the same
+session works on the storefront host. It is fetched at most once per worker
+([tests/fixtures/member-auth.ts](tests/fixtures/member-auth.ts)) and parked at `.auth/member.json`
+for inspection — that file holds a live session and is gitignored.
+
+This replaced a UI login in `beforeEach`, which cost roughly 15s per test and made every credentialed
+test fail whenever the login form's hydration race bit. `MS-V2-034`, `MS-V2-035`, `MS-V2-094` and
+`MS-V2-104` still go through the form, because the form is what they are testing.
+
+With no credentials configured, `asMember` silently yields an anonymous context — so a spec that
+assumes a member session must skip itself, as above.
+
+## Test data
+
+`MS-V2-088` and `MS-V2-094` register real members through a live emailed OTP, and `MS-V2-104` adds a
+line to the seeded member's cart. Each cleans up after itself as far as it can, and the accounts are
+recorded in `.auth/created-accounts.jsonl` so the run's global teardown
+([tests/setup/global-teardown.ts](tests/setup/global-teardown.ts)) can delete them:
+
+- With `TEST_DATA_USER_DELETE_ENDPOINT` set, the teardown issues
+  `DELETE <endpoint>/<url-encoded email>` for each, sending `API_TOKEN` as a bearer token if present.
+- Without it, the teardown prints what it could not delete and leaves the ledger intact, so a later
+  configured run still clears the backlog.
+
+It is a `globalTeardown` rather than a teardown *project* because every npm script here selects tests
+with `--grep`, and a project's tests are grep-filtered like any others — a teardown project would
+quietly not run for `--grep @destructive`.
+
+## Visual baselines
+
+Snapshot names include the platform, and the committed baselines are `*-win32.png`, captured on a
+maintainer's Windows machine. An Ubuntu runner cannot use them, which is why `@visual` never ran in
+CI.
+
+[`visual-regression.yml`](.github/workflows/visual-regression.yml) runs the scan inside the pinned
+`mcr.microsoft.com/playwright` container so rendering is reproducible, and fails the run if that
+container's version has drifted from the installed `@playwright/test`. To switch comparison on:
+
+1. Dispatch the workflow with **update_baselines = true**.
+2. Download the `visual-baselines-linux` artifact.
+3. Commit the `*-linux.png` files alongside the existing win32 ones.
+
+Until then the scheduled run fails with `snapshot doesn't exist`, which is the honest outcome —
+accepting whatever a run captured would report coverage that cannot detect anything.
+
+## Sharding
+
+`nightly-regression.yml` and `production-full-suite.yml` split the suite across shards (8 by default
+for production, 4 for the nightly run; both selectable on dispatch). Each shard sets
+`PW_BLOB_REPORT=true` and uploads its `blob-report` plus its `allure-results`; a merge job
+([`.github/actions/merge-shard-reports`](.github/actions/merge-shard-reports)) recombines them into
+the single HTML/JUnit/Allure artifact the publish step expects.
+
+Unsharded, the nightly job pushed over 2,000 tests through two workers inside one 90-minute budget,
+so a slow night timed out instead of reporting.
+
+How the same concurrency is spread matters against production. Its WAF rate-limits per egress IP and
+a runner has exactly one, so `production-full-suite.yml` sets `PW_WORKERS=1` and doubles the shard
+count instead: eight runners driving one browser each produce half the per-IP request rate of four
+runners driving two, for the same eight browsers and the same wall clock. `PW_WORKERS` overrides
+`workers` in `playwright.config.ts` for any run; unset, CI keeps two and a local run keeps one.

@@ -3,6 +3,19 @@ name: Manual Playwright
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: Storefront/API environment to run against.
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - development-static
+          - development-static-2
+          - development-1
+          - development-2
+          - development-3
+          - development-4
       suite:
         description: Playwright suite to run.
         required: true
@@ -10,10 +23,14 @@ on:
         type: choice
         options:
           - smoke
-          - buyer-flow
+          - auth
           - regression
-          - order-all-products
-          - admin
+          - purchasing
+          - pricing
+          - validation
+          - a11y
+          - visual
+          - destructive
           - custom-grep
       browser_project:
         description: Browser project to run.
@@ -32,33 +49,55 @@ on:
         default: ''
         type: string
       run_payment_e2e:
-        description: Enable payment and long purchase regression gates.
+        description: Enable the destructive checkout test (MS-V2-025). Dev environments only.
         required: true
         default: false
         type: boolean
-      order_all_products_payload:
-        description: Optional JSON payload for order-all-products. Prefer secrets for credentials.
-        required: false
-        default: ''
-        type: string
+      run_auth_destructive_e2e:
+        description: >-
+          Enable the account-creating and state-mutating auth tests (MS-V2-087/088/094, MS-V2-104).
+          Dev environments only -- each run registers a real member.
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 env:
   ALLURE_RESULTS_DIR: allure-results
-  BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
-  BYPASS_ARTWORK_UPLOAD: ${{ vars.BYPASS_ARTWORK_UPLOAD || 'false' }}
+  # WAF exemption for the CI egress IP, issued by the site owner. Without it the storefront answers
+  # bare 403s under full-suite load -- on documents and on their subresources. Absent or empty is
+  # supported: tests/fixtures/internal-origin.ts becomes a no-op and the retry ladder in
+  # navigation.ts carries the run instead.
+  #
+  # Both tiers are passed unconditionally rather than picked with a ternary here: env.ts chooses by
+  # target environment, so a run can never be handed the key for a host it is not pointed at.
+  INTERNAL_ORIGIN_KEY: ${{ secrets.INTERNAL_ORIGIN_KEY }}
+  DEV_INTERNAL_ORIGIN_KEY: ${{ secrets.DEV_INTERNAL_ORIGIN_KEY }}
+  E2E_ENVIRONMENT: ${{ inputs.environment }}
   E2E_BROWSER_PROJECT: ${{ inputs.browser_project }}
-  ORDER_ALL_PRODUCTS_PAYLOAD: ${{ inputs.order_all_products_payload }}
   RUN_PAYMENT_E2E: ${{ inputs.run_payment_e2e }}
-  RUN_ORDER_ALL_PRODUCTS_E2E: ${{ inputs.suite == 'order-all-products' && 'true' || 'false' }}
-  TEST_USER_EMAIL: ${{ secrets.PRODUCTION_TEST_USER_EMAIL }}
-  TEST_USER_PASSWORD: ${{ secrets.PRODUCTION_TEST_USER_PASSWORD }}
+  # Was never wired up before: choosing the destructive suite ran MS-V2-025 and silently *skipped*
+  # every account-creating auth test, because their gate is this variable rather than RUN_PAYMENT_E2E.
+  # Forced off against production, where those tests must never run whatever the dispatcher ticks.
+  RUN_AUTH_DESTRUCTIVE_E2E: ${{ inputs.environment != 'production' && inputs.run_auth_destructive_e2e || false }}
+  # Each environment has its own user database, so production and the development-* servers need
+  # separate accounts. DEV_AUTH_TEST_* is shared across all of the development-* servers: they are
+  # refreshed from the same seed data, so one account exists on all of them. Leave either pair unset
+  # and the @credentialed tests skip themselves, exactly as before.
+  #
+  # Without a dev pair the credentialed *and* the account-mutating destructive tests (MS-V2-104)
+  # could never run anywhere: production has the credentials but forbids destructive runs, and the
+  # dev servers allowed them but had no credentials.
+  AUTH_TEST_EMAIL: >-
+    ${{ inputs.environment == 'production' && secrets.AUTH_TEST_EMAIL || secrets.DEV_AUTH_TEST_EMAIL }}
+  AUTH_TEST_PASSWORD: >-
+    ${{ inputs.environment == 'production' && secrets.AUTH_TEST_PASSWORD || secrets.DEV_AUTH_TEST_PASSWORD }}
 
 jobs:
   playwright:
-    name: ${{ inputs.suite }} on ${{ inputs.browser_project }}
+    name: ${{ inputs.suite }} on ${{ inputs.environment }} (${{ inputs.browser_project }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
     outputs:
@@ -112,31 +151,54 @@ jobs:
 
           pass_with_no_tests=()
           grep_invert=()
-          production_excludes='@payment|@slow|@api|@setup|@destructive'
+          production_excludes='@payment|@slow|@destructive|@visual'
 
           case "$SUITE" in
             smoke)
               grep='@smoke'
               grep_invert=(--grep-invert "$production_excludes")
               ;;
-            buyer-flow)
-              grep='@smoke|@search|@product|@cart'
-              grep_invert=(--grep-invert '@slow|@payment|@validation|@error-handling|@api|@setup|@destructive')
+            auth)
+              grep='@auth'
+              grep_invert=(--grep-invert '@payment|@slow|@destructive|@visual')
               ;;
             regression)
-              grep='@regression|@checkout|@coupon|@points|@admin'
+              grep='@regression'
               grep_invert=(--grep-invert "$production_excludes")
               ;;
-            order-all-products)
-              if [ "${{ inputs.run_payment_e2e }}" != "true" ]; then
-                echo "run_payment_e2e must be true for order-all-products." >&2
+            purchasing)
+              grep='@purchasing'
+              grep_invert=(--grep-invert '@payment|@slow|@destructive')
+              ;;
+            pricing)
+              grep='@pricing'
+              ;;
+            validation)
+              grep='@validation'
+              ;;
+            a11y)
+              grep='@a11y'
+              ;;
+            visual)
+              grep='@visual'
+              ;;
+            destructive)
+              # Both gates are independent: run_payment_e2e unlocks the checkout test, and
+              # run_auth_destructive_e2e unlocks the account-creating auth tests. With neither on,
+              # every test in the selection skips itself and the run reports a misleading green.
+              if [ "$RUN_PAYMENT_E2E" != "true" ] && [ "$RUN_AUTH_DESTRUCTIVE_E2E" != "true" ]; then
+                echo "The destructive suite needs run_payment_e2e and/or run_auth_destructive_e2e enabled;" >&2
+                echo "with both off every destructive test skips and the run proves nothing." >&2
                 exit 1
               fi
-              grep='@order-all-products'
-              ;;
-            admin)
-              grep='@admin'
-              pass_with_no_tests=(--pass-with-no-tests)
+
+              if [ "$E2E_ENVIRONMENT" = "production" ]; then
+                echo "The destructive suite must not run against production: it places real orders and" >&2
+                echo "registers real members. Pick a development-* environment." >&2
+                exit 1
+              fi
+
+              grep='@destructive'
               ;;
             custom-grep)
               if [ -z "$CUSTOM_GREP" ]; then
@@ -159,13 +221,13 @@ jobs:
         if: ${{ always() }}
         uses: ./.github/actions/playwright-artifacts
         with:
-          artifact_name: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
+          artifact_name: manual-playwright-${{ inputs.environment }}-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
           retention_days: 14
 
   allure-report:
     name: Publish Allure report with history
     needs: playwright
-    if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs.playwright.outputs.allure_results_found == 'true' }}
+    if: ${{ always() && github.ref == 'refs/heads/production' && needs.playwright.outputs.allure_results_found == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -188,6 +250,7 @@ jobs:
         id: publish_allure
         uses: ./.github/actions/publish-allure-report
         with:
-          artifact_name: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
-          report_name: Manual Playwright ${{ inputs.suite }} on ${{ inputs.browser_project }}
-          report_slug: manual-playwright-${{ inputs.suite }}-${{ inputs.browser_project }}
+          allure_service_access_token: ${{ secrets.ALLURE_SERVICE_ACCESS_TOKEN }}
+          artifact_name: manual-playwright-${{ inputs.environment }}-${{ inputs.suite }}-${{ inputs.browser_project }}-${{ github.run_attempt }}
+          report_name: Manual Playwright ${{ inputs.suite }} on ${{ inputs.environment }} (${{ inputs.browser_project }})
+          report_slug: manual-playwright-${{ inputs.environment }}-${{ inputs.suite }}-${{ inputs.browser_project }}

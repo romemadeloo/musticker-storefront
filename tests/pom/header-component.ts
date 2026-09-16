@@ -10,6 +10,7 @@ export class HeaderComponent {
   readonly logo: Locator;
   readonly searchButton: Locator;
   readonly cartButton: Locator;
+  readonly cartCount: Locator;
   readonly accountButton: Locator;
 
   constructor(page: Page) {
@@ -18,6 +19,7 @@ export class HeaderComponent {
     this.logo = this.root.getByRole('link', { name: 'Musticker' });
     this.searchButton = page.getByTestId('app-header-search-button');
     this.cartButton = page.getByTestId('app-header-cart-button');
+    this.cartCount = page.getByTestId('app-header-cart-count');
     this.accountButton = page.getByTestId('app-header-account-toggle-button');
   }
 
@@ -27,6 +29,19 @@ export class HeaderComponent {
     await expect(this.searchButton).toBeVisible();
     await expect(this.cartButton).toBeVisible();
     await expect(this.accountButton).toBeVisible();
+  }
+
+  /**
+   * The badge on the cart button. It is an independent read of the cart's size from the drawer's own
+   * line items, so the two disagreeing is itself a defect worth catching.
+   */
+  async expectCartCount(expected: number): Promise<void> {
+    if (expected === 0) {
+      await expect(this.cartCount).toHaveCount(0, { timeout: 15_000 });
+      return;
+    }
+
+    await expect(this.cartCount).toHaveText(String(expected), { timeout: 15_000 });
   }
 
   async goHome(): Promise<void> {
@@ -92,9 +107,19 @@ export class HeaderComponent {
     // Production can render the header before Nuxt has bound the account-menu click handler.
     await this.page.waitForTimeout(1_000);
 
+    // Opening the menu is not the same as it staying open: the header re-renders when the
+    // post-login /user/me response lands, and that can tear the dropdown down in the same tick it
+    // appeared. Confirming with a short timeout drops a torn-down menu back into the loop for
+    // another click -- a bare assertion here cannot recover, and spends its whole timeout waiting
+    // on a header that no longer has a menu to find.
+    const confirmOpen = async (): Promise<boolean> =>
+      expect(accountMenu)
+        .toBeVisible({ timeout: 1_000 })
+        .then(() => true)
+        .catch(() => false);
+
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      if (await this.isAccountMenuVisible(accountMenu)) {
-        await expect(accountMenu).toBeVisible();
+      if ((await this.isAccountMenuVisible(accountMenu)) && (await confirmOpen())) {
         return;
       }
 
@@ -106,8 +131,7 @@ export class HeaderComponent {
         .then(() => true)
         .catch(() => false);
 
-      if (opened) {
-        await expect(accountMenu).toBeVisible();
+      if (opened && (await confirmOpen())) {
         return;
       }
 

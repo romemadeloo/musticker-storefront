@@ -1,460 +1,207 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-
-import type { Locator, Page } from '@playwright/test';
+import type { Locator, Page, Response } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import { appPath } from '../fixtures/env.js';
+import { authCopy } from '../fixtures/storefront-data.js';
+import { waitForPasswordFormInteractive } from '../fixtures/hydration.js';
+import { gotoStorefront } from '../fixtures/navigation.js';
 
-export type RegistrationProfile = {
+export type RegistrationDetails = {
+  fullName: string;
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
+  agreeToTerms?: boolean;
+  optInToPromotions?: boolean;
 };
 
-type ProfilePreviewSignature = string;
-
+/**
+ * `/kr/auth/register`.
+ *
+ * Registration is a two-stage flow: submitting the form only requests a verification code
+ * (`POST /auth/register/verification`), and the account itself is not created until a 4-digit code
+ * from the resulting email is confirmed (`POST /auth/register`). Everything up to and including the
+ * request stage is safe to exercise anywhere; only `submitVerificationCode` creates an account.
+ */
 export class RegisterPage {
   readonly page: Page;
-  readonly main: Locator;
+  readonly root: Locator;
+  readonly fullNameInput: Locator;
+  readonly emailInput: Locator;
+  readonly passwordInput: Locator;
+  readonly passwordToggleButton: Locator;
+  readonly agreeTermsCheckbox: Locator;
+  readonly agreeTermsLabel: Locator;
+  readonly termsError: Locator;
+  readonly termsLink: Locator;
+  readonly privacyLink: Locator;
+  readonly optInPromosCheckbox: Locator;
+  readonly submitButton: Locator;
+  readonly loginLink: Locator;
+
+  readonly verificationSubmitButton: Locator;
+  readonly verificationResendButton: Locator;
+
+  readonly emailRegisteredModal: Locator;
+  readonly emailRegisteredPasswordInput: Locator;
+  readonly emailRegisteredContinueButton: Locator;
+  readonly emailRegisteredForgotLink: Locator;
+  readonly emailRegisteredCloseButton: Locator;
 
   constructor(page: Page) {
     this.page = page;
-    this.main = page.getByRole('main');
+    this.root = page.getByTestId('auth-register-page');
+    this.fullNameInput = page.getByTestId('auth-register-full-name-input-control');
+    this.emailInput = page.getByTestId('auth-register-email-input-control');
+    this.passwordInput = page.getByTestId('auth-register-password-input-control');
+    this.passwordToggleButton = page.getByTestId('auth-register-password-toggle');
+    this.agreeTermsCheckbox = page.getByTestId('auth-register-agree-terms-control');
+    this.agreeTermsLabel = page.getByTestId('auth-register-agree-terms');
+    this.termsError = page.getByTestId('auth-register-terms-error');
+    this.termsLink = page.getByTestId('auth-register-terms-link');
+    this.privacyLink = page.getByTestId('auth-register-privacy-link');
+    this.optInPromosCheckbox = page.getByTestId('auth-register-opt-in-promos-control');
+    this.submitButton = page.getByTestId('auth-register-submit');
+    this.loginLink = page.getByTestId('auth-register-login-link');
+
+    this.verificationSubmitButton = page.getByTestId('auth-register-verification-submit');
+    this.verificationResendButton = page.getByTestId('auth-register-verification-resend');
+
+    this.emailRegisteredModal = page.getByTestId('auth-email-registered-modal');
+    this.emailRegisteredPasswordInput = page.getByTestId('auth-email-registered-password-input-control');
+    this.emailRegisteredContinueButton = page.getByTestId('auth-email-registered-modal-continue');
+    this.emailRegisteredForgotLink = page.getByTestId('auth-email-registered-forgot-link');
+    this.emailRegisteredCloseButton = page.getByTestId('auth-email-registered-modal-close');
+  }
+
+  verificationCodeInput(position: number): Locator {
+    return this.page.getByTestId(`auth-register-verification-code-${position}`);
   }
 
   async goto(): Promise<void> {
-    const bootstrapPromise = this.page
-      .waitForResponse((response) => /\/user\/me(?:\?|$)/i.test(response.url()), { timeout: 10_000 })
-      .catch(() => null);
+    const appBootstrap = Promise.allSettled([
+      this.page.waitForResponse((response) => response.url().includes('/sys/kr/navigation/categories'), { timeout: 10_000 }),
+      this.page.waitForResponse((response) => response.url().includes('/sys/kr/user/me'), { timeout: 10_000 })
+    ]);
 
-    await this.page.goto(appPath('auth/register'));
-    await bootstrapPromise;
-    // The register button can act like an unhydrated form reset before Nuxt finishes binding handlers.
-    // eslint-disable-next-line playwright/no-networkidle
-    await this.page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoStorefront(this.page, appPath('./auth/register'));
+    await this.page.waitForFunction(() => Boolean((document.querySelector('#__nuxt') as Element & { __vue_app__?: unknown })?.__vue_app__));
+    await appBootstrap;
+    await expect(this.root).toBeVisible();
+    await waitForPasswordFormInteractive(this.passwordToggleButton, this.passwordInput);
   }
 
-  async expectLoaded(): Promise<void> {
-    await expect(this.page).toHaveURL(/\/kr\/auth\/register\/?$/);
-    await expect(this.main.getByRole('heading', { name: '회원가입' })).toBeVisible();
-    await expect(this.page.getByTestId('auth-register-submit')).toBeVisible();
+  async expectRegisterControls(): Promise<void> {
+    await expect(this.page.getByRole('heading', { name: authCopy.registerHeading })).toBeVisible();
+    await expect(this.fullNameInput).toBeVisible();
+    await expect(this.emailInput).toBeVisible();
+    await expect(this.passwordInput).toBeVisible();
+    await expect(this.passwordInput).toHaveAttribute('type', 'password');
+    await expect(this.passwordToggleButton).toBeVisible();
+    await expect(this.agreeTermsLabel).toBeVisible();
+    await expect(this.termsLink).toHaveAttribute('href', /\/kr\/terms-of-use/);
+    await expect(this.privacyLink).toHaveAttribute('href', /\/kr\/privacy-policy/);
+    await expect(this.optInPromosCheckbox).toBeAttached();
+    await expect(this.submitButton).toBeVisible();
+    await expect(this.loginLink).toBeVisible();
+    await expect(this.root).toContainText(authCopy.registerPasswordPolicy);
   }
 
-  async expectClientValidationWithoutSubmittingUser(): Promise<void> {
-    await this.page.getByTestId('auth-register-submit').click();
-    await expect(this.registrationNameInput()).toBeVisible();
-    await expect(this.page.getByTestId('auth-register-email-input-control')).toBeVisible();
-    await expect(this.page.getByTestId('auth-register-password-input-control')).toBeVisible();
-    await expect(this.page).toHaveURL(/\/kr\/auth\/register\/?$/);
-  }
+  /**
+   * Fills the form without submitting. `agreeToTerms` defaults to true because every path that goes
+   * on to submit needs it; negative tests pass false explicitly.
+   */
+  async fillDetails({ fullName, email, password, agreeToTerms = true, optInToPromotions = false }: RegistrationDetails): Promise<void> {
+    await this.fullNameInput.fill(fullName);
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
 
-  async expectInvalidCredentialsValidation(): Promise<void> {
-    const fullName = this.page.getByTestId('auth-register-full-name-input-control');
-    const firstName = this.page.getByTestId('auth-register-first-name-input-control');
-    const lastName = this.page.getByTestId('auth-register-last-name-input-control');
-    const email = this.page.getByTestId('auth-register-email-input-control');
-    const password = this.page.getByTestId('auth-register-password-input-control');
-
-    if (await fullName.isVisible().catch(() => false)) {
-      await fullName.fill('Musticker E2E');
-    } else {
-      await firstName.fill('Musticker');
-      await lastName.fill('E2E');
+    if (agreeToTerms) {
+      await this.agreeToTerms();
     }
 
-    await email.fill('invalid-email');
-    await password.fill('123');
-    await this.page.getByTestId('auth-register-agree-terms-control').check({ force: true });
-    await this.page.getByTestId('auth-register-submit').click();
-
-    await expect(this.page).toHaveURL(/\/kr\/auth\/register\/?$/);
-    await expect(this.page.getByTestId('auth-register-verification-submit')).toHaveCount(0);
-    expect(await email.evaluate((element) => !(element as HTMLInputElement).checkValidity())).toBe(true);
-  }
-
-  async submitRegistration(profile: RegistrationProfile): Promise<void> {
-    const fullNameInput = this.page.getByTestId('auth-register-full-name-input-control');
-    const firstName = this.page.getByTestId('auth-register-first-name-input-control');
-    const lastName = this.page.getByTestId('auth-register-last-name-input-control');
-    const email = this.page.getByTestId('auth-register-email-input-control');
-    const password = this.page.getByTestId('auth-register-password-input-control');
-    const fullName = `${profile.firstName} ${profile.lastName}`;
-
-    if (await fullNameInput.isVisible().catch(() => false)) {
-      await fullNameInput.fill(fullName);
-      await expect(fullNameInput).toHaveValue(fullName);
-    } else {
-      await expect(firstName).toBeVisible();
-      await firstName.fill(profile.firstName);
-      await lastName.fill(profile.lastName);
-      await expect(firstName).toHaveValue(profile.firstName);
-      await expect(lastName).toHaveValue(profile.lastName);
-    }
-    await email.fill(profile.email);
-    await password.fill(profile.password);
-    await expect(email).toHaveValue(profile.email);
-    await expect(password).toHaveValue(profile.password);
-    await this.page.getByTestId('auth-register-agree-terms-control').check({ force: true });
-
-    const verificationResponsePromise = this.page
-      .waitForResponse(
-        (response) =>
-          response.request().method() !== 'GET' &&
-          /auth\/register\/verification/i.test(response.url()) &&
-          response.status() < 500,
-        { timeout: 15_000 }
-      )
-      .catch(() => null);
-
-    await this.page.getByTestId('auth-register-submit').click();
-    await verificationResponsePromise;
-    await expect(this.page.getByTestId('auth-register-verification-submit')).toBeVisible({ timeout: 15_000 });
-  }
-
-  async submitOtp(otp: string): Promise<void> {
-    const codeInputs = this.page.locator('[data-testid^="auth-register-verification-code-"]');
-    await expect(codeInputs.first()).toBeVisible({ timeout: 15_000 });
-
-    for (let index = 0; index < otp.length; index += 1) {
-      await codeInputs.nth(index).fill(otp[index]);
-    }
-
-    const verificationResponsePromise = this.page
-      .waitForResponse(
-        (response) =>
-          response.request().method() !== 'GET' &&
-          /auth\/register\/verification|auth\/register|verify/i.test(response.url()) &&
-          response.status() < 500,
-        { timeout: 15_000 }
-      )
-      .catch(() => null);
-
-    await this.page.getByTestId('auth-register-verification-submit').click();
-    await verificationResponsePromise;
-    await this.page.waitForLoadState('domcontentloaded').catch(() => undefined);
-  }
-
-  async expectInvalidOtpRejected(otp = '000000'): Promise<void> {
-    const codeInputs = this.page.locator('[data-testid^="auth-register-verification-code-"]');
-    await expect(codeInputs.first()).toBeVisible({ timeout: 15_000 });
-
-    for (let index = 0; index < otp.length; index += 1) {
-      await codeInputs.nth(index).fill(otp[index] ?? '0');
-    }
-
-    const verificationResponsePromise = this.page
-      .waitForResponse(
-        (response) =>
-          response.request().method() !== 'GET' &&
-          /auth\/register\/verification|auth\/register|verify/i.test(response.url()),
-        { timeout: 15_000 }
-      )
-      .catch(() => null);
-
-    await this.page.getByTestId('auth-register-verification-submit').click();
-    await verificationResponsePromise;
-    await expect(this.page.getByTestId('auth-register-verification-submit')).toBeVisible();
-  }
-
-  async completeProfileSetup(profile: RegistrationProfile, profilePicturePath: string): Promise<void> {
-    await this.expectProfileSetupReady();
-    await this.uploadProfilePictureIfPresent(profilePicturePath);
-    const setupResponsePromise = this.waitForProfileSetupResponse();
-    await this.fillIfVisible(/이름|First/i, profile.firstName);
-    await this.fillIfVisible(/성|Last/i, profile.lastName);
-    await this.clickFirstVisibleButton(/저장|완료|계속|시작|다음|Save|Complete|Continue|Start|Finish/i, false);
-    await setupResponsePromise;
-    await this.page.waitForLoadState('domcontentloaded').catch(() => undefined);
-    await this.waitForBlockingOverlaysToSettle();
-  }
-
-  async completeTourGuideIfPresent(): Promise<void> {
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      await this.waitForBlockingOverlaysToSettle();
-      const clicked = await this.clickFirstVisibleButton(
-        /건너뛰기|닫기|완료|시작하기|Skip|Close|Done|Finish|Got it/i,
-        false
-      );
-
-      if (!clicked) {
-        return;
-      }
-
-      await this.page.waitForTimeout(500);
+    if (optInToPromotions) {
+      await this.optInPromosCheckbox.check({ force: true });
     }
   }
 
-  async expectSetupComplete(): Promise<void> {
-    await expect(this.page).not.toHaveURL(/\/auth\/register/);
-    await expect(this.page.getByTestId('app-header-account-toggle-button')).toBeVisible();
+  /**
+   * Ticks the terms checkbox. The input itself is visually replaced by a styled box, so it is
+   * checked directly rather than through a normal actionability pass.
+   */
+  async agreeToTerms(): Promise<void> {
+    await this.agreeTermsCheckbox.check({ force: true });
   }
 
-  private async uploadProfilePictureIfPresent(profilePicturePath: string): Promise<void> {
-    await this.expectUploadFileExists(profilePicturePath);
+  async submit(): Promise<void> {
+    await this.submitButton.click({ force: true });
+  }
 
-    const beforePreviewSignatures = await this.profilePreviewSignatures();
-    const uploadedByChooser = await this.uploadViaFileChooser(profilePicturePath);
+  /** Submits and waits for the verification-code request the server answers with 201. */
+  async submitAndAwaitVerificationRequest(): Promise<void> {
+    const verificationRequested = this.page.waitForResponse(
+      (response) => response.url().includes('/sys/kr/auth/register/verification') && response.status() === 201,
+      { timeout: 30_000 }
+    );
 
-    if (!uploadedByChooser) {
-      await this.uploadViaFileInput(profilePicturePath);
+    await this.submit();
+    await verificationRequested;
+    await this.expectVerificationModal();
+  }
+
+  async expectVerificationModal(): Promise<void> {
+    await expect(this.page.getByRole('heading', { name: authCopy.registerOtpHeading })).toBeVisible();
+    await expect(this.verificationCodeInput(1)).toBeVisible();
+    await expect(this.verificationResendButton).toBeVisible();
+  }
+
+  async fillVerificationCode(code: string): Promise<void> {
+    if (!/^\d{4}$/.test(code)) {
+      throw new Error(`Expected a 4-digit verification code, received "${code}".`);
     }
 
-    await this.expectProfilePicturePreview(profilePicturePath, beforePreviewSignatures);
-  }
-
-  private async uploadViaFileChooser(profilePicturePath: string): Promise<boolean> {
-    const uploadButtons = this.profileUploadButtons();
-    const uploadButtonCount = await uploadButtons.count();
-
-    for (let index = 0; index < uploadButtonCount; index += 1) {
-      const uploadButton = uploadButtons.nth(index);
-
-      if (
-        !(await uploadButton.isVisible().catch(() => false)) ||
-        !(await uploadButton.isEnabled().catch(() => false))
-      ) {
-        continue;
-      }
-
-      const chooserPromise = this.page.waitForEvent('filechooser', { timeout: 3_000 }).catch(() => null);
-      await uploadButton.click();
-      const chooser = await chooserPromise;
-
-      if (!chooser) {
-        continue;
-      }
-
-      const uploadResponsePromise = this.waitForProfilePictureUploadResponse();
-      await chooser.setFiles(profilePicturePath);
-      await uploadResponsePromise;
-      return true;
-    }
-
-    return false;
-  }
-
-  private async expectProfileSetupReady(): Promise<void> {
-    await expect
-      .poll(
-        async () => {
-          const uploadButtons = this.profileUploadButtons();
-          const uploadButtonCount = await uploadButtons.count();
-
-          for (let index = 0; index < uploadButtonCount; index += 1) {
-            const uploadButton = uploadButtons.nth(index);
-
-            if (
-              (await uploadButton.isVisible().catch(() => false)) &&
-              (await uploadButton.isEnabled().catch(() => false))
-            ) {
-              return true;
-            }
-          }
-
-          return false;
-        },
-        {
-          message: 'Profile setup upload button should be visible after OTP verification.',
-          timeout: 20_000
-        }
-      )
-      .toBe(true);
-  }
-
-  private profileUploadButtons(): Locator {
-    return this.page.locator('button').filter({
-      hasText: /프로필|사진|이미지|업로드|Upload|Choose|Photo|Image/i
-    });
-  }
-
-  private registrationNameInput(): Locator {
-    return this.page
-      .getByTestId('auth-register-full-name-input-control')
-      .or(this.page.getByTestId('auth-register-first-name-input-control'))
-      .first();
-  }
-
-  private async uploadViaFileInput(profilePicturePath: string): Promise<void> {
-    const fileName = path.basename(profilePicturePath);
-    const fileInputs = this.page.locator('input[type="file"]');
-    const fileInputCount = await fileInputs.count();
-    let lastError: unknown;
-
-    for (let index = 0; index < fileInputCount; index += 1) {
-      const fileInput = fileInputs.nth(index);
-      const accept = await fileInput.getAttribute('accept').catch(() => undefined);
-
-      if (accept && !/image|\*/i.test(accept)) {
-        continue;
-      }
-
-      try {
-        const uploadResponsePromise = this.waitForProfilePictureUploadResponse();
-        await fileInput.setInputFiles(profilePicturePath);
-        await this.expectSelectedFile(fileInput, fileName);
-        await uploadResponsePromise;
-        return;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-
-    if (lastError) {
-      throw lastError;
-    }
-
-    throw new Error('No profile picture file input or file chooser was available during registration setup.');
-  }
-
-  private async expectUploadFileExists(filePath: string): Promise<void> {
-    const file = await fs.stat(filePath);
-    expect(file.size, `Generated profile image should not be empty: ${filePath}`).toBeGreaterThan(0);
-  }
-
-  private async expectSelectedFile(fileInput: Locator, fileName: string): Promise<void> {
-    await expect
-      .poll(
-        async () =>
-          fileInput.evaluate(
-            (input, expectedFileName) =>
-              input instanceof HTMLInputElement && input.files?.[0]?.name === expectedFileName,
-            fileName
-          ),
-        {
-          message: `Profile picture input should contain ${fileName}.`,
-          timeout: 5_000
-        }
-      )
-      .toBe(true);
-  }
-
-  private async expectProfilePicturePreview(
-    profilePicturePath: string,
-    beforePreviewSignatures: ProfilePreviewSignature[]
-  ): Promise<void> {
-    const fileName = path.basename(profilePicturePath);
-    const beforeSet = new Set(beforePreviewSignatures);
-
-    await expect
-      .poll(
-        async () => {
-          const afterPreviewSignatures = await this.profilePreviewSignatures();
-          return afterPreviewSignatures.some((signature) => !beforeSet.has(signature));
-        },
-        {
-          message: `Profile picture should render a non-blank preview after uploading ${fileName}.`,
-          timeout: 15_000
-        }
-      )
-      .toBe(true);
-  }
-
-  private async profilePreviewSignatures(): Promise<ProfilePreviewSignature[]> {
-    return this.page.evaluate(renderedProfilePreviewSignatures);
-  }
-
-  private async waitForProfilePictureUploadResponse(): Promise<unknown> {
-    return this.page
-      .waitForResponse(
-        (response) =>
-          response.request().method() !== 'GET' &&
-          /profile|avatar|image|file|upload|aws|pre-signed/i.test(response.url()) &&
-          response.status() < 500,
-        { timeout: 15_000 }
-      )
-      .catch(() => null);
-  }
-
-  private async waitForProfileSetupResponse(): Promise<unknown> {
-    return this.page
-      .waitForResponse(
-        (response) =>
-          response.request().method() !== 'GET' &&
-          /profile|setup|onboarding|user|member/i.test(response.url()) &&
-          response.status() < 500,
-        { timeout: 15_000 }
-      )
-      .catch(() => null);
-  }
-
-  private async fillIfVisible(name: RegExp, value: string): Promise<void> {
-    const field = this.page.getByRole('textbox', { name }).first();
-    if ((await field.isVisible().catch(() => false)) && (await field.isEditable().catch(() => false))) {
-      await field.fill(value);
+    for (let position = 1; position <= 4; position += 1) {
+      await this.verificationCodeInput(position).fill(code[position - 1]);
     }
   }
 
-  private async clickFirstVisibleButton(pattern: RegExp, required = true): Promise<boolean> {
-    const buttons = this.page.getByRole('button', { name: pattern });
-    const count = await buttons.count();
+  /**
+   * Confirms the code and waits for the account-creation call. The endpoint answers 201 only when
+   * the code matches; a mismatch is also an HTTP 200 carrying `success: false`, so the status alone
+   * distinguishes the two outcomes.
+   */
+  async submitVerificationCode(code: string): Promise<Response> {
+    await this.fillVerificationCode(code);
 
-    for (let index = 0; index < count; index += 1) {
-      const button = buttons.nth(index);
-      if ((await button.isVisible().catch(() => false)) && (await button.isEnabled().catch(() => false))) {
-        const clicked = await button
-          .click({ timeout: 3_000 })
-          .then(() => true)
-          .catch(async () => button.click({ force: true, timeout: 1_000 }).then(() => true).catch(() => false));
+    const registered = this.page.waitForResponse(
+      (response) => response.url().includes('/sys/kr/auth/register') && !response.url().includes('/verification'),
+      { timeout: 30_000 }
+    );
 
-        if (clicked) {
-          return true;
-        }
-      }
-    }
+    await this.verificationSubmitButton.click({ force: true });
 
-    if (required) {
-      throw new Error(`No visible button matched ${pattern}.`);
-    }
-
-    return false;
+    return registered;
   }
 
-  private async waitForBlockingOverlaysToSettle(): Promise<void> {
-    await expect(this.page.getByTestId('auth-profile-complete-onboarding-overlay'))
-      .toBeHidden({ timeout: 10_000 })
-      .catch(() => undefined);
+  async expectVerificationRejected(): Promise<void> {
+    await expect(this.page.getByText(authCopy.registerOtpMismatch)).toBeVisible();
+    await expect(this.verificationCodeInput(1)).toBeVisible();
   }
-}
 
-function renderedProfilePreviewSignatures(): ProfilePreviewSignature[] {
-  const imageSignatures = Array.from(document.images)
-    .filter((image) => {
-      const rect = image.getBoundingClientRect();
-      const style = window.getComputedStyle(image);
-      const alt = image.alt ?? '';
-      const source = image.currentSrc || image.src;
+  async openLogin(): Promise<void> {
+    await this.loginLink.click();
+    await expect(this.page).toHaveURL(/\/kr\/auth\/login\/?$/);
+  }
 
-      return (
-        rect.width >= 40 &&
-        rect.height >= 40 &&
-        image.naturalWidth > 0 &&
-        image.naturalHeight > 0 &&
-        style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        !/logo/i.test(alt) &&
-        !/logo/i.test(source)
-      );
-    })
-    .map((image) => `img:${image.currentSrc || image.src}:${image.naturalWidth}x${image.naturalHeight}`);
+  async togglePasswordVisibility(): Promise<void> {
+    await expect(this.passwordInput).toHaveAttribute('type', 'password');
+    await this.passwordToggleButton.click();
+    await expect(this.passwordInput).toHaveAttribute('type', 'text');
+    await this.passwordToggleButton.click();
+    await expect(this.passwordInput).toHaveAttribute('type', 'password');
+  }
 
-  const backgroundSignatures = Array.from(document.querySelectorAll<HTMLElement>('*'))
-    .filter((element) => {
-      const rect = element.getBoundingClientRect();
-      const style = window.getComputedStyle(element);
-
-      return (
-        rect.width >= 40 &&
-        rect.height >= 40 &&
-        style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        style.backgroundImage !== 'none' &&
-        /url\(/i.test(style.backgroundImage) &&
-        !/logo/i.test(style.backgroundImage)
-      );
-    })
-    .map((element) => `bg:${window.getComputedStyle(element).backgroundImage}`);
-
-  return [...imageSignatures, ...backgroundSignatures];
+  /** The single field-level error the form renders for whichever rule it rejected first. */
+  fieldError(): Locator {
+    return this.page.getByTestId('ui-form-field-error-message');
+  }
 }

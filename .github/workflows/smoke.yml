@@ -1,10 +1,14 @@
-name: Buyer smoke
+name: Storefront smoke
 
 on:
   push:
     branches:
-      - develop
-      - main
+      - production
+      - development-static
+      - development-1
+      - development-2
+      - development-3
+      - development-4
 
 permissions:
   contents: read
@@ -15,17 +19,31 @@ concurrency:
 
 env:
   ALLURE_RESULTS_DIR: allure-results
-  BASE_URL: ${{ vars.PRODUCTION_BASE_URL || 'https://www.musticker.com/kr' }}
+  # WAF exemption for the CI egress IP, issued by the site owner. Without it the storefront answers
+  # bare 403s under full-suite load -- on documents and on their subresources. Absent or empty is
+  # supported: tests/fixtures/internal-origin.ts becomes a no-op and the retry ladder in
+  # navigation.ts carries the run instead.
+  #
+  # Both tiers are passed unconditionally rather than picked with a ternary here: env.ts chooses by
+  # target environment, so a run can never be handed the key for a host it is not pointed at.
+  INTERNAL_ORIGIN_KEY: ${{ secrets.INTERNAL_ORIGIN_KEY }}
+  DEV_INTERNAL_ORIGIN_KEY: ${{ secrets.DEV_INTERNAL_ORIGIN_KEY }}
+  # Branch names match the keys in tests/fixtures/environments.ts exactly, so this alone
+  # selects the right storefront/API URLs for whichever branch triggered the push.
+  E2E_ENVIRONMENT: ${{ github.ref_name }}
   E2E_BROWSER_PROJECT: chromium-desktop
   RUN_PAYMENT_E2E: 'false'
-  RUN_ORDER_ALL_PRODUCTS_E2E: 'false'
-  SKIP_SEEDED_AUTH_SETUP: 'true'
-  TEST_USER_EMAIL: ${{ secrets.PRODUCTION_TEST_USER_EMAIL }}
-  TEST_USER_PASSWORD: ${{ secrets.PRODUCTION_TEST_USER_PASSWORD }}
+  # production uses its own seeded member; every development-* branch shares DEV_AUTH_TEST_*, since
+  # those servers are refreshed from the same seed data. Either pair being unset makes the
+  # @credentialed tests skip rather than fail, so an unconfigured branch still runs green.
+  AUTH_TEST_EMAIL: >-
+    ${{ github.ref_name == 'production' && secrets.AUTH_TEST_EMAIL || secrets.DEV_AUTH_TEST_EMAIL }}
+  AUTH_TEST_PASSWORD: >-
+    ${{ github.ref_name == 'production' && secrets.AUTH_TEST_PASSWORD || secrets.DEV_AUTH_TEST_PASSWORD }}
 
 jobs:
-  buyer-flow:
-    name: Important buyer flow tests
+  smoke:
+    name: Storefront smoke tests
     runs-on: ubuntu-latest
     timeout-minutes: 35
     outputs:
@@ -47,21 +65,21 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run buyer smoke coverage
-        run: npx playwright test --grep "@smoke|@search|@product|@cart" --grep-invert "@slow|@payment|@validation|@error-handling|@api|@setup|@destructive"
+      - name: Run storefront smoke coverage
+        run: npx playwright test --grep @smoke --grep-invert "@payment|@slow|@destructive|@visual"
 
       - name: Collect Playwright and Allure artifacts
         id: test_artifacts
         if: ${{ always() }}
         uses: ./.github/actions/playwright-artifacts
         with:
-          artifact_name: buyer-smoke-playwright-results
+          artifact_name: storefront-smoke-playwright-results
           retention_days: 7
 
   allure-report:
     name: Publish Allure report with history
-    needs: buyer-flow
-    if: ${{ always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && needs['buyer-flow'].outputs.allure_results_found == 'true' }}
+    needs: smoke
+    if: ${{ always() && github.ref == 'refs/heads/production' && needs.smoke.outputs.allure_results_found == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -84,6 +102,7 @@ jobs:
         id: publish_allure
         uses: ./.github/actions/publish-allure-report
         with:
-          artifact_name: buyer-smoke-playwright-results
-          report_name: Buyer smoke
-          report_slug: buyer-smoke
+          allure_service_access_token: ${{ secrets.ALLURE_SERVICE_ACCESS_TOKEN }}
+          artifact_name: storefront-smoke-playwright-results
+          report_name: Storefront smoke
+          report_slug: storefront-smoke

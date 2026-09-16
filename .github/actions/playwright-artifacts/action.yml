@@ -30,17 +30,14 @@ runs:
 
         echo "found=true" >> "$GITHUB_OUTPUT"
 
-    - name: Set up Java for Allure
-      if: ${{ steps.allure_results.outputs.found == 'true' }}
-      uses: actions/setup-java@v5
-      with:
-        distribution: temurin
-        java-version: 21
-
     - name: Generate Allure report
       if: ${{ steps.allure_results.outputs.found == 'true' }}
       shell: bash
-      run: npx allure generate allure-results --clean -o allure-report
+      env:
+        ALLURE_REPORT_DIR: allure-report
+      run: |
+        rm -rf allure-report
+        npx allure generate allure-results
 
     - name: Upload Playwright and Allure artifacts
       uses: actions/upload-artifact@v7
